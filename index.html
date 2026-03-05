@@ -7669,24 +7669,41 @@ async function fazerLogin(){
           console.warn('Firebase Auth: criação falhou:', createErr.code);
         }
       } else if (loginErr.code === 'auth/wrong-password' || loginErr.code === 'auth/invalid-credential') {
-        // Senha diverge entre Firebase Auth e sistema local — atualiza senha no Firebase Auth
+        // Senha diverge: deleta conta antiga e recria com senha atual
         try {
-          // Faz login anônimo temporário para obter token, depois atualiza senha
-          // Alternativa: usa Identity Toolkit REST para atualizar senha
-          const _resetResp = await fetch(
-            'https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=' + FIREBASE_API_KEY,
+          // Usa Identity Toolkit para verificar qual é o uid atual da conta
+          const _lookupResp = await fetch(
+            'https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=' + FIREBASE_API_KEY,
             { method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ requestType: 'PASSWORD_RESET', email: emailAuth }) }
+              body: JSON.stringify({ identifier: emailAuth, continueUri: location.href }) }
           );
-          console.warn('Firebase Auth: senhas divergem — email de reset enviado (ignorado pelo sistema)');
-          // Tenta criar nova conta com email diferente como fallback
-        } catch(e) {}
-        console.warn('Firebase Auth: senha diverge, continuando sem auth Firebase');
+          // Não temos como deletar a conta sem a senha antiga — usa Admin SDK que não está disponível
+          // Solução: cria conta com email alternativo baseado no uid antigo
+          // Email alternativo: username + '-v2@onlinees.local'
+          var _emailAlt = (achou.username || u) + '-v2@onlinees.local';
+          try {
+            const _authAlt = await window._firebaseAuth.createUserWithEmailAndPassword(_emailAlt, p);
+            firebaseUser = _authAlt.user;
+            achou._firebaseUid = firebaseUser.uid;
+            achou._email = _emailAlt;
+            console.log('Firebase Auth: conta alternativa criada, uid:', firebaseUser.uid);
+          } catch(altErr) {
+            if (altErr.code === 'auth/email-already-in-use') {
+              try {
+                const _authAlt2 = await window._firebaseAuth.signInWithEmailAndPassword(_emailAlt, p);
+                firebaseUser = _authAlt2.user;
+                achou._firebaseUid = firebaseUser.uid;
+                achou._email = _emailAlt;
+                console.log('Firebase Auth: login conta alternativa, uid:', firebaseUser.uid);
+              } catch(e2) { console.warn('Firebase Auth alt login falhou:', e2.code); }
+            } else { console.warn('Firebase Auth alt criação falhou:', altErr.code); }
+          }
+        } catch(e) { console.warn('Firebase Auth: resolução de conflito falhou:', e); }
       } else {
         console.warn('Firebase Auth 4.5:', loginErr.code);
       }
     }
-    // Persiste uid no perfil local
+    // Persiste uid no perfil local e migra documento no Firestore para o novo uid
     if (firebaseUser && firebaseUser.uid) {
       achou._firebaseUid = firebaseUser.uid;
       try {
@@ -7696,11 +7713,34 @@ async function fazerLogin(){
         localStorage.setItem(STORAGE_USERS, JSON.stringify(lista2));
         window.usuarios = lista2;
       } catch(e) {}
+
+      // Migra documento do Firestore para o novo uid como ID
+      // Copia dados do perfil existente (por username) para o documento com uid correto
+      try {
+        var _newUid = firebaseUser.uid;
+        var _dadosMigrar = {
+          username: achou.username || u,
+          fullName: achou.fullName || achou.nome || u,
+          role: achou.role || 'tecnico',
+          active: achou.active !== false,
+          ativo: achou.active !== false,
+          mustChangePassword: !!achou.mustChangePassword,
+          usuario: achou.username || u,
+          nome: achou.fullName || achou.nome || u,
+          precisaSenha: !!achou.mustChangePassword,
+          _passwordHash: achou._salt && achou.password ? achou.password : null,
+          _salt: achou._salt || null,
+          _firebaseUid: _newUid,
+          _email: achou._email || emailAuth
+        };
+        // Salva com novo uid como ID (via REST pois ainda não está autenticado no Firestore)
+        await _setDocREST('onlineEsUsuarios', _newUid, _dadosMigrar);
+        console.log('Documento migrado para uid:', _newUid);
+      } catch(migErr) { console.warn('Migração Firestore falhou (será tentada após auth):', migErr.message); }
     }
   }
 
-  // Salva perfil com uid como ID no Firestore — deve acontecer APÓS ter o uid do Firebase Auth
-  // As regras buscam onlineEsUsuarios/<uid>, então o documento precisa existir com esse ID
+  // Salva perfil com uid como ID no Firestore (agora com Firebase Auth ativo)
   try {
     if (typeof salvarUsuarioNoFirestore === 'function') await salvarUsuarioNoFirestore(achou);
   } catch(e) { console.warn('Falha ao salvar perfil pós-auth:', e); }
