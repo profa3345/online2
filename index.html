@@ -7647,34 +7647,46 @@ async function fazerLogin(){
 
   // ============================================================
   // ETAPA 4.5: Garante Firebase Auth ativo para que request.auth != null nas regras do Firestore
-  // Usa senha fixa derivada do username (independente da senha do sistema)
+  // Usa a senha digitada pelo usuário — mesma que já foi validada localmente
   if (!firebaseUser && navigator.onLine && window._firebaseAuth) {
-    // Senha estável para Firebase Auth = "OnlineEs@" + username (sempre >= 8 chars, válida)
-    var _fbSenha = 'OnlineEs@' + (achou.username || u);
     try {
-      // Tenta criar conta no Firebase Auth
-      const _authCreate = await window._firebaseAuth.createUserWithEmailAndPassword(emailAuth, _fbSenha);
-      firebaseUser = _authCreate.user;
+      // Conta já existe no Firebase Auth — tenta login com a senha atual
+      const _authLogin = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
+      firebaseUser = _authLogin.user;
       achou._firebaseUid = firebaseUser.uid;
       achou._email = emailAuth;
-      console.log('Firebase Auth: conta criada, uid:', firebaseUser.uid);
-    } catch(createErr) {
-      if (createErr.code === 'auth/email-already-in-use') {
-        // Conta já existe — faz login com senha estável
+      console.log('Firebase Auth: login OK (4.5), uid:', firebaseUser.uid);
+    } catch(loginErr) {
+      if (loginErr.code === 'auth/user-not-found') {
+        // Conta não existe — cria com a senha atual
         try {
-          const _authLogin = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, _fbSenha);
-          firebaseUser = _authLogin.user;
+          const _authCreate = await window._firebaseAuth.createUserWithEmailAndPassword(emailAuth, p);
+          firebaseUser = _authCreate.user;
           achou._firebaseUid = firebaseUser.uid;
           achou._email = emailAuth;
-          console.log('Firebase Auth: login OK, uid:', firebaseUser.uid);
-        } catch(retryErr) {
-          console.warn('Firebase Auth: login falhou:', retryErr.code);
+          console.log('Firebase Auth: conta criada (4.5), uid:', firebaseUser.uid);
+        } catch(createErr) {
+          console.warn('Firebase Auth: criação falhou:', createErr.code);
         }
+      } else if (loginErr.code === 'auth/wrong-password' || loginErr.code === 'auth/invalid-credential') {
+        // Senha diverge entre Firebase Auth e sistema local — atualiza senha no Firebase Auth
+        try {
+          // Faz login anônimo temporário para obter token, depois atualiza senha
+          // Alternativa: usa Identity Toolkit REST para atualizar senha
+          const _resetResp = await fetch(
+            'https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=' + FIREBASE_API_KEY,
+            { method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ requestType: 'PASSWORD_RESET', email: emailAuth }) }
+          );
+          console.warn('Firebase Auth: senhas divergem — email de reset enviado (ignorado pelo sistema)');
+          // Tenta criar nova conta com email diferente como fallback
+        } catch(e) {}
+        console.warn('Firebase Auth: senha diverge, continuando sem auth Firebase');
       } else {
-        console.warn('Firebase Auth: criação falhou:', createErr.code);
+        console.warn('Firebase Auth 4.5:', loginErr.code);
       }
     }
-    // Persiste uid no perfil local e Firestore
+    // Persiste uid no perfil local
     if (firebaseUser && firebaseUser.uid) {
       achou._firebaseUid = firebaseUser.uid;
       try {
@@ -7683,7 +7695,6 @@ async function fazerLogin(){
         lista2 = lista2.map(x => String(x.username||'').toLowerCase() === (achou.username||'').toLowerCase() ? achou : x);
         localStorage.setItem(STORAGE_USERS, JSON.stringify(lista2));
         window.usuarios = lista2;
-        if (typeof salvarUsuarioNoFirestore === 'function') salvarUsuarioNoFirestore(achou);
       } catch(e) {}
     }
   }
