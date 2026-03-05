@@ -5751,6 +5751,7 @@ function aplicarPermissoesConfiguracoes(){
   async function _setDocREST(colecao, docId, dados) {
     const pid = firebaseConfig.projectId;
     const key = firebaseConfig.apiKey;
+
     // Converte objeto JS para formato Firestore REST
     function toFsValue(v) {
       if (v === null || v === undefined) return { nullValue: null };
@@ -5766,14 +5767,29 @@ function aplicarPermissoesConfiguracoes(){
       }
       return { stringValue: String(v) };
     }
+
     const fields = {};
     Object.entries(dados).forEach(([k, v]) => { fields[k] = toFsValue(v); });
+
     const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}/${encodeURIComponent(docId)}?key=${key}`;
+
+    // IMPORTANT: Para regras do Firestore funcionarem, a escrita via REST precisa de Authorization (Bearer ID Token).
+    // Se houver usuário autenticado no Firebase Auth, usamos o token automaticamente.
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const _fbAuth = window._firebaseAuth || (firebase && firebase.auth ? firebase.auth() : null);
+      if (_fbAuth && _fbAuth.currentUser) {
+        const token = await _fbAuth.currentUser.getIdToken();
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+      }
+    } catch(e) { /* mantém compatibilidade sem token */ }
+
     const resp = await fetch(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ fields })
     });
+
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
@@ -5782,13 +5798,29 @@ function aplicarPermissoesConfiguracoes(){
   }
 
   // Deleta um documento via REST
+
   async function _deleteDocREST(colecao, docId) {
     const pid = firebaseConfig.projectId;
     const key = firebaseConfig.apiKey;
     const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}/${encodeURIComponent(docId)}?key=${key}`;
-    await fetch(url, { method: 'DELETE' });
+
+    const headers = {};
+    try {
+      const _fbAuth = window._firebaseAuth || (firebase && firebase.auth ? firebase.auth() : null);
+      if (_fbAuth && _fbAuth.currentUser) {
+        const token = await _fbAuth.currentUser.getIdToken();
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+      }
+    } catch(e) { /* mantém compatibilidade sem token */ }
+
+    const resp = await fetch(url, { method: 'DELETE', headers });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
+    }
   }
   // Converte campo Firestore REST para valor JS
+
   function _fsFieldValue(fv) {
     if (!fv) return null;
     if (fv.stringValue  !== undefined) return fv.stringValue;
