@@ -1255,6 +1255,10 @@ html[data-role="technician"] nav button {
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn small" id="btnBackup"><i class="ri-download-2-line"></i> Fazer backup agora</button>
+            <button class="btn small" id="btnDiagFirebase" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">
+              <i class="ri-stethoscope-line"></i> Diagnóstico Firebase
+            </button>
+            <div id="diagFirebaseResult" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:.78rem;background:#f8fafc;border:1px solid #e2e8f0;white-space:pre-line;font-family:monospace;max-height:300px;overflow-y:auto;"></div>
             <button class="btn small" id="btnListarBackups" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="ri-database-2-line"></i> Restaurar do Banco</button>
             <label class="btn small" id="btnRestaurarWrap" style="display:none;cursor:pointer;">
               <i class="ri-upload-2-line"></i> Restaurar backup
@@ -1429,7 +1433,7 @@ html[data-role="technician"] nav button {
   const SITE_EMPRESA = "www.onlinees.com.br";
   const WHATSAPP_PADRAO = "552899931598";
   const STORAGE_USERS = 'online-es-usuarios-v3';
-  const AUTH_DOMAIN = 'onlinees.local'; // Domínio usado no Firebase Auth
+  const AUTH_DOMAIN = 'onlinees.vercel.app'; // Domínio usado no Firebase Auth
   const FIREBASE_API_KEY = 'AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8';
   async function criarUsuarioFirebaseREST(email, senha) {
     try {
@@ -1581,36 +1585,44 @@ html[data-role="technician"] nav button {
 
   // ===== Helpers de sincronização e salvamento no Firestore =====
   async function salvarUsuarioNoFirestore(u) {
-    if (!db) return;
-    // SEGURANÇA: usa SEMPRE o Firebase uid como ID do documento
-    const id = u._firebaseUid || null;
-    if (!id) { console.warn('salvarUsuarioNoFirestore: uid não disponível, abortando.'); return; }
+    if (!navigator.onLine) return;
+    // Usa uid se disponível, senão usa username como ID do documento
+    const id = u._firebaseUid || (u.username || u.usuario || '').toLowerCase().replace(/[^a-z0-9._-]/g,'_');
+    if (!id) { console.warn('salvarUsuarioNoFirestore: sem id disponível.'); return; }
     try {
-      await db.collection('onlineEsUsuarios').doc(id).set({
-        username: u.username || u.usuario || '',
-        fullName: u.fullName || u.nome || '',
-        role: u.role || 'tecnico',
-        active: u.active !== false,
-        ativo: u.active !== false,
+      const _dadosUser = {
+        username: u.username||u.usuario||'', fullName: u.fullName||u.nome||'',
+        role: u.role||'tecnico', active: u.active!==false, ativo: u.active!==false,
         mustChangePassword: !!u.mustChangePassword,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        // Campos legados
-        usuario: u.username || u.usuario || '',
-        nome: u.fullName || u.nome || '',
+        usuario: u.username||u.usuario||'', nome: u.fullName||u.nome||'',
         precisaSenha: !!u.mustChangePassword,
-        // Hash+salt
         _passwordHash: (u._salt && u.password) ? u.password : null,
-        _salt: u._salt || null,
-        // Firebase Auth uid
-        _firebaseUid: u._firebaseUid || null,
-        _email: u._email || null
-      }, { merge: true });
+        _salt: u._salt||null, _firebaseUid: u._firebaseUid||null, _email: u._email||null
+      };
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        await db.collection('onlineEsUsuarios').doc(id).set({
+          ..._dadosUser, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } else {
+        await _setDocREST('onlineEsUsuarios', id, _dadosUser);
+      }
+      console.log('Usuário salvo no Firestore:', id);
     } catch(e) { console.warn('Falha ao salvar usuario no Firestore:', e); }
   }
   window.salvarUsuarioNoFirestore = salvarUsuarioNoFirestore;
 
+  // Sincroniza usuário modificado no Firestore (por username)
+  function _syncUsuarioFirestore(username) {
+    try {
+      const u = (window.usuarios || []).find(x => x.username === username);
+      if (u && typeof salvarUsuarioNoFirestore === 'function') {
+        salvarUsuarioNoFirestore(u);
+      }
+    } catch(e) { console.warn('_syncUsuarioFirestore:', e); }
+  }
+
   async function removerUsuarioDoFirestore(username) {
-    if (!db) return;
+    if (!db && !navigator.onLine) return;
     try {
       // 1. Tenta pelo uid no array local
       const lista = window.usuarios || [];
@@ -1647,161 +1659,110 @@ html[data-role="technician"] nav button {
   window.removerUsuarioDoFirestore = removerUsuarioDoFirestore;
 
   async function salvarClienteNoFirestore(c) {
-    if (!db) return;
+    if (!navigator.onLine) return;
+    const idBase = (c.nome || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+    const id = idBase || ('cli-' + Date.now());
+    const dados = {
+      nome: c.nome || '', cnpj: c.cnpj || '', telefone: c.telefone || '',
+      cep: c.cep || '', endereco: c.endereco || '', bairro: c.bairro || '',
+      cidade: c.cidade || '', uf: c.uf || '', ativo: c.ativo !== false
+    };
     try {
-      const idBase = (c.nome || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
-      const id = idBase || ('cli-' + Date.now());
-      // Limpa documentos antigos com ID diferente (ex: com espaços ou maiúsculas)
-      try {
-        const idOriginal = c.nome;
-        const idLower    = (c.nome || '').toLowerCase();
-        [idOriginal, idLower].filter(v => v && v !== id).forEach(oldId => {
-          db.collection('onlineEsClientes').doc(oldId).delete().catch(()=>{});
-        });
-      } catch(e) {}
-      await db.collection('onlineEsClientes').doc(id).set({
-        nome: c.nome || '',
-        cnpj: c.cnpj || '',
-        telefone: c.telefone || '',
-        cep: c.cep || '',
-        endereco: c.endereco || '',
-        bairro: c.bairro || '',
-        cidade: c.cidade || '',
-        uf: c.uf || '',
-        ativo: c.ativo !== false,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        await db.collection('onlineEsClientes').doc(id).set({
+          ...dados, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } else {
+        await _setDocREST('onlineEsClientes', id, dados);
+      }
+      console.log('Cliente salvo no Firestore:', id);
     } catch(e) { console.warn('Falha ao salvar cliente no Firestore:', e); }
   }
   window.salvarClienteNoFirestore = salvarClienteNoFirestore;
 
   async function salvarEquipamentoNoFirestore(eq) {
-    if (!db) return;
+    if (!navigator.onLine) return;
+    const id = String(eq.id || Date.now());
+    const dados = {
+      id, tipo: eq.tipo||'', marca: eq.marca||'', modelo: eq.modelo||'',
+      serie: eq.serie||'', kva: eq.kva||'', local: eq.local||'', obs: eq.obs||'',
+      estoque: (typeof eq.estoque === 'number' && !isNaN(eq.estoque)) ? eq.estoque : null
+    };
     try {
-      const id = String(eq.id || Date.now());
-      await db.collection('onlineEsEquipamentos').doc(id).set({
-        id: id,
-        tipo: eq.tipo || '',
-        marca: eq.marca || '',
-        modelo: eq.modelo || '',
-        serie: eq.serie || '',
-        kva: eq.kva || '',
-        local: eq.local || '',
-        obs: eq.obs || '',
-        estoque: (typeof eq.estoque === 'number' && !isNaN(eq.estoque)) ? eq.estoque : null,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        await db.collection('onlineEsEquipamentos').doc(id).set({
+          ...dados, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } else {
+        await _setDocREST('onlineEsEquipamentos', id, dados);
+      }
+      console.log('Equipamento salvo no Firestore:', id);
     } catch(e) { console.warn('Falha ao salvar equipamento no Firestore:', e); }
   }
   window.salvarEquipamentoNoFirestore = salvarEquipamentoNoFirestore;
 
   async function syncUsuariosFromFirestore() {
-    if (!db) {
-      console.warn("syncUsuariosFromFirestore: db não inicializado.");
-      return;
-    }
+    if (!navigator.onLine) return;
     try {
-      const snap = await db.collection("onlineEsUsuarios").get();
+      const docs = (db && window._firebaseAuth && window._firebaseAuth.currentUser)
+        ? await (async () => { const snap = await db.collection("onlineEsUsuarios").get(); const a=[]; snap.forEach(doc=>{const d=doc.data()||{};d._firestoreId=doc.id;a.push(d);}); return a; })()
+        : await _fetchColecaoREST('onlineEsUsuarios', 500);
       const lista = [];
-      snap.forEach(docRef => {
-        const d = docRef.data() || {};
+      docs.forEach(d => {
         if (d.ativo === false) return;
-
-        // username pode vir como username, usuario ou até como ID do documento
-        const username = (d.username || d.usuario || d.login || docRef.id || "")
-          .toString()
-          .trim()
-          .toLowerCase();
+        const username = (d.username || d.usuario || d.login || d._firestoreId || "").toString().trim().toLowerCase();
         if (!username) return;
-
-        const fullName = (d.fullName || d.nome || d.name || username);
-        const role     = (d.role || d.perfil || "tecnico");
-
-        // Lê hash+salt do Firestore (nunca texto plano)
-        const passwordHash = d._passwordHash || '';
-        const salt = d._salt || '';
-
-        // mustChangePassword pode vir como mustChangePassword ou precisaSenha (legado)
-        const mustChangePassword =
-          d.mustChangePassword === true || d.precisaSenha === true;
-
         lista.push({
           username,
-          fullName,
-          role,
-          password: passwordHash,
-          _salt: salt,
-          active: d.ativo !== false,
-          mustChangePassword,
-          fromFirestore: true,
-          firestoreId: docRef.id,
-          _firebaseUid: docRef.id  // ID do documento = uid do Firebase Auth
+          fullName:           d.fullName || d.nome || d.name || username,
+          role:               d.role || d.perfil || "tecnico",
+          password:           d._passwordHash || '',
+          _salt:              d._salt || '',
+          active:             d.ativo !== false,
+          mustChangePassword: d.mustChangePassword === true || d.precisaSenha === true,
+          fromFirestore:      true,
+          firestoreId:        d._firestoreId,
+          _firebaseUid:       d._firestoreId
         });
       });
 
       if (lista.length) {
-        try {
-          // MERGE: preserva senhas locais ao sincronizar perfis do Firestore
-          var localRaw = localStorage.getItem(STORAGE_USERS);
-          var localUsers = localRaw ? JSON.parse(localRaw) || [] : [];
-          
-          lista.forEach(function(fsUser) {
-            var localMatch = localUsers.find(function(lu) {
-              return (lu.username || lu.usuario || '').toLowerCase() === (fsUser.username || '').toLowerCase();
-            });
-            if (localMatch) {
-              // Atualiza perfil do Firestore
-              localMatch.fullName = fsUser.fullName || localMatch.fullName;
-              localMatch.role = fsUser.role || localMatch.role;
-              localMatch.active = fsUser.active;
-              localMatch.mustChangePassword = fsUser.mustChangePassword || localMatch.mustChangePassword;
-              // Se local NÃO tem senha mas Firestore tem hash+salt, usa o do Firestore
-              // (permite login em dispositivo novo após sync)
-              if (!localMatch.password && fsUser.password && fsUser._salt) {
-                localMatch.password = fsUser.password;
-                localMatch._salt = fsUser._salt;
-              }
-            } else {
-              // Usuário novo do Firestore - adiciona com hash+salt se disponível
-              if (!fsUser.password || !fsUser._salt) {
-                fsUser.mustChangePassword = true;
-              }
-              localUsers.push(fsUser);
-            }
+        var localRaw = localStorage.getItem(STORAGE_USERS);
+        var localUsers = localRaw ? JSON.parse(localRaw) || [] : [];
+        lista.forEach(function(fsUser) {
+          var localMatch = localUsers.find(function(lu) {
+            return (lu.username || lu.usuario || '').toLowerCase() === fsUser.username;
           });
-          
-          localStorage.setItem(STORAGE_USERS, JSON.stringify(localUsers));
-          window.usuarios = localUsers;
-        } catch (e) {
-          console.warn("Falha ao fazer merge de usuários sincronizados:", e);
-        }
-        console.log(
-          "syncUsuariosFromFirestore:",
-          lista.length,
-          "perfis sincronizados de onlineEsUsuarios (senhas locais preservadas)."
-        );
-
-        // Se já houver alguém logado e for admin/supervisor, atualiza a tabela da aba Cadastros
+          if (localMatch) {
+            localMatch.fullName           = fsUser.fullName || localMatch.fullName;
+            localMatch.role               = fsUser.role     || localMatch.role;
+            localMatch.active             = fsUser.active;
+            localMatch.mustChangePassword = fsUser.mustChangePassword || localMatch.mustChangePassword;
+            if (!localMatch.password && fsUser.password && fsUser._salt) {
+              localMatch.password = fsUser.password;
+              localMatch._salt    = fsUser._salt;
+            }
+          } else {
+            if (!fsUser.password || !fsUser._salt) fsUser.mustChangePassword = true;
+            localUsers.push(fsUser);
+          }
+        });
+        localStorage.setItem(STORAGE_USERS, JSON.stringify(localUsers));
+        window.usuarios = localUsers;
+        console.log("syncUsuariosFromFirestore:", lista.length, "perfis sincronizados.");
         try {
           if (window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor')) {
-            if (typeof renderUsuarios === 'function') {
-              renderUsuarios();
-            }
+            if (typeof renderUsuarios === 'function') renderUsuarios();
           }
-        } catch(e) {
-          console.warn('Falha ao re-renderizar usuários após sync do Firestore:', e);
-        }
+        } catch(e) {}
       } else {
-        console.warn("syncUsuariosFromFirestore: Nenhum usuário encontrado em onlineEsUsuarios.");
+        console.warn("syncUsuariosFromFirestore: Nenhum usuário encontrado.");
       }
-    } catch (e) {
+    } catch(e) {
       console.error("Erro em syncUsuariosFromFirestore:", e);
-      // Mostra erro visível na tela de Cadastros para facilitar diagnóstico
       try {
         const tbody = document.querySelector('#tabelaUsuarios tbody');
-        if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="5" style="color:#dc2626;padding:12px;font-size:.8rem;">⚠️ Erro ao carregar usuários do Firestore: ' + esc(String(e.message || e.code || e)) + '<br>Verifique as Regras de Segurança do Firestore e se o domínio está autorizado no Firebase Auth.</td></tr>';
-        }
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="color:#dc2626;padding:12px;font-size:.8rem;">⚠️ Erro ao carregar usuários do servidor.</td></tr>';
       } catch(_) {}
     }
   }
@@ -1810,124 +1771,115 @@ html[data-role="technician"] nav button {
 
   // === Sincronização de CLIENTES do Firestore ===
   async function syncClientesFromFirestore() {
-    if (!db) {
-      console.warn("syncClientesFromFirestore: db não inicializado.");
-      return;
-    }
+    if (!navigator.onLine) return;
+    // Tenta SDK (autenticado) primeiro, REST como fallback
+    const _fetchClientes = async () => {
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        const snap = await db.collection("onlineEsClientes").get();
+        const arr = [];
+        snap.forEach(doc => { const d = doc.data() || {}; d._firestoreId = doc.id; arr.push(d); });
+        return arr;
+      }
+      return await _fetchColecaoREST('onlineEsClientes', 500);
+    };
     try {
-      const snap = await db.collection("onlineEsClientes").get();
-      const mapaClientes = new Map(); // deduplica por nome
-      snap.forEach(docRef => {
-        const d = docRef.data() || {};
+      const docs = await _fetchClientes();
+      const mapaClientes = new Map();
+      docs.forEach(d => {
         if (d.ativo === false) return;
         const nome = d.nome || "";
         if (!nome) return;
-        // Prefere o documento com ID normalizado (sem espaços)
-        const idNorm = nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
-        const isNormalized = docRef.id === idNorm;
-        if (!mapaClientes.has(nome) || isNormalized) {
-          mapaClientes.set(nome, {
-            nome,
-            cnpj: d.cnpj || "",
-            telefone: d.telefone || "",
-            cep: d.cep || "",
-            endereco: d.endereco || "",
-            bairro: d.bairro || "",
-            cidade: d.cidade || "",
-            uf: d.uf || ""
-          });
-        }
+        if (!mapaClientes.has(nome)) mapaClientes.set(nome, {
+          nome, cnpj: d.cnpj||"", telefone: d.telefone||"",
+          cep: d.cep||"", endereco: d.endereco||"",
+          bairro: d.bairro||"", cidade: d.cidade||"", uf: d.uf||""
+        });
       });
       const lista = Array.from(mapaClientes.values());
-
-      try {
-        localStorage.setItem(STORAGE_CLIENTES, JSON.stringify(lista));
-      } catch (e) {
-        console.warn("Falha ao salvar clientes sincronizados no localStorage:", e);
-      }
+      try { localStorage.setItem(STORAGE_CLIENTES, JSON.stringify(lista)); } catch(e) {}
       window.clientes = lista;
-      if (typeof renderClientes === "function") {
-        renderClientes();
-      }
+      if (typeof saveClientes === 'function') saveClientes(lista);
+      if (typeof renderClientes === 'function') renderClientes();
+      if (typeof popularSelectClientes === 'function') popularSelectClientes();
       console.log("syncClientesFromFirestore:", lista.length, "clientes sincronizados.");
-    } catch (e) {
-      console.error("Erro em syncClientesFromFirestore:", e);
-    }
+    } catch(e) { console.error("Erro em syncClientesFromFirestore:", e); }
   }
   window.syncClientesFromFirestore = syncClientesFromFirestore;
 
   // === Sincronização de EQUIPAMENTOS do Firestore ===
   async function syncEquipamentosFromFirestore() {
-    if (!db) {
-      console.warn("syncEquipamentosFromFirestore: db não inicializado.");
-      return;
-    }
+    if (!navigator.onLine) return;
+    const _fetchEq = async () => {
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        const snap = await db.collection("onlineEsEquipamentos").get();
+        const arr = [];
+        snap.forEach(doc => { const d = doc.data() || {}; d._firestoreId = doc.id; arr.push(d); });
+        return arr;
+      }
+      return await _fetchColecaoREST('onlineEsEquipamentos', 500);
+    };
     try {
-      const snap = await db.collection("onlineEsEquipamentos").get();
-      const lista = [];
-      snap.forEach(docRef => {
-        const d = docRef.data() || {};
-        lista.push({
-          id: String(d.id || docRef.id || ""),
-          tipo: d.tipo || "",
-          marca: d.marca || "",
-          modelo: d.modelo || "",
-          serie: d.serie || "",
-          kva: d.kva || "",
-          local: d.local || "",
-          obs: d.obs || "",
-          estoque: (typeof d.estoque === "number" && !isNaN(d.estoque)) ? d.estoque : null,
-          updatedAt: d.updatedAt || null
-        });
-      });
-
-      try {
-        localStorage.setItem(STORAGE_EQUIPAMENTOS, JSON.stringify(lista));
-      } catch (e) {
-        console.warn("Falha ao salvar equipamentos sincronizados no localStorage:", e);
-      }
-      if (typeof saveEquipamentos === "function") {
-        saveEquipamentos(lista);
-      }
+      const docs = await _fetchEq();
+      const lista = docs.map(d => ({
+        id: String(d.id || d._firestoreId || ""), tipo: d.tipo||"",
+        marca: d.marca||"", modelo: d.modelo||"", serie: d.serie||"",
+        kva: d.kva||"", local: d.local||"", obs: d.obs||"",
+        estoque: (typeof d.estoque === "number" && !isNaN(d.estoque)) ? d.estoque : null,
+        updatedAt: d.updatedAt || null
+      }));
+      if (typeof saveEquipamentos === 'function') saveEquipamentos(lista);
+      try { localStorage.setItem(STORAGE_EQUIPAMENTOS, JSON.stringify(lista)); } catch(e) {}
+      window.equipamentos = lista;
+      if (typeof renderEquipamentos === 'function') renderEquipamentos();
+      if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque();
       console.log("syncEquipamentosFromFirestore:", lista.length, "equipamentos sincronizados.");
-    } catch (e) {
-      console.error("Erro em syncEquipamentosFromFirestore:", e);
-    }
+    } catch(e) { console.error("Erro em syncEquipamentosFromFirestore:", e); }
   }
   window.syncEquipamentosFromFirestore = syncEquipamentosFromFirestore;
 
   // === Sincronização de RELATÓRIOS do Firestore ===
   async function syncRelatoriosFromFirestore() {
-    if (!db) return [];
+    if (!navigator.onLine) return [];
     try {
-      const snap = await db.collection("onlineEsRelatorios").get();
       var firestoreRats = [];
-      snap.forEach(function(docRef) {
-        var d = docRef.data() || {};
-        d.id = d.id || docRef.id;
-        d._firestoreId = docRef.id;
-        firestoreRats.push(d);
-      });
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        const snap = await db.collection("onlineEsRelatorios").get();
+        snap.forEach(function(docRef) {
+          var d = docRef.data() || {};
+          d.id = d.id || docRef.id;
+          d._firestoreId = docRef.id;
+          firestoreRats.push(d);
+        });
+      } else {
+        const docs = await _fetchColecaoREST('onlineEsRelatorios', 500);
+        firestoreRats = docs.map(d => { d.id = d.id || d._firestoreId; return d; });
+      }
 
-      // Merge: combina local + Firestore sem duplicar (por id)
+      if (!firestoreRats.length) {
+        var raw = localStorage.getItem(STORAGE_REPORTS);
+        return raw ? JSON.parse(raw) || [] : [];
+      }
+
+      // Firestore é fonte da verdade: pega tudo do Firestore
+      // Preserva apenas relatórios locais que NÃO estão no Firestore (offline/pendentes)
       var localRaw = localStorage.getItem(STORAGE_REPORTS);
       var localRats = localRaw ? JSON.parse(localRaw) || [] : [];
-      var idsLocais = {};
-      localRats.forEach(function(r) { if (r.id) idsLocais[r.id] = true; });
+      var idsFirestore = {};
+      firestoreRats.forEach(function(r) { if (r.id) idsFirestore[r.id] = true; });
 
-      var novos = 0;
-      firestoreRats.forEach(function(r) {
-        if (!idsLocais[r.id]) {
-          localRats.push(r);
-          novos++;
-        }
+      // Pendentes locais que ainda não foram ao Firestore
+      var soPendentes = localRats.filter(function(r) {
+        return r.id && !idsFirestore[r.id];
       });
 
-      if (novos > 0) {
-        localStorage.setItem(STORAGE_REPORTS, JSON.stringify(localRats));
-        console.log("syncRelatoriosFromFirestore:", novos, "novos relatórios do Firestore.");
-      }
-      return localRats;
+      // Lista final: Firestore + pendentes locais, sem deletados
+      var merged = firestoreRats
+        .filter(function(r) { return !r._deleted; })
+        .concat(soPendentes);
+
+      localStorage.setItem(STORAGE_REPORTS, JSON.stringify(merged));
+      console.log("syncRelatoriosFromFirestore:", firestoreRats.length, "do Firestore,", soPendentes.length, "só locais.");
+      return merged;
     } catch(e) {
       console.error("Erro em syncRelatoriosFromFirestore:", e);
       return [];
@@ -1937,15 +1889,16 @@ html[data-role="technician"] nav button {
 
   // Salva relatório individual no Firestore
   async function salvarRelatorioNoFirestore(r) {
-    if (!db || !r) return;
+    if (!r || !navigator.onLine) return;
     try {
-      var docId = r.id || r.numero || String(Date.now());
-      // Adiciona ownerUid para as Security Rules do Firestore
+      var docId = String(r.id || r.numero || Date.now());
       var user = window.usuarioLogado || {};
-      if (user.uid && !r.ownerUid) {
-        r.ownerUid = user.uid;
+      if (user.uid && !r.ownerUid) r.ownerUid = user.uid;
+      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        await db.collection("onlineEsRelatorios").doc(docId).set(r, { merge: true });
+      } else {
+        await _setDocREST('onlineEsRelatorios', docId, r);
       }
-      await db.collection("onlineEsRelatorios").doc(docId).set(r, { merge: true });
     } catch(e) {
       console.warn("Falha ao salvar relatório no Firestore:", e.message || e);
     }
@@ -1958,7 +1911,7 @@ html[data-role="technician"] nav button {
 
   // === Sync geral no login: sincroniza todas as coleções ===
   async function syncColecoesFromFirestoreOnLogin() {
-    if (!navigator.onLine || !db) return;
+    if (!navigator.onLine) return;
     try {
       console.log('🔄 Sincronizando todas as coleções do Firestore...');
       await Promise.allSettled([
@@ -3161,12 +3114,23 @@ function autoFillCamposAtendimento(){
     if (navigator.onLine && typeof syncColecoesFromFirestoreOnLogin === 'function') {
       syncColecoesFromFirestoreOnLogin().then(function() {
         try {
+          // Recarrega variáveis globais do localStorage após sync
+          try { usuarios     = loadUsers()        || []; window.usuarios     = usuarios;     } catch(e){}
+          try { relatorios   = loadRelatorios()   || []; window.relatorios   = relatorios;   } catch(e){}
+          try { clientes     = loadClientes()     || []; window.clientes     = clientes;     } catch(e){}
+          try { equipamentos = loadEquipamentos() || []; window.equipamentos = equipamentos; } catch(e){}
+
+          // Re-renderiza tudo com dados frescos do Firestore
           if (isSupervisorOrAdmin(window.usuarioLogado)) {
-            renderUsuarios();
-            renderClientes();
-            renderEquipamentos();
+            try { renderUsuarios();    } catch(e){}
+            try { renderClientes();    } catch(e){}
+            try { renderEquipamentos();} catch(e){}
+            try { renderLista();       } catch(e){}
+            try { atualizarDashboard();} catch(e){}
           }
-        } catch(e) {}
+          try { popularSelectClientes(); } catch(e){}
+          console.log('✅ Re-renderizado após sync do Firestore.');
+        } catch(e) { console.warn('Falha ao re-renderizar após sync:', e); }
       }).catch(function(e){ console.warn('Sync falhou:', e); });
     }
 
@@ -3189,6 +3153,91 @@ function autoFillCamposAtendimento(){
     // DEBUG TEMPORÁRIO: alert para confirmar visualmente que entrou
     try { showToast('Login OK: ' + (user.fullName || user.username)); } catch(e){}
   }
+
+  // === DIAGNÓSTICO FIREBASE ===
+  document.addEventListener('DOMContentLoaded', function() {
+    var btnDiag = document.getElementById('btnDiagFirebase');
+    var diagResult = document.getElementById('diagFirebaseResult');
+    if (!btnDiag || !diagResult) return;
+
+    btnDiag.onclick = async function() {
+      diagResult.style.display = 'block';
+      diagResult.style.background = '#f8fafc';
+      diagResult.textContent = '🔍 Iniciando diagnóstico...';
+      var log = [];
+
+      function linha(txt) { log.push(txt); diagResult.textContent = log.join('\n'); }
+
+      // 1. Firebase SDK carregado?
+      linha('1. Firebase SDK: ' + (typeof firebase !== 'undefined' ? '✅ carregado' : '❌ NÃO carregado'));
+
+      // 2. db inicializado?
+      var _db = (typeof window._getDb === 'function') ? window._getDb() : null;
+      linha('2. Firestore db: ' + (_db ? '✅ inicializado' : '❌ NULL'));
+
+      // 3. Firebase Auth?
+      var _auth = window._firebaseAuth;
+      var _user = _auth && _auth.currentUser;
+      linha('3. Firebase Auth: ' + (_auth ? '✅ disponível' : '❌ não disponível'));
+      linha('   Usuário autenticado: ' + (_user ? '✅ ' + _user.email : '❌ não autenticado (request.auth = null)'));
+
+      // 4. Testar READ via REST (sem auth)
+      linha('4. Teste REST leitura (onlineEsClientes)...');
+      try {
+        const pid = firebaseConfig.projectId;
+        const key = firebaseConfig.apiKey;
+        const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsClientes?key=${key}&pageSize=3`;
+        const r = await fetch(url);
+        const json = await r.json();
+        if (r.ok) {
+          const docs = json.documents || [];
+          linha('   ✅ REST leitura OK — ' + docs.length + ' doc(s) encontrado(s)');
+          docs.forEach(d => {
+            const nome = d.fields && d.fields.nome && d.fields.nome.stringValue;
+            linha('     • ' + (nome || d.name.split('/').pop()));
+          });
+        } else {
+          linha('   ❌ REST leitura ERRO: ' + (json.error && json.error.message || r.status));
+        }
+      } catch(e) { linha('   ❌ REST leitura EXCEÇÃO: ' + e.message); }
+
+      // 5. Testar READ via SDK
+      if (_db) {
+        linha('5. Teste SDK leitura (onlineEsClientes)...');
+        try {
+          const snap = await _db.collection('onlineEsClientes').limit(3).get();
+          linha('   ✅ SDK leitura OK — ' + snap.size + ' doc(s)');
+          snap.forEach(d => linha('     • ' + (d.data().nome || d.id)));
+        } catch(e) {
+          linha('   ❌ SDK leitura ERRO: ' + (e.code || e.message));
+          if (e.code === 'permission-denied') linha('   ⚠️ CAUSA: Firestore rules bloqueando (request.auth = null)');
+        }
+      }
+
+      // 6. Testar WRITE via REST
+      linha('6. Teste REST escrita (onlineEsDiag)...');
+      try {
+        const pid = firebaseConfig.projectId;
+        const key = firebaseConfig.apiKey;
+        const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsDiag/teste?key=${key}`;
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: { ok: { booleanValue: true }, ts: { stringValue: new Date().toISOString() } } })
+        });
+        const json = await r.json();
+        if (r.ok) linha('   ✅ REST escrita OK');
+        else linha('   ❌ REST escrita ERRO: ' + (json.error && json.error.message || r.status));
+      } catch(e) { linha('   ❌ REST escrita EXCEÇÃO: ' + e.message); }
+
+      // 7. Resumo
+      linha('');
+      linha('=== RESUMO ===');
+      if (!_user) linha('⚠️ Firebase Auth não ativo — Firestore SDK bloqueado pelas regras');
+      if (!_db) linha('⚠️ db = null — Firebase SDK não inicializou');
+      linha('Usuário logado local: ' + ((window.usuarioLogado && window.usuarioLogado.username) || 'nenhum'));
+    };
+  });
 
   function limparMenu(){
     [mNovo,mMeus,mPainel,mCadastros,mSistema].forEach(b=>{ if (b) b.classList.remove('active'); });
@@ -3242,36 +3291,24 @@ function autoFillCamposAtendimento(){
     mCadastros.onclick = async ()=>{
       // Sincroniza usuários, clientes e equipamentos do Firestore sempre que abrir a aba Cadastros
       try {
-        if (navigator.onLine && typeof window.syncUsuariosFromFirestore === "function") {
-          await window.syncUsuariosFromFirestore();
+        if (navigator.onLine) {
+          if (typeof window.syncUsuariosFromFirestore === "function")    await window.syncUsuariosFromFirestore();
+          if (typeof window.syncClientesFromFirestore === "function")    await window.syncClientesFromFirestore();
+          if (typeof window.syncEquipamentosFromFirestore === "function") await window.syncEquipamentosFromFirestore();
         }
-        if (navigator.onLine && typeof window.syncClientesFromFirestore === "function") {
-          await window.syncClientesFromFirestore();
-        }
-        if (navigator.onLine && typeof window.syncEquipamentosFromFirestore === "function") {
-          await window.syncEquipamentosFromFirestore();
-        }
+        // Atualiza variáveis locais com dados frescos do localStorage (pós-sync)
+        if (typeof loadUsers === 'function')        { try { usuarios    = loadUsers()        || []; window.usuarios    = usuarios;    } catch(e){} }
+        if (typeof loadClientes === 'function')     { try { clientes    = loadClientes()     || []; window.clientes    = clientes;    } catch(e){} }
+        if (typeof loadEquipamentos === 'function') { try { equipamentos= loadEquipamentos() || []; window.equipamentos= equipamentos; } catch(e){} }
       } catch(e){
         console.warn("Falha ao sincronizar dados ao abrir Cadastros:", e);
       }
 
-      // Exibe a aba Cadastros normalmente
+      // Exibe a aba e re-renderiza com dados atualizados
       mostrarTela('cadastros').catch(e=>console.warn('Erro ao abrir tela:', e));
-
-      // Garante que as tabelas sejam renderizadas com a lista atualizada
-      try {
-        if (typeof renderUsuarios === 'function') {
-          renderUsuarios();
-        }
-        if (typeof renderClientes === 'function') {
-          renderClientes();
-        }
-        if (typeof renderEquipamentos === 'function') {
-          renderEquipamentos();
-        }
-      } catch(e){
-        console.warn("Falha ao renderizar Cadastros após abrir aba:", e);
-      }
+      try { if (typeof renderUsuarios    === 'function') renderUsuarios();    } catch(e){}
+      try { if (typeof renderClientes    === 'function') renderClientes();    } catch(e){}
+      try { if (typeof renderEquipamentos=== 'function') renderEquipamentos();} catch(e){}
     };
   if (mSistema) mSistema.onclick = ()=>mostrarTela('sistema').catch(e=>console.warn('Erro ao abrir tela:', e));
 
@@ -3706,6 +3743,7 @@ function renderUsuarios(){
         u.username === user ? ({...u, password:'', _salt:'', mustChangePassword:true}) : u
       );
       saveUsers(usuarios); 
+      _syncUsuarioFirestore(user);
       renderUsuarios(); 
       showToast('Senha resetada com sucesso.');
       try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
@@ -3776,6 +3814,7 @@ function renderUsuarios(){
         return {...x, fullName: (novoNome||u.fullName), username: (novoUser||u.username), role: novoRole};
       });
       saveUsers(usuarios);
+      _syncUsuarioFirestore(user);
       renderUsuarios();
       showToast('Usuário atualizado com sucesso.');
         try { logInfo('Usuário atualizado', { usuario: user || '' }); } catch(e){}
@@ -3788,7 +3827,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
         if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
         if (!confirm('Confirmar reset de senha para "'+user+'"? O usuário definirá nova senha no próximo login.')) return;
         usuarios = (usuarios || []).map(u=> u.username===user ? ({...u,password:'',_salt:'',mustChangePassword:true}) : u);
-        saveUsers(usuarios); renderUsuarios(); showToast('Senha resetada com sucesso.');
+        saveUsers(usuarios); _syncUsuarioFirestore(user); renderUsuarios(); showToast('Senha resetada com sucesso.');
       try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
       };
     });
@@ -3856,6 +3895,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           return {...x, fullName: (novoNome||u.fullName), username: (novoUser||u.username), role: novoRole};
         });
         saveUsers(usuarios);
+        _syncUsuarioFirestore(user);
         renderUsuarios();
         showToast('Usuário atualizado com sucesso.');
         try { logInfo('Usuário atualizado', { usuario: user || '' }); } catch(e){}
@@ -3872,6 +3912,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           return {...u, active: ativoAgora};
         });
         saveUsers(usuarios);
+        _syncUsuarioFirestore(user);
         renderUsuarios();
         showToast('Status de usuário atualizado.');
         try { logInfo('Status de usuário alterado', {}); } catch(e){}
@@ -3903,6 +3944,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
         if (confirm('Remover equipamento selecionado?')){
           equipamentos = (equipamentos||[]).filter(e=>String(e.id)!==String(id));
           saveEquipamentos(equipamentos);
+          if (db) { try { db.collection('onlineEsEquipamentos').doc(String(id)).delete(); } catch(e){} }
           renderEquipamentos();
           popularSelectEquipamentosEstoque();
           showToast && showToast('Equipamento removido.');
@@ -3950,6 +3992,8 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           };
         });
         saveEquipamentos(equipamentos);
+        const _eqAtual = equipamentos.find(e=>String(e.id)===String(id));
+        if (_eqAtual && window.salvarEquipamentoNoFirestore) { try { window.salvarEquipamentoNoFirestore(_eqAtual); } catch(e){} }
         renderEquipamentos();
         popularSelectEquipamentosEstoque();
         showToast && showToast('Equipamento atualizado.');
@@ -3989,6 +4033,7 @@ function renderClientes(){
       if (!confirm('Remover cliente "'+nome+'"?')) return;
       clientes = (clientes || []).filter(x => (x.nome || '') !== nome);
       saveClientes(clientes);
+      if (db) { try { const _nId = nome.toLowerCase().replace(/[^a-z0-9]/g,'_'); db.collection('onlineEsClientes').where('nome','==',nome).get().then(s=>s.forEach(d=>d.ref.delete())); } catch(e){} }
       renderClientes();
       if (typeof popularSelectClientes === 'function') popularSelectClientes();
       if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
@@ -5684,77 +5729,158 @@ function aplicarPermissoesConfiguracoes(){
   // Executa 30s após o login (dá tempo de sincronizar tudo)
   setTimeout(autoBackupFirestore, 30000);
 
-  // === LISTAR E RESTAURAR BACKUPS DO FIREBASE ===
-  async function _garantirFirebaseAuth() {
-    // Se já está autenticado no Firebase, ok
-    const _auth = window._firebaseAuth;
-    if (_auth && _auth.currentUser) return true;
-    if (!_auth || !navigator.onLine) return false;
-    // Tenta re-autenticar com as credenciais do usuário logado localmente
-    const u = window.usuarioLogado;
-    if (!u || !u.username) return false;
-    // Pede a senha ao usuário
-    const senha = prompt('Para acessar o banco de dados, confirme sua senha:');
-    if (!senha) return false;
-    try {
-      const emailAuth = u.username.toLowerCase().replace(/[^a-z0-9._-]/g,'') + '@' + AUTH_DOMAIN;
-      await _auth.signInWithEmailAndPassword(emailAuth, senha);
-      console.log('Re-autenticação Firebase bem-sucedida.');
-      return true;
-    } catch(e) {
-      console.warn('Re-autenticação falhou:', e.code, e.message);
-      alert('Senha incorreta ou usuário não cadastrado no Firebase Auth.');
-      return false;
+  // === REST API HELPERS — não dependem do Firebase Auth ===
+  // Grava/atualiza um documento via REST (não depende do Firebase Auth)
+  async function _setDocREST(colecao, docId, dados) {
+    const pid = firebaseConfig.projectId;
+    const key = firebaseConfig.apiKey;
+    // Converte objeto JS para formato Firestore REST
+    function toFsValue(v) {
+      if (v === null || v === undefined) return { nullValue: null };
+      if (typeof v === 'boolean') return { booleanValue: v };
+      if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+      if (typeof v === 'string') return { stringValue: v };
+      if (v instanceof Date) return { timestampValue: v.toISOString() };
+      if (Array.isArray(v)) return { arrayValue: { values: v.map(toFsValue) } };
+      if (typeof v === 'object') {
+        const fields = {};
+        Object.entries(v).forEach(([k, val]) => { fields[k] = toFsValue(val); });
+        return { mapValue: { fields } };
+      }
+      return { stringValue: String(v) };
     }
+    const fields = {};
+    Object.entries(dados).forEach(([k, v]) => { fields[k] = toFsValue(v); });
+    const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}/${encodeURIComponent(docId)}?key=${key}`;
+    const resp = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
+    }
+    return await resp.json();
+  }
+
+  // Deleta um documento via REST
+  async function _deleteDocREST(colecao, docId) {
+    const pid = firebaseConfig.projectId;
+    const key = firebaseConfig.apiKey;
+    const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}/${encodeURIComponent(docId)}?key=${key}`;
+    await fetch(url, { method: 'DELETE' });
+  }
+  // Converte campo Firestore REST para valor JS
+  function _fsFieldValue(fv) {
+    if (!fv) return null;
+    if (fv.stringValue  !== undefined) return fv.stringValue;
+    if (fv.integerValue !== undefined) return Number(fv.integerValue);
+    if (fv.doubleValue  !== undefined) return fv.doubleValue;
+    if (fv.booleanValue !== undefined) return fv.booleanValue;
+    if (fv.nullValue    !== undefined) return null;
+    if (fv.timestampValue !== undefined) return fv.timestampValue;
+    if (fv.mapValue     !== undefined) {
+      const obj = {};
+      Object.entries(fv.mapValue.fields || {}).forEach(([k,v]) => { obj[k] = _fsFieldValue(v); });
+      return obj;
+    }
+    if (fv.arrayValue   !== undefined) {
+      return (fv.arrayValue.values || []).map(_fsFieldValue);
+    }
+    return null;
+  }
+
+  // Busca todos os docs de uma coleção via REST (sem Firebase Auth)
+  async function _fetchColecaoREST(colecao, pageSize) {
+    const pid = firebaseConfig.projectId;
+    const key = firebaseConfig.apiKey;
+    const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}?key=${key}&pageSize=${pageSize || 500}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
+    }
+    const json = await resp.json();
+    return (json.documents || []).map(doc => {
+      const id = doc.name.split('/').pop();
+      const fields = doc.fields || {};
+      const obj = { _firestoreId: id };
+      Object.entries(fields).forEach(([k, v]) => { obj[k] = _fsFieldValue(v); });
+      return obj;
+    });
+  }
+
+  // === LISTAR E RESTAURAR BACKUPS DO FIREBASE ===
+  // Busca backups via REST API do Firestore (não depende do Firebase Auth SDK)
+  async function _fetchBackupsREST() {
+    const projectId = firebaseConfig.projectId;
+    const apiKey    = firebaseConfig.apiKey;
+    // Firestore REST: lista documentos da coleção ordenados por generatedAt desc
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/onlineEsBackups?key=${apiKey}&pageSize=30`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error && err.error.message ? err.error.message : `HTTP ${resp.status}`);
+    }
+    const json = await resp.json();
+    return (json.documents || []).map(doc => {
+      const fields = doc.fields || {};
+      const id = doc.name.split('/').pop();
+      // Converte campos Firestore REST format para objeto simples
+      const get = (f) => {
+        if (!fields[f]) return null;
+        return fields[f].stringValue || fields[f].integerValue || fields[f].timestampValue || null;
+      };
+      // data é um mapValue com chaves = localStorage keys
+      let data = null;
+      if (fields.data && fields.data.mapValue && fields.data.mapValue.fields) {
+        data = {};
+        Object.entries(fields.data.mapValue.fields).forEach(([k, v]) => {
+          data[k] = v.stringValue !== undefined ? v.stringValue : JSON.stringify(v);
+        });
+      }
+      return {
+        id,
+        generatedAt: get('generatedAt') || id,
+        geradoPor:   get('geradoPor') || 'sistema',
+        timestamp:   get('timestamp'),
+        data
+      };
+    }).sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
   }
 
   async function listarBackupsFirebase() {
     const container = document.getElementById('listaBackupsFirebase');
     if (!container) return;
 
-    if (!isAdmin()) {
-      alert('Restaurar backup é exclusivo do Administrador.');
-      return;
-    }
-
-    const _db = (typeof window._getDb === 'function') ? window._getDb() : null;
-    if (!_db) { alert('Firebase não disponível. Verifique sua conexão.'); return; }
+    if (!isAdmin()) { alert('Restaurar backup é exclusivo do Administrador.'); return; }
     if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
 
     container.style.display = 'block';
-    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Verificando autenticação...</p>';
-
-    // Garante que o Firebase Auth está ativo antes de consultar
-    const authOk = await _garantirFirebaseAuth();
-    if (!authOk) {
-      container.style.display = 'none';
-      return;
-    }
-
-    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Buscando backups no Firebase...</p>';
+    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Buscando backups no banco...</p>';
 
     try {
-      const snap = await _db.collection('onlineEsBackups').orderBy('generatedAt', 'desc').limit(30).get();
+      const backups = await _fetchBackupsREST();
 
-      if (snap.empty) {
-        container.innerHTML = '<p style="color:#64748b;font-size:.82rem;">Nenhum backup encontrado no Firebase.</p>';
+      if (!backups.length) {
+        container.innerHTML = '<p style="color:#64748b;font-size:.82rem;">Nenhum backup encontrado no banco.</p>';
         return;
       }
 
       let html = '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-top:4px;">';
-      html += '<div style="background:#f8fafc;padding:8px 12px;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">BACKUPS DISPONÍVEIS NO FIREBASE</div>';
+      html += '<div style="background:#f8fafc;padding:8px 12px;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">BACKUPS DISPONÍVEIS NO BANCO</div>';
 
-      snap.forEach(doc => {
-        const d = doc.data();
-        const dataFmt = d.generatedAt || doc.id;
-        const geradoPor = d.geradoPor || 'sistema';
-        const ts = d.timestamp && d.timestamp.toDate ? d.timestamp.toDate().toLocaleString('pt-BR') : dataFmt;
+      backups.forEach(b => {
+        const dataFmt = b.generatedAt || b.id;
+        const geradoPor = b.geradoPor || 'sistema';
+        const ts = b.timestamp ? new Date(b.timestamp).toLocaleString('pt-BR') : dataFmt;
         html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid #f1f5f9;gap:8px;">
           <div>
             <div style="font-weight:600;font-size:.85rem;">${dataFmt}</div>
             <div style="font-size:.75rem;color:#64748b;">${ts} · por ${esc(geradoPor)}</div>
           </div>
-          <button class="btn small" data-restore-id="${doc.id}"
+          <button class="btn small" data-restore-id="${b.id}"
             style="background:#dcfce7;color:#15803d;border-color:#bbf7d0;white-space:nowrap;">
             <i class="ri-arrow-go-back-line"></i> Restaurar
           </button>
@@ -5764,6 +5890,7 @@ function aplicarPermissoesConfiguracoes(){
       html += '</div>';
       html += '<button id="btnFecharListaBackups" style="margin-top:8px;background:none;border:none;color:#64748b;font-size:.78rem;cursor:pointer;"><i class="ri-close-line"></i> Fechar lista</button>';
       container.innerHTML = html;
+      container._backupsCache = backups;
 
       document.getElementById('btnFecharListaBackups')?.addEventListener('click', () => {
         container.style.display = 'none';
@@ -5772,84 +5899,57 @@ function aplicarPermissoesConfiguracoes(){
       container.querySelectorAll('[data-restore-id]').forEach(btn => {
         btn.onclick = async () => {
           const docId = btn.getAttribute('data-restore-id');
-          await restaurarBackupFirebase(docId);
+          const b = (container._backupsCache || []).find(x => x.id === docId);
+          await restaurarBackupFirebase(docId, b ? b.data : null);
         };
       });
 
     } catch(e) {
       console.error('Erro ao listar backups:', e);
-      const isPerm = e.message && (e.message.includes('permission') || e.message.includes('insufficient'));
-      if (isPerm) {
-        container.innerHTML = `
-          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;">
-            <div style="font-weight:700;color:#dc2626;margin-bottom:6px;"><i class="ri-shield-keyhole-line"></i> Permissão negada no Firebase</div>
-            <p style="font-size:.8rem;color:#7f1d1d;margin:0 0 10px;">Para habilitar, acesse o <strong>Firebase Console → Firestore → Regras</strong> e substitua as regras por:</p>
-            <pre id="preRegrasCopy" style="background:#1e293b;color:#86efac;font-size:.72rem;padding:10px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;margin:0 0 8px;">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /onlineEsRelatorios/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsUsuarios/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsClientes/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsEquipamentos/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsBackups/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsAuditoria/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsContador/{id} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}</pre>
-            <button onclick="navigator.clipboard.writeText(document.getElementById('preRegrasCopy').textContent).then(()=>showToast('Regras copiadas!'))"
-              class="btn small" style="margin-bottom:4px;"><i class="ri-clipboard-line"></i> Copiar regras</button>
-            <p style="font-size:.75rem;color:#64748b;margin:6px 0 0;">Após salvar as regras no Firebase, clique em <strong>Restaurar do Banco</strong> novamente.</p>
-          </div>`;
-      } else {
-        container.innerHTML = `<p style="color:#dc2626;font-size:.82rem;">Erro ao buscar backups: ${esc(e.message || String(e))}</p>`;
-      }
+      container.innerHTML = `<p style="color:#dc2626;font-size:.82rem;"><i class="ri-error-warning-line"></i> Erro: ${esc(e.message || String(e))}</p>`;
     }
   }
 
-  async function restaurarBackupFirebase(docId) {
+    async function restaurarBackupFirebase(docId, dadosCache) {
     if (!isAdmin()) { alert('Apenas o Administrador pode restaurar backups.'); return; }
-
-    const _db = (typeof window._getDb === 'function') ? window._getDb() : null;
-    if (!_db) { alert('Firebase não disponível.'); return; }
-
-    const authOk = await _garantirFirebaseAuth();
-    if (!authOk) return;
+    if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
 
     const ok = confirm(`Restaurar o backup do dia ${docId}?\n\nIsso substituirá TODOS os dados locais (relatórios, clientes, equipamentos).\n\nTem certeza?`);
     if (!ok) return;
 
     try {
-      const doc = await _db.collection('onlineEsBackups').doc(docId).get();
-      if (!doc.exists) { alert('Backup não encontrado.'); return; }
+      let data = dadosCache;
 
-      const d = doc.data();
-      if (!d || !d.data || typeof d.data !== 'object') {
+      // Se não temos os dados em cache, busca via REST
+      if (!data) {
+        const projectId = firebaseConfig.projectId;
+        const apiKey    = firebaseConfig.apiKey;
+        const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/onlineEsBackups/${docId}?key=${apiKey}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        const fields = (json.fields || {});
+        if (fields.data && fields.data.mapValue && fields.data.mapValue.fields) {
+          data = {};
+          Object.entries(fields.data.mapValue.fields).forEach(([k, v]) => {
+            data[k] = v.stringValue !== undefined ? v.stringValue : JSON.stringify(v);
+          });
+        }
+      }
+
+      if (!data || typeof data !== 'object') {
         alert('Backup corrompido ou formato inválido.');
         return;
       }
 
       // Aplica cada chave no localStorage
       let count = 0;
-      Object.entries(d.data).forEach(([k, v]) => {
+      Object.entries(data).forEach(([k, v]) => {
         try { localStorage.setItem(k, v); count++; } catch(e) {}
       });
 
       showToast(`Backup de ${docId} restaurado (${count} registros). Recarregando...`);
-      try { logInfo('Backup Firebase restaurado', { docId, count }); } catch(e) {}
+      try { logInfo('Backup restaurado do banco', { docId, count }); } catch(e) {}
       setTimeout(() => location.reload(), 1200);
 
     } catch(e) {
@@ -6217,12 +6317,10 @@ window.AppStorage = AppStorage;
           console.warn('Falha ao salvar usuários em localStorage:', e);
         }
 
-        // Salva no Firestore (só se tiver uid)
+        // Salva no Firestore (sempre — usa uid se tiver, senão username como ID)
         try{
-          if (novo._firebaseUid && typeof salvarUsuarioNoFirestore === 'function'){
+          if (typeof salvarUsuarioNoFirestore === 'function'){
             await salvarUsuarioNoFirestore(novo);
-          } else if (!novo._firebaseUid) {
-            console.warn('Usuário criado apenas localmente — uid não disponível.');
           }
         }catch(e){
           console.warn('Falha ao salvar usuário no Firestore:', e);
@@ -6478,72 +6576,7 @@ function blocoMidiasHTML(r){
 }
 
 // Sincronizar relatórios do Firestore
-async function syncRelatoriosFromFirestore() {
-  if (!db) {
-    console.log('[SYNC REPORTS] Firestore não disponível');
-    return [];
-  }
-  
-  try {
-    const user = window.usuarioLogado || {};
-    const username = (user.username || user.usuario || '').toLowerCase();
-    
-    if (!username) {
-      console.log('[SYNC REPORTS] Usuário não identificado');
-      return [];
-    }
-    
-    console.log('[SYNC REPORTS] Buscando relatórios para:', username);
-    
-    // Buscar todos os relatórios (não filtrar no Firestore para compatibilidade)
-    const snapshot = await db.collection('onlineEsReports').get();
-    
-    console.log('[SYNC REPORTS] Total de documentos no Firestore:', snapshot.size);
-    
-    const relatoriosFirestore = [];
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      relatoriosFirestore.push({
-        id: doc.id,
-        firebaseId: doc.id,
-        fromFirestore: true,
-        ...data
-      });
-    });
-    
-    console.log('[SYNC REPORTS] Relatórios carregados do Firestore:', relatoriosFirestore.length);
-    
-    // Mesclar com relatórios locais (evitar duplicatas)
-    const locais = (typeof loadLocalReports === 'function' ? loadLocalReports() : []) || [];
-    console.log('[SYNC REPORTS] Relatórios locais:', locais.length);
-    
-    // Criar mapa para evitar duplicatas (prioriza Firestore)
-    const mapaRelatorios = new Map();
-    
-    // Adiciona locais primeiro
-    locais.forEach(r => {
-      const chave = r.numero || r.rat || r.id;
-      if (chave) mapaRelatorios.set(chave, r);
-    });
-    
-    // Sobrescreve com Firestore (mais recente)
-    relatoriosFirestore.forEach(r => {
-      const chave = r.numero || r.rat || r.id || r.firebaseId;
-      if (chave) mapaRelatorios.set(chave, r);
-    });
-    
-    const todos = Array.from(mapaRelatorios.values());
-    console.log('[SYNC REPORTS] Total após mesclar:', todos.length);
-    
-    // Salvar em memória
-    window.relatorios = todos;
-    
-    return todos;
-  } catch (e) {
-    console.error('[SYNC REPORTS] Erro ao sincronizar relatórios:', e);
-    return [];
-  }
-}
+// syncRelatoriosFromFirestore definida no módulo Firebase principal
 
 // Meus Atendimentos - agora com Firestore
 async function renderMeus(){
@@ -7420,23 +7453,9 @@ async function fazerLogin(){
       firebaseUser = cred.user;
       console.log('Firebase Auth: login OK, uid:', firebaseUser.uid);
     } catch(authErr) {
-      if (authErr.code === 'auth/user-not-found') {
-        // Usuário não existe no Firebase Auth — não cria automaticamente
-        // Criação de usuários é feita apenas pelo admin no painel
-        _registerFailedAttempt(u);
-        msgErro.textContent = 'Usuário ou senha inválidos.';
-        return;
-      } else if (authErr.code === 'auth/wrong-password') {
-        // Senha errada no Firebase Auth E temos certeza
-        // NÃO rejeitar aqui — continuar para validação local como fallback
-        console.warn('Firebase Auth: wrong-password, tentando validação local...');
-      } else if (authErr.code === 'auth/invalid-credential') {
-        // invalid-credential pode significar várias coisas no Firebase Auth v10+
-        // NÃO rejeitar — continuar para validação local
-        console.warn('Firebase Auth: invalid-credential, tentando validação local...');
-      } else {
-        console.warn('Firebase Auth erro (continuando offline):', authErr.code);
-      }
+      // Qualquer erro no Firebase Auth: continua para validação local
+      // O usuário será criado no Firebase Auth na ETAPA 4.5 após validação local
+      console.warn('Firebase Auth:', authErr.code, '— continuando para validação local...');
     }
   }
 
@@ -7612,6 +7631,49 @@ async function fazerLogin(){
   // Salva no Firestore (hash+salt+uid)
   try { if (typeof salvarUsuarioNoFirestore === 'function') salvarUsuarioNoFirestore(achou); } catch(e){}
 
+
+  // ============================================================
+  // ETAPA 4.5: Garante Firebase Auth ativo para que request.auth != null nas regras do Firestore
+  // Usa senha fixa derivada do username (independente da senha do sistema)
+  if (!firebaseUser && navigator.onLine && window._firebaseAuth) {
+    // Senha estável para Firebase Auth = "OnlineEs@" + username (sempre >= 8 chars, válida)
+    var _fbSenha = 'OnlineEs@' + (achou.username || u);
+    try {
+      // Tenta criar conta no Firebase Auth
+      const _authCreate = await window._firebaseAuth.createUserWithEmailAndPassword(emailAuth, _fbSenha);
+      firebaseUser = _authCreate.user;
+      achou._firebaseUid = firebaseUser.uid;
+      achou._email = emailAuth;
+      console.log('Firebase Auth: conta criada, uid:', firebaseUser.uid);
+    } catch(createErr) {
+      if (createErr.code === 'auth/email-already-in-use') {
+        // Conta já existe — faz login com senha estável
+        try {
+          const _authLogin = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, _fbSenha);
+          firebaseUser = _authLogin.user;
+          achou._firebaseUid = firebaseUser.uid;
+          achou._email = emailAuth;
+          console.log('Firebase Auth: login OK, uid:', firebaseUser.uid);
+        } catch(retryErr) {
+          console.warn('Firebase Auth: login falhou:', retryErr.code);
+        }
+      } else {
+        console.warn('Firebase Auth: criação falhou:', createErr.code);
+      }
+    }
+    // Persiste uid no perfil local e Firestore
+    if (firebaseUser && firebaseUser.uid) {
+      achou._firebaseUid = firebaseUser.uid;
+      try {
+        const raw2 = localStorage.getItem(STORAGE_USERS);
+        let lista2 = raw2 ? JSON.parse(raw2) || [] : [];
+        lista2 = lista2.map(x => String(x.username||'').toLowerCase() === (achou.username||'').toLowerCase() ? achou : x);
+        localStorage.setItem(STORAGE_USERS, JSON.stringify(lista2));
+        window.usuarios = lista2;
+        if (typeof salvarUsuarioNoFirestore === 'function') salvarUsuarioNoFirestore(achou);
+      } catch(e) {}
+    }
+  }
 
   // ============================================================
   // ETAPA 5: Entrar no sistema
