@@ -1256,7 +1256,7 @@ html[data-role="technician"] nav button {
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn small" id="btnBackup"><i class="ri-download-2-line"></i> Fazer backup agora</button>
             <button class="btn small" id="btnDiagFirebase" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">
-              <i class="ri-stethoscope-line"></i> Diagnóstico Firebase
+              <i class="ri-stethoscope-line"></i> Diagnóstico Banco
             </button>
             <div id="diagFirebaseResult" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:.78rem;background:#f8fafc;border:1px solid #e2e8f0;white-space:pre-line;font-family:monospace;max-height:300px;overflow-y:auto;"></div>
             <button class="btn small" id="btnListarBackups" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="ri-database-2-line"></i> Restaurar do Banco</button>
@@ -3112,6 +3112,22 @@ function autoFillCamposAtendimento(){
     // Sincroniza TODAS as coleções do Firestore (para qualquer perfil)
     // Sincroniza e re-renderiza após sync completo
     if (navigator.onLine && typeof syncColecoesFromFirestoreOnLogin === 'function') {
+      // Garante que o documento do usuário existe no Firestore com uid como ID
+      // antes de qualquer sync (as regras verificam onlineEsUsuarios/<uid>)
+      var _ensureUserDoc = async function() {
+        var _u = window.usuarioLogado;
+        var _auth = window._firebaseAuth && window._firebaseAuth.currentUser;
+        if (_u && _auth && typeof salvarUsuarioNoFirestore === 'function') {
+          var _raw = localStorage.getItem(typeof STORAGE_USERS !== 'undefined' ? STORAGE_USERS : 'online-es-usuarios-v3');
+          var _lista = _raw ? JSON.parse(_raw) || [] : [];
+          var _perfil = _lista.find(function(x){ return (x.username||'').toLowerCase() === (_u.username||'').toLowerCase(); });
+          if (_perfil) {
+            _perfil._firebaseUid = _auth.uid;
+            try { await salvarUsuarioNoFirestore(_perfil); } catch(e){}
+          }
+        }
+      };
+      _ensureUserDoc().finally(function() {
       syncColecoesFromFirestoreOnLogin().then(function() {
         try {
           // Recarrega variáveis globais do localStorage após sync
@@ -3132,6 +3148,7 @@ function autoFillCamposAtendimento(){
           console.log('✅ Re-renderizado após sync do Firestore.');
         } catch(e) { console.warn('Falha ao re-renderizar após sync:', e); }
       }).catch(function(e){ console.warn('Sync falhou:', e); });
+      }); // _ensureUserDoc
     }
 
     if (!isSupervisorOrAdmin(user)){
@@ -7628,10 +7645,6 @@ async function fazerLogin(){
     window.usuarios = lista;
   } catch(e){}
 
-  // Salva no Firestore (hash+salt+uid)
-  try { if (typeof salvarUsuarioNoFirestore === 'function') salvarUsuarioNoFirestore(achou); } catch(e){}
-
-
   // ============================================================
   // ETAPA 4.5: Garante Firebase Auth ativo para que request.auth != null nas regras do Firestore
   // Usa senha fixa derivada do username (independente da senha do sistema)
@@ -7674,6 +7687,12 @@ async function fazerLogin(){
       } catch(e) {}
     }
   }
+
+  // Salva perfil com uid como ID no Firestore — deve acontecer APÓS ter o uid do Firebase Auth
+  // As regras buscam onlineEsUsuarios/<uid>, então o documento precisa existir com esse ID
+  try {
+    if (typeof salvarUsuarioNoFirestore === 'function') await salvarUsuarioNoFirestore(achou);
+  } catch(e) { console.warn('Falha ao salvar perfil pós-auth:', e); }
 
   // ============================================================
   // ETAPA 5: Entrar no sistema
