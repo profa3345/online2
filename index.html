@@ -17,12 +17,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <!-- Fallback: se gstatic falhar -->
   <script>
     if (typeof firebase === 'undefined') {
       document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"><\/script>');
       document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"><\/script>');
       document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"><\/script>');
+      document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-storage-compat.js"><\/script>');
     }
   </script>
   <style>
@@ -390,9 +392,10 @@ html[data-role="technician"] nav button {
 }
 
   /* --- UI fixes --- */
-    [data-toggle-ativo],
     .btn-inativo {
-      display: none !important;
+      background: #b91c1c !important;
+      border-color: rgba(248,113,113,.7) !important;
+      color: #fff !important;
     }
 
   /* --- Signature sizing --- */
@@ -635,8 +638,11 @@ html[data-role="technician"] nav button {
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
                 <label id="labelDocCliente" style="margin:0;">CNPJ do cliente</label>
                 <span style="color:#94a3b8;font-size:.7rem;">·</span>
-                <input type="checkbox" id="chkPessoaFisica" style="width:auto;cursor:pointer;margin:0;">
-                <label for="chkPessoaFisica" style="margin:0;font-size:.68rem;color:#64748b;cursor:pointer;">Pessoa física (CPF)</label>
+                <div class="pill-toggle" style="margin-left:4px;">
+                  <button type="button" class="pill active" id="docToggleCnpj" onclick="setTipoDoc('CNPJ')">CNPJ</button>
+                  <button type="button" class="pill" id="docToggleCpf" onclick="setTipoDoc('CPF')">CPF</button>
+                </div>
+                <input type="checkbox" id="chkPessoaFisica" style="display:none;">
               </div>
               <input id="aCnpj"
                      placeholder="00.000.000/0000-00"
@@ -660,7 +666,7 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>Cidade</label>
-              <input id="aCidade" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500%;">
+              <input id="aCidade" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col" style="display:flex;gap:8px;align-items:flex-end;">
               <div style="flex:2 1 0;min-width:0;">
@@ -728,7 +734,7 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>Local de instalação</label>
-              <input id="bLocal" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500%;">
+              <input id="bLocal" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
           <div class="row" style="margin-top:6px;">
@@ -738,7 +744,7 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>Tensão de saída</label>
-              <input id="bTensaoSaida" placeholder="Ex: 220 V" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500%;">
+              <input id="bTensaoSaida" placeholder="Ex: 220 V" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
           <div class="row" style="margin-top:6px;">
@@ -750,7 +756,10 @@ html[data-role="technician"] nav button {
           <div style="margin-top:8px;">
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Upload de fotos do equipamento</label>
             <div class="upload-field">
-              <input type="file" id="bUploadFotos" accept="image/*,video/*" multiple>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+                <input type="file" id="bUploadFotos" accept="image/*,video/*" multiple style="flex:1;min-width:0;">
+                <button type="button" class="btn small" id="btnCameraEquip" title="Tirar foto com a câmera" style="white-space:nowrap;flex-shrink:0;"><i class="ri-camera-line"></i> Câmera</button>
+              </div>
               <div id="bPreview" class="preview-list"></div>
             </div>
           </div>
@@ -772,7 +781,7 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>Status final</label>
-              <select id="cStatus" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500%;">
+              <select id="cStatus" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
                 <option value="Concluído">Concluído</option>
                 <option value="Concluído com pendência">Concluído com pendência</option>
                 <option value="Não concluído">Não concluído</option>
@@ -802,7 +811,10 @@ html[data-role="technician"] nav button {
           <div style="margin-top:8px;">
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Upload de fotos / vídeos do serviço</label>
             <div class="upload-field">
-              <input type="file" id="cUpload" accept="image/*,video/*" multiple>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+                <input type="file" id="cUpload" accept="image/*,video/*" multiple style="flex:1;min-width:0;">
+                <button type="button" class="btn small" id="btnCameraServico" title="Tirar foto com a câmera" style="white-space:nowrap;flex-shrink:0;"><i class="ri-camera-line"></i> Câmera</button>
+              </div>
               <div id="cPreview" class="preview-list"></div>
             </div>
           </div>
@@ -842,8 +854,11 @@ html[data-role="technician"] nav button {
         <div class="row" style="margin-top:8px;">
           <div class="col">
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos / Vídeos das baterias</label>
-            <input type="file" id="dUpload" multiple accept="image/*,video/*"
-              style="margin-top:4px;font-size:.72rem;color:#0f172a;">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+              <input type="file" id="dUpload" multiple accept="image/*,video/*"
+                style="font-size:.72rem;color:#0f172a;flex:1;min-width:0;">
+              <button type="button" class="btn small" id="btnCamerasBaterias" title="Tirar foto com a câmera" style="white-space:nowrap;flex-shrink:0;"><i class="ri-camera-line"></i> Câmera</button>
+            </div>
             <div id="dPreview" class="preview-list"></div>
           </div>
         </div>
@@ -942,8 +957,8 @@ html[data-role="technician"] nav button {
             <i class="ri-check-double-line"></i> RELATÓRIO FINALIZADO
           </h3>
           <p style="font-size:.88rem;color:#1f2937;line-height:1.4;">
-            1) Baixe o PDF primeiro. <br>
-            2) Depois clique no botão <strong>"Enviar via WhatsApp"</strong> e anexe o PDF na conversa.
+            O PDF será gerado automaticamente e enviado ao cliente com link de acesso direto. <br>
+            <span style="font-size:.78rem;color:#475569;">Certifique-se de estar conectado à internet para que o link seja gerado.</span>
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn" id="btnSalvarLocal"><i class="ri-save-3-line"></i> Salvar relatório</button>
@@ -1032,18 +1047,18 @@ html[data-role="technician"] nav button {
           <div class="list-relatorios" id="listaBusca"></div>
         </div>
 
-        <div class="section-card">
+        <div class="section-card" style="overflow:hidden;width:100%;box-sizing:border-box;">
           <h3><i class="ri-article-line"></i> Relatórios recebidos Por Status</h3>
           <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
             <button class="btn small" id="btnMostrarTodos"><i class="ri-folder-3-line"></i> RELATÓRIOS RECEBIDOS</button>
             <button class="btn small" id="btnMostrarNaoVistos"><i class="ri-eye-off-line"></i> RELATÓRIOS NÃO VISUALIZADOS</button>
           </div>
-          <div class="row" style="gap:6px;margin-bottom:6px;">
-            <div class="col">
-              <input id="filtroTexto" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;padding:6px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:.72rem;">
+          <div class="row" style="gap:6px;margin-bottom:6px;width:100%;box-sizing:border-box;">
+            <div class="col" style="min-width:0;flex:1 1 0;">
+              <input id="filtroTexto" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:.72rem;">
             </div>
-            <div class="col" style="display:flex;gap:6px;max-width:min(250px,100%);">
-              <select id="filtroStatus" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;font-size:.72rem;">
+            <div class="col" style="display:flex;gap:6px;min-width:0;flex:0 1 auto;max-width:min(250px,100%);">
+              <select id="filtroStatus" style="width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;font-size:.72rem;">
                 <option value="">Status (todos)</option>
                 <option value="Concluído">Concluído</option>
                 <option value="Concluído com pendência">Concluído com pendência</option>
@@ -1441,7 +1456,14 @@ html[data-role="technician"] nav button {
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email, password: senha, returnSecureToken: true }) });
       const data = await resp.json();
-      if (data.error) return { uid: null, error: data.error.message };
+      if (data.error) {
+        if (data.error.message && data.error.message.includes('TOO_MANY_ATTEMPTS')) {
+          // Aguarda 3s e tenta novamente
+          await new Promise(r => setTimeout(r, 3000));
+          return criarUsuarioFirebaseREST(email, senha);
+        }
+        return { uid: null, error: data.error.message };
+      }
       return { uid: data.localId, error: null };
     } catch(e) { return { uid: null, error: String(e) }; }
   }
@@ -1547,6 +1569,28 @@ html[data-role="technician"] nav button {
     db = firebase.firestore();
     window._getDb = function() { return db; };
 
+    // Firebase Storage — tenta inicializar, com retry se SDK ainda não carregou
+    var _initStorage = function() {
+      try {
+        if (typeof firebase.storage === 'function') {
+          window._storage = firebase.storage();
+          console.log('✅ Firebase Storage inicializado.');
+        } else {
+          // SDK não carregou ainda — tenta via CDN e aguarda
+          var s = document.createElement('script');
+          s.src = 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js';
+          s.onload = function() {
+            try { window._storage = firebase.storage(); console.log('✅ Firebase Storage inicializado (lazy).'); }
+            catch(e2) { console.warn('⚠️ Firebase Storage não disponível:', e2.message); }
+          };
+          document.head.appendChild(s);
+        }
+      } catch(e) {
+        console.warn('⚠️ Firebase Storage não disponível:', e.message || e);
+      }
+    };
+    _initStorage();
+
     // Firebase Authentication
     var firebaseAuth = null;
     try {
@@ -1596,8 +1640,8 @@ html[data-role="technician"] nav button {
         mustChangePassword: !!u.mustChangePassword,
         usuario: u.username||u.usuario||'', nome: u.fullName||u.nome||'',
         precisaSenha: !!u.mustChangePassword,
-        _passwordHash: (u._salt && u.password) ? u.password : null,
-        _salt: u._salt||null, _firebaseUid: u._firebaseUid||null, _email: u._email||null
+        // Senha NÃO vai para o Firestore — fica apenas no localStorage
+        _firebaseUid: u._firebaseUid||null, _email: u._email||null
       };
       if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
         await db.collection('onlineEsUsuarios').doc(id).set({
@@ -1894,10 +1938,29 @@ html[data-role="technician"] nav button {
       var docId = String(r.id || r.numero || Date.now());
       var user = window.usuarioLogado || {};
       if (user.uid && !r.ownerUid) r.ownerUid = user.uid;
+      // Upload imagens para Firebase Storage (substitui base64 por URLs)
+      if (typeof _uploadImagensRelatorio === 'function') {
+        try { r = await _uploadImagensRelatorio(r); } catch(e) { console.warn('Upload imagens falhou:', e); }
+      }
+      // Remove base64 restante para evitar documento > 1MB no Firestore
+      // (imagens que não foram para Storage ficam apenas no localStorage)
+      var rFirestore = Object.assign({}, r);
+      ['imgsEquip','imgsServico','imgsBaterias','vidsEquip','vidsServico','vidsBaterias'].forEach(function(k) {
+        if (Array.isArray(rFirestore[k])) {
+          rFirestore[k] = rFirestore[k].map(function(v) {
+            return (typeof v === 'string' && v.startsWith('data:')) ? '[local]' : v;
+          });
+        }
+      });
+      if (typeof rFirestore.assinaturaCliente === 'string' && rFirestore.assinaturaCliente.startsWith('data:'))
+        rFirestore.assinaturaCliente = '[local]';
+      if (typeof rFirestore.assinaturaTecnicoImg === 'string' && rFirestore.assinaturaTecnicoImg.startsWith('data:'))
+        rFirestore.assinaturaTecnicoImg = '[local]';
       if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
-        await db.collection("onlineEsRelatorios").doc(docId).set(r, { merge: true });
+        await db.collection("onlineEsRelatorios").doc(docId).set(rFirestore, { merge: true });
+        console.log('Relatório salvo no Firestore:', docId);
       } else {
-        await _setDocREST('onlineEsRelatorios', docId, r);
+        await _setDocREST('onlineEsRelatorios', docId, rFirestore);
       }
     } catch(e) {
       console.warn("Falha ao salvar relatório no Firestore:", e.message || e);
@@ -1910,6 +1973,94 @@ html[data-role="technician"] nav button {
   // NÃO sincronizar antes do login para evitar corromper senhas locais
 
   // === Sync geral no login: sincroniza todas as coleções ===
+  // onSnapshot: escuta relatórios em tempo real (supervisor vê quando técnico salva)
+  function _iniciarListenerRelatorios() {
+    if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
+    if (window._relatoriosListener) return; // já ativo
+    try {
+      window._relatoriosListener = db.collection('onlineEsRelatorios')
+        .limit(200)
+        .onSnapshot(function(snap) {
+          if (snap.empty) return;
+          var novos = [];
+          snap.forEach(function(doc) {
+            var d = doc.data() || {};
+            d._firestoreId = doc.id;
+            d.id = d.id || doc.id;
+            novos.push(d);
+          });
+          // Merge com locais
+          var locais = (typeof loadRelatorios === 'function' ? loadRelatorios() : window.relatorios) || [];
+          var mapa = new Map();
+          locais.forEach(function(r){ if(r.id||r.numero) mapa.set(String(r.id||r.numero), r); });
+          novos.forEach(function(r){ mapa.set(String(r.id||r.numero||r._firestoreId), r); });
+          var todos = Array.from(mapa.values());
+          // Propaga exclusões em tempo real: remove _deleted de todos os dispositivos
+          snap.docChanges().forEach(function(change) {
+            if (change.type === 'modified' || change.type === 'removed') {
+              var d = change.doc.data();
+              if (d._deleted) {
+                var key = String(d.id || d.numero || change.doc.id);
+                mapa.delete(key);
+                todos = Array.from(mapa.values());
+              }
+            }
+          });
+          // Flag anti-loop: evita que saveRelatorios dispare novo onSnapshot
+          if (!window._snapshotSaving) {
+            window._snapshotSaving = true;
+            if (typeof saveRelatorios === 'function') try { saveRelatorios(todos); } catch(e){}
+            window.relatorios = todos;
+            setTimeout(function(){ window._snapshotSaving = false; }, 500);
+          } else {
+            window.relatorios = todos;
+          }
+          // Notifica supervisor se há novo relatório não visto
+          var user = window.usuarioLogado || {};
+          var isSup = user.role === 'admin' || user.role === 'supervisor';
+          if (isSup) {
+            snap.docChanges().forEach(function(change) {
+              if (change.type === 'added') {
+                var d = change.doc.data();
+                if (!d.visto && d.tecnicoLogin !== (user.username||'')) {
+                  _notificarNovoRelatorio(d);
+                }
+              }
+            });
+          }
+          // Re-renderiza se painel estiver visível
+          try { if (typeof renderLista === 'function') renderLista(); } catch(e){}
+          try { if (typeof atualizarDashboard === 'function') atualizarDashboard(); } catch(e){}
+        }, function(err) {
+          console.warn('onSnapshot relatorios erro:', err.message);
+          window._relatoriosListener = null;
+        });
+      console.log('✅ Listener de relatórios em tempo real ativo.');
+    } catch(e) {
+      console.warn('Falha ao iniciar listener de relatórios:', e);
+    }
+  }
+  window._iniciarListenerRelatorios = _iniciarListenerRelatorios;
+
+  // Notificação toast para supervisor
+  function _notificarNovoRelatorio(r) {
+    var tecnico = r.tecnico || r.tecnicoLogin || 'Técnico';
+    var cliente = r.cliente || '';
+    var msg = '🔔 Novo relatório de ' + tecnico + (cliente ? ' — ' + cliente : '');
+    var toast = document.getElementById('toast');
+    if (toast) {
+      toast.textContent = msg;
+      toast.style.background = '#1d4ed8';
+      toast.style.display = 'block';
+      setTimeout(function(){ toast.style.display = 'none'; toast.style.background = ''; }, 6000);
+    }
+    // Notificação nativa do browser (se permitida)
+    if (window.Notification && Notification.permission === 'granted') {
+      new Notification('ONLINE ES — Novo Relatório', { body: msg, icon: '/logo.png' });
+    }
+  }
+  window._notificarNovoRelatorio = _notificarNovoRelatorio;
+
   async function syncColecoesFromFirestoreOnLogin() {
     if (!navigator.onLine) return;
     try {
@@ -2391,7 +2542,35 @@ function saveUsers(lista){
 
   // RELATÓRIOS/PENDENTES — via AppStorage (local + Firestore sync)
   function loadRelatorios(){ try { return window.AppStorage ? AppStorage.getReports() : JSON.parse(localStorage.getItem(STORAGE_REPORTS)||'[]'); } catch(e){ return []; } }
-  function saveRelatorios(list){ try { if (window.AppStorage) AppStorage.setReports(list); else localStorage.setItem(STORAGE_REPORTS, JSON.stringify(list)); } catch(e){} }
+  function saveRelatorios(list){
+    try {
+      if (window.AppStorage) { AppStorage.setReports(list); return; }
+      var dados = JSON.stringify(list);
+      // Verifica tamanho — localStorage tem limite ~5MB
+      if (dados.length > 4 * 1024 * 1024) {
+        // Remove base64 das fotos para economizar espaço (URLs do Storage são curtas)
+        var compacto = list.map(function(r) {
+          var rc = Object.assign({}, r);
+          ['imgsEquip','imgsServico','imgsBaterias'].forEach(function(k) {
+            if (Array.isArray(rc[k])) rc[k] = rc[k].map(function(v) {
+              return (typeof v === 'string' && v.startsWith('data:')) ? '[comprimido]' : v;
+            });
+          });
+          if (typeof rc.assinaturaCliente === 'string' && rc.assinaturaCliente.startsWith('data:')) rc.assinaturaCliente = '[comprimido]';
+          if (typeof rc.assinaturaTecnicoImg === 'string' && rc.assinaturaTecnicoImg.startsWith('data:')) rc.assinaturaTecnicoImg = '[comprimido]';
+          return rc;
+        });
+        dados = JSON.stringify(compacto);
+        console.warn('localStorage: relatórios compactados (base64 removido) para economizar espaço.');
+      }
+      localStorage.setItem(STORAGE_REPORTS, dados);
+    } catch(e) {
+      if (e.name === 'QuotaExceededError') {
+        showToast('⚠️ Armazenamento local cheio! Faça backup e limpe os relatórios antigos.', 6000);
+        console.error('QuotaExceededError: localStorage cheio');
+      }
+    }
+  }
   window.loadLocalReports = loadRelatorios;
 
   function loadPendentes(){ try { return window.AppStorage ? AppStorage.getPendentes() : JSON.parse(localStorage.getItem(STORAGE_PENDENTES)||'[]'); } catch(e){ return []; } }
@@ -2474,33 +2653,58 @@ function saveUsers(lista){
     localStorage.setItem(STORAGE_CONTADOR, String(c));
   }
   function proximoNumeroRAT(){
+    // Usa localStorage como base, mas tenta sincronizar com Firestore para evitar duplicatas
     let c = parseInt(localStorage.getItem(STORAGE_CONTADOR)||'0',10);
     c++; localStorage.setItem(STORAGE_CONTADOR, String(c));
     const now = new Date();
     const dd = pad(now.getDate());
     const mm = pad(now.getMonth()+1);
     const yyyy = now.getFullYear();
-    return `RAT-${dd}${mm}${yyyy}-${String(c).padStart(4,'0')}`;
+    var numero = 'RAT-' + dd + mm + yyyy + '-' + String(c).padStart(4,'0');
+    // Registra no Firestore para evitar colisão entre dispositivos
+    if (navigator.onLine && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      try {
+        var tecLogin = (window.usuarioLogado && window.usuarioLogado.username) || 'unknown';
+        _setDocREST('onlineEsContadores', numero, {
+          numero: numero, tecnico: tecLogin, timestamp: new Date().toISOString(), reservado: true
+        }).catch(function(){});
+      } catch(e) {}
+    }
+    return numero;
   }
+  // Verifica assincronamente se número já existe (colisão entre dispositivos)
+  async function verificarNumeroRATUnico(numero) {
+    if (!navigator.onLine || !window._firebaseAuth || !window._firebaseAuth.currentUser) return numero;
+    try {
+      var db2 = window._getDb ? window._getDb() : null;
+      if (!db2) return numero;
+      var snap = await db2.collection('onlineEsContadores').doc(numero).get();
+      if (!snap.exists) return numero;
+      var data = snap.data();
+      var tecAtual = (window.usuarioLogado && window.usuarioLogado.username) || '';
+      if (data.tecnico === tecAtual) return numero; // mesmo técnico, OK
+      // Colisão detectada — gera novo número com sufixo
+      var novo = numero + '-' + tecAtual.substring(0,3).toUpperCase();
+      console.warn('Colisão RAT detectada, usando:', novo);
+      return novo;
+    } catch(e) { return numero; }
+  }
+  window.verificarNumeroRATUnico = verificarNumeroRATUnico;
 let relogioAtendimentoTimer = null;
 
 function ensureNumeroRat(){
   const el = document.getElementById('aNumeroRat');
   if (!el || el.value) return;
-
-  if (window.proximoNumeroRATGlobal && navigator.onLine){
-    window.proximoNumeroRATGlobal()
-      .then(num=>{
-        if (num && !el.value) el.value = num;
-      })
-      .catch(err=>{
-        console.warn('Falha no contador global, usando local:', err);
-        if (!el.value) el.value = proximoNumeroRAT();
-      });
-  } else {
-    el.value = proximoNumeroRAT();
+  var _numRat = proximoNumeroRAT();
+  el.value = _numRat;
+  // Verifica colisão assincronamente e atualiza campo se necessário
+  if (navigator.onLine && typeof verificarNumeroRATUnico === 'function') {
+    verificarNumeroRATUnico(_numRat).then(function(numFinal) {
+      if (numFinal !== _numRat && el.value === _numRat) el.value = numFinal;
+    }).catch(function(){});
   }
 }
+
 
 function startRelogioAtendimento(){
   try{
@@ -2553,9 +2757,13 @@ function autoFillCamposAtendimento(){
   const mNovo = document.getElementById('mNovo');
   const mMeus = document.getElementById('mMeus');
   const mPainel = document.getElementById('mPainel');
+  const mCadastros = document.getElementById('mCadastros');
+  const mSistema = document.getElementById('mSistema');
   const telaNovo = document.getElementById('telaNovo');
   const telaMeus = document.getElementById('telaMeus');
   const telaPainel = document.getElementById('telaPainel');
+  const telaCadastros = document.getElementById('telaCadastros');
+  const telaSistema = document.getElementById('telaSistema');
   const userName = document.getElementById('userName');
   const userRole = document.getElementById('userRole');
   const btnLogout = document.getElementById('btnLogout');
@@ -2687,9 +2895,18 @@ function autoFillCamposAtendimento(){
   if (aCnpj){
     aCnpj.readOnly = true;
     aCnpj.addEventListener('input', () => {
-      const pos = aCnpj.selectionStart;
+      // Salva quantos dígitos havia ANTES do cursor para recalcular posição correta após a máscara
+      const posAntes = aCnpj.selectionStart;
+      const digitosAntes = (aCnpj.value.slice(0, posAntes).replace(/\D/g, '') || '').length;
       aCnpj.value = aplicarMascaraDocCliente(aCnpj.value);
-      try{ aCnpj.setSelectionRange(pos, pos); }catch(e){}
+      // Reconstrói posição: avança no valor formatado contando dígitos até chegar em digitosAntes
+      let contDigitos = 0, novaPosicao = 0;
+      for (let i = 0; i < aCnpj.value.length; i++) {
+        if (/\d/.test(aCnpj.value[i])) contDigitos++;
+        novaPosicao = i + 1;
+        if (contDigitos >= digitosAntes) break;
+      }
+      try{ aCnpj.setSelectionRange(novaPosicao, novaPosicao); }catch(e){}
     });
   }
 
@@ -2985,6 +3202,9 @@ function autoFillCamposAtendimento(){
 
   // ===== EDITAR RAT =====
   function editarRelatorio(r) {
+    // Seta o número RAT ANTES de mostrarTela para evitar que ensureNumeroRat()
+    // dentro de mostrarTela incremente o contador desnecessariamente
+    try { var _ratEl = document.getElementById('aNumeroRat'); if (_ratEl) _ratEl.value = r.numero || ' '; } catch(e){}
     // Preenche o formulário de Novo Atendimento com os dados do relatório
     mostrarTela('novo').then(() => {
       try {
@@ -3167,8 +3387,21 @@ function autoFillCamposAtendimento(){
 
     }
     console.log('🚀 entrarSistema: FIM - sistema carregado.');
-    // DEBUG TEMPORÁRIO: alert para confirmar visualmente que entrou
     try { showToast('Login OK: ' + (user.fullName || user.username)); } catch(e){}
+
+    // Inicia listener de relatórios em tempo real
+    setTimeout(function() {
+      if (typeof _iniciarListenerRelatorios === 'function') _iniciarListenerRelatorios();
+    }, 1500);
+
+    // Solicita permissão para notificações nativas (supervisor/admin)
+    if ((user.role === 'admin' || user.role === 'supervisor') && window.Notification && Notification.permission === 'default') {
+      setTimeout(function() {
+        Notification.requestPermission().then(function(p) {
+          if (p === 'granted') console.log('✅ Notificações nativas permitidas.');
+        });
+      }, 3000);
+    }
   }
 
   // === DIAGNÓSTICO FIREBASE ===
@@ -3838,103 +4071,6 @@ function renderUsuarios(){
     };
   });
 }
-document.querySelectorAll('[data-reset]').forEach(btn=>{
-      btn.onclick=()=>{
-        const user=btn.getAttribute('data-reset');
-        if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
-        if (!confirm('Confirmar reset de senha para "'+user+'"? O usuário definirá nova senha no próximo login.')) return;
-        usuarios = (usuarios || []).map(u=> u.username===user ? ({...u,password:'',_salt:'',mustChangePassword:true}) : u);
-        saveUsers(usuarios); _syncUsuarioFirestore(user); renderUsuarios(); showToast('Senha resetada com sucesso.');
-      try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
-      };
-    });
-
-    document.querySelectorAll('[data-remover]').forEach(btn=>{
-      btn.onclick = async () => {
-        const user = btn.getAttribute('data-remover');
-        if (!isSupervisorOrAdmin()){ 
-          alert('Permissão negada.'); 
-          return; 
-        }
-        if (!confirm('Você tem certeza que deseja remover este usuário?')) return;
-
-        // Garante que está usando a lista mais atual de usuários
-        if (typeof loadUsers === 'function'){
-          usuarios = loadUsers() || [];
-        }
-
-        // Remove local (array + localStorage)
-        usuarios = (Array.isArray(usuarios) ? usuarios : []).filter(x => x && x.username !== user);
-        saveUsers(usuarios);
-        renderUsuarios();
-        showToast('Usuário removido com sucesso!');
-
-        // Remove do Firestore pelo uid (correto)
-        try{
-          if (typeof removerUsuarioDoFirestore === 'function') {
-            await removerUsuarioDoFirestore(user);
-          }
-        }catch(e){
-          console.warn('Falha ao remover usuário no Firestore:', e);
-        }
-      };
-    });
-
-    document.querySelectorAll('[data-editar]').forEach(btn=>{
-      btn.onclick = ()=>{
-        if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
-        const uname = btn.getAttribute('data-editar');
-        const u = (usuarios || []).find(x=>x.username===uname);
-        if (!u) return;
-
-        const novoNome = prompt('Nome completo:', u.fullName || '');
-        if (novoNome === null) return;
-
-        const novoUser = prompt('Usuário (login):', u.username);
-        if (novoUser === null) return;
-
-        let novoRole = prompt('Papel (admin/supervisor/tecnico):', u.role);
-        if (novoRole === null) return;
-        novoRole = (['admin','supervisor','tecnico'].includes((novoRole||'').trim().toLowerCase()) ? novoRole.trim().toLowerCase() : u.role);
-
-        // Supervisor não pode promover para admin
-        if (!isAdmin() && novoRole === 'admin'){ alert('Apenas o Administrador pode atribuir o papel "admin".'); return; }
-
-        if (!confirm(`Confirmar edição do usuário?\n\nNome: ${novoNome}\nLogin: ${novoUser}\nPapel: ${roleLabel(novoRole)}`)) return;
-
-        // Validar duplicidade de login (ignora o próprio)
-        if ((usuarios || []).find(x=> x.username.toLowerCase()===novoUser.toLowerCase() && x.username!==u.username)){
-          alert('Já existe um usuário com esse login.'); return;
-        }
-
-        usuarios = (usuarios || []).map(x=>{
-          if (x.username!==u.username) return x;
-          return {...x, fullName: (novoNome||u.fullName), username: (novoUser||u.username), role: novoRole};
-        });
-        saveUsers(usuarios);
-        _syncUsuarioFirestore(user);
-        renderUsuarios();
-        showToast('Usuário atualizado com sucesso.');
-        try { logInfo('Usuário atualizado', { usuario: user || '' }); } catch(e){}
-      };
-    });
-
-    document.querySelectorAll('[data-toggle-ativo]').forEach(btn=>{
-      btn.onclick = ()=>{
-        const user = btn.getAttribute('data-toggle-ativo');
-        if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
-        usuarios = (usuarios || []).map(u=>{
-          if (u.username!==user) return u;
-          const ativoAgora = (u.active === false) ? true : false;
-          return {...u, active: ativoAgora};
-        });
-        saveUsers(usuarios);
-        _syncUsuarioFirestore(user);
-        renderUsuarios();
-        showToast('Status de usuário atualizado.');
-        try { logInfo('Status de usuário alterado', {}); } catch(e){}
-      };
-    });
   function renderEquipamentos(){
     const tbody = document.getElementById('tabelaEquipamentos')?.querySelector('tbody');
     if (!tbody) return;
@@ -3961,12 +4097,11 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
         if (confirm('Remover equipamento selecionado?')){
           equipamentos = (equipamentos||[]).filter(e=>String(e.id)!==String(id));
           saveEquipamentos(equipamentos);
-          if (db) { try { db.collection('onlineEsEquipamentos').doc(String(id)).delete(); } catch(e){} }
           renderEquipamentos();
           popularSelectEquipamentosEstoque();
           showToast && showToast('Equipamento removido.');
           try { logInfo('Equipamento removido', { id: id }); } catch(e){}
-          // Remove do Firestore
+          // Remove do Firestore (única chamada)
           try {
             if (db) {
               await db.collection('onlineEsEquipamentos').doc(String(id)).delete();
@@ -4142,7 +4277,7 @@ function renderClientes(){
       document.getElementById('eqEstoque').value = '1';
 
       showToast && showToast('Equipamento cadastrado com sucesso.');
-      try { logInfo('Equipamento cadastrado', { descricao: desc || 'N/A' }); } catch(e){}
+      try { logInfo('Equipamento cadastrado', { descricao: [tipo, marca, modelo].filter(Boolean).join(' ') || 'N/A' }); } catch(e){}
     };
   }
 
@@ -4266,6 +4401,10 @@ document.getElementById('btnAddCliente').onclick=()=>{
       resolve(drawHmm);
     };
     img.onerror = function(){ resolve(0); };
+    // crossOrigin necessário para URLs do Firebase Storage (CORS)
+    if (typeof imgSrc === 'string' && imgSrc.startsWith('http')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.src = imgSrc;
   });
 }
@@ -4815,7 +4954,6 @@ if (logoBase64) {
       };
       lista.push(novoCliente);
       window.clientes = lista;
-      saveClientes(lista);
       try{
         if (typeof saveClientes === 'function') saveClientes(lista);
         if (typeof salvarClienteNoFirestore === 'function') salvarClienteNoFirestore(novoCliente);
@@ -4858,6 +4996,9 @@ if (logoBase64) {
     return true;
   }
 
+  // === RASCUNHO: constante declarada aqui para evitar ReferenceError no btnSalvarLocal ===
+  const STORAGE_RASCUNHO = 'online-es-rascunho-v1';
+
   // Salvar
   btnSalvarLocal.onclick = ()=>{
     if (!usuarioLogado){ alert('Faça login novamente.'); return; }
@@ -4894,11 +5035,49 @@ if (logoBase64) {
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
       try { logWarning('RAT salva (offline/pendente)', { numero: novo.numero || novo.id || 'N/A', cliente: novo.cliente || '' }); } catch(e){}
     }
+    // Prepara formulário para próximo atendimento: limpa campos e gera novo número RAT
+    try {
+      // Limpa apenas campos essenciais (não limpa tudo para não atrapalhar fluxo)
+      var _camposLimpar = [
+        'aClienteSelect','aContato','aTelefone','aWhats','aEmailCliente',
+        'aEndereco','aBairro','aCidade','aUF','aCep','aCnpj','aLocalizacao','aCoord','aLinkMaps',
+        'bEquipamento','bSerie','bKVA','bLocal','bCondicao','bTensaoEntrada','bTensaoSaida',
+        'cTipo','cStatus','cProblema','cDiagnostico','cAcoes','cPecas',
+        'dBatQtd','dBatTensao','dObs','sigNomeCliente'
+      ];
+      _camposLimpar.forEach(function(id){
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
+      });
+      // Limpa previews de mídia
+      ['bPreview','cPreview','dPreview'].forEach(function(id){
+        var el = document.getElementById(id); if (el) el.innerHTML = '';
+      });
+      // Limpa assinaturas
+      try { clearSignature(); } catch(e){}
+      try {
+        var _sigTec = document.getElementById('sigTecnico');
+        if (_sigTec) { var _ctx = _sigTec.getContext('2d'); _ctx.clearRect(0,0,_sigTec.width,_sigTec.height); }
+      } catch(e){}
+      assinaturaClienteAtual = null;
+      assinaturaTecnicoAtual = null;
+      // Limpa cliente manual
+      if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
+      if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = true; }
+      var _cnpjWrap = document.getElementById('aCnpjWrapper') || (aCnpj && aCnpj.parentElement);
+      if (_cnpjWrap) _cnpjWrap.style.display = 'none';
+      // Limpa o campo de número e gera o próximo
+      var _ratEl = document.getElementById('aNumeroRat');
+      if (_ratEl) _ratEl.value = '';
+      ensureNumeroRat();
+      // Reinicia relógio
+      startRelogioAtendimento();
+    } catch(e){ console.warn('Erro ao preparar próximo atendimento:', e); }
   };
 
   // === RASCUNHO: salva RAT incompleta para continuar depois ===
-  const STORAGE_RASCUNHO = 'online-es-rascunho-v1';
-
   const btnSalvarRascunho = document.getElementById('btnSalvarRascunho');
   if (btnSalvarRascunho) {
     btnSalvarRascunho.onclick = () => {
@@ -4961,7 +5140,7 @@ if (logoBase64) {
       // Preenche os campos do formulário com os dados do rascunho
       try {
         if (r.numero && aNumeroRat) aNumeroRat.value = r.numero;
-        if (r.dataHoraBR && aDataHoraBR) aDataHoraBR.value = r.dataHoraBR;
+        if ((r.dataHoraBr || r.dataHoraBR) && aDataHoraBR) aDataHoraBR.value = r.dataHoraBr || r.dataHoraBR || '';
         if (r.tecnico && aTecnico) aTecnico.value = r.tecnico;
         if (r.contato) { const el = document.getElementById('aContato'); if (el) el.value = r.contato; }
         if (r.telefone && aTelefone) aTelefone.value = r.telefone;
@@ -4982,12 +5161,11 @@ if (logoBase64) {
         if (r.bairro) { const el = document.getElementById('aBairro'); if (el) el.value = r.bairro; }
         if (r.cidade) { const el = document.getElementById('aCidade'); if (el) el.value = r.cidade; }
         if (r.uf) { const el = document.getElementById('aUF'); if (el) el.value = r.uf; }
-        if (r.cnpj && aCnpj) aCnpj.value = r.cnpj;
+        if ((r.cnpjCliente || r.cnpj) && aCnpj) aCnpj.value = r.cnpjCliente || r.cnpj || '';
 
         // Equipamento
         if (r.equipamento) { var _fx = document.getElementById('bEquipamento'); if (_fx) _fx.value = r.equipamento || ''; }
-        if (r.marca) document.getElementById('bMarca').value = r.marca || '';
-        if (r.modelo) document.getElementById('bModelo').value = r.modelo || '';
+        // bMarca e bModelo não existem como campos separados neste form
         if (r.serie) { var _fx = document.getElementById('bSerie'); if (_fx) _fx.value = r.serie || ''; }
         if (r.kva) { var _fx = document.getElementById('bKVA'); if (_fx) _fx.value = r.kva || ''; }
         if (r.localInstalacao) { var _fx = document.getElementById('bLocal'); if (_fx) _fx.value = r.localInstalacao || ''; }
@@ -5041,27 +5219,40 @@ if (logoBase64) {
   });
 
 
-  function syncPendentes(){
+  async function syncPendentes(){
     if (!navigator.onLine) return;
     let alterou = 0;
-    pendentes.forEach(p=>{
-      if (!relatorios.find(r=>r.id===p.id)){ 
-        relatorios.push(p); 
+    var lista = pendentes.slice();
+    for (var p of lista) {
+      if (!relatorios.find(r=>r.id===p.id)){
+        // Tenta fazer upload das fotos [local] antes de enviar
+        if (typeof _uploadImagensRelatorio === 'function') {
+          try { p = await _uploadImagensRelatorio(p); } catch(e){}
+        }
+        relatorios.push(p);
         alterou++;
-        // Envia cada pendente para o Firestore
-        try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(p); } catch(e){}
+        try { if (typeof salvarRelatorioNoFirestore === 'function') await salvarRelatorioNoFirestore(p); } catch(e){}
       }
-    });
+    }
     if (alterou > 0){
       saveRelatorios(relatorios); pendentes = []; savePendentes(pendentes);
-      showToast(alterou + ' relatório(s) pendente(s) sincronizado(s) com o Firestore.');
+      showToast('✅ ' + alterou + ' relatório(s) sincronizado(s) com o banco de dados.');
       try { logInfo('RATs pendentes sincronizadas com Firestore', { quantidade: alterou }); } catch(e){}
       if (usuarioLogado && isSupervisorOrAdmin(usuarioLogado)){ renderLista(); atualizarDashboard(); }
     }
   }
-  window.addEventListener('online', syncPendentes);
+  window.addEventListener('online', function(){ syncPendentes(); });
+  window.addEventListener('online', function(){ window.syncOnlineAfterSave && window.syncOnlineAfterSave(); });
+  // Reinicia listener ao reconectar
+  window.addEventListener('online', function(){
+    setTimeout(function(){
+      if (!window._relatoriosListener && typeof _iniciarListenerRelatorios === 'function') {
+        _iniciarListenerRelatorios();
+      }
+    }, 2000);
+  });
+  setInterval(function(){ syncPendentes(); }, 15000);
 
-   window.addEventListener('online', ()=> window.syncOnlineAfterSave && window.syncOnlineAfterSave());  setInterval(syncPendentes, 15000);
 
   btnGerarPdfLocal.onclick = async ()=>{
     if (!validarObrigatorios()) return;
@@ -5080,34 +5271,79 @@ if (logoBase64) {
   };
 
 
-  if (btnEnviarEmail){
-    btnEnviarEmail.onclick = ()=>{
-      const email = aEmailCliente && aEmailCliente.value ? aEmailCliente.value.trim() : '';
-      if (!email){
-        alert('Informe o e-mail do cliente para enviar.');
-        return;
+  // ─── Helper: gera PDF como Blob e faz upload no Firebase Storage ───────────
+  async function _gerarESubirPDF(r) {
+    // 1) Gera PDF em memória (sem acionar doc.save)
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
+    // Reutiliza a função completa exportarPDF mas captura o blob antes de salvar
+    // Para isso chamamos exportarPDF e logo em seguida pegamos window._lastPdfBase64
+    await exportarPDF(r);                     // já salva localmente E preenche _lastPdfBase64
+    const b64  = window._lastPdfBase64;
+    const nome = window._lastPdfFilename || `relatorio-${r.numero || 'online'}.pdf`;
+    if (!b64) throw new Error('PDF não gerado corretamente.');
+
+    // 2) Tenta subir no Firebase Storage
+    var pdfUrl = null;
+    try {
+      var storage = window._storage;
+      if (storage && window._firebaseAuth && window._firebaseAuth.currentUser) {
+        var bstr = atob(b64);
+        var n = bstr.length;
+        var u8 = new Uint8Array(n);
+        while(n--) u8[n] = bstr.charCodeAt(n);
+        var blob = new Blob([u8], {type: 'application/pdf'});
+        var ratId = String(r.id || r.numero || Date.now());
+        var ref = storage.ref('relatorios/' + ratId + '/' + nome);
+        // Metadata público para leitura direta
+        var meta = { contentType: 'application/pdf', contentDisposition: 'inline' };
+        await ref.put(blob, meta);
+        pdfUrl = await ref.getDownloadURL();
       }
+    } catch(eSt) {
+      console.warn('Upload Storage falhou — será enviado sem link:', eSt);
+    }
+    return { pdfUrl, nome };
+  }
+
+  if (btnEnviarEmail){
+    btnEnviarEmail.onclick = async ()=>{
+      const email = aEmailCliente && aEmailCliente.value ? aEmailCliente.value.trim() : '';
+      if (!email){ alert('Informe o e-mail do cliente para enviar.'); return; }
       if (typeof autoFillCamposAtendimento === 'function') autoFillCamposAtendimento();
       ensureNumeroRat();
       var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
       if (!r){ alert('Erro ao montar relatório.'); return; }
 
-      const numeroRAT = r.numero || '';
-      const nomeEmpresa  = r.cliente || r.clienteManual || '';
+      const numeroRAT   = r.numero || '';
+      const nomeEmpresa = r.cliente || r.clienteManual || '';
       const nomeVistoria = r.nomeAssinaturaCliente || r.assinaturaNome || r.contato || '';
-      const dataTexto    = r.dataHoraBr || r.dataHoraBR || r.dataHora || (document.getElementById('aDataHoraBR') ? document.getElementById('aDataHoraBR').value : '') || '';
-      const nomeTec      = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
+      const dataTexto   = r.dataHoraBr || r.dataHoraBR || r.dataHora || (document.getElementById('aDataHoraBR') ? document.getElementById('aDataHoraBR').value : '') || '';
+      const nomeTec     = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
 
-      const assuntoPlano = `Online-ES / Envio de Relatório Técnico – ${numeroRAT}`;
+      var pdfUrl = null;
+      try {
+        showLoader('Gerando PDF e enviando...');
+        var res = await _gerarESubirPDF(r);
+        pdfUrl = res.pdfUrl;
+      } catch(e) {
+        console.warn('Falha ao gerar/subir PDF:', e);
+      } finally {
+        hideLoader();
+      }
+
+      const assuntoPlano = `Online-ES / Relatório Técnico – RAT ${numeroRAT}`;
+      const linkLinha = pdfUrl
+        ? `\n\n📄 Acesse o relatório em PDF pelo link abaixo:\n${pdfUrl}\n`
+        : '';
       const corpo = [
         'Olá,',
         '',
-        `Segue para conhecimento o Relatório Técnico de Atendimento referente à visita técnica da Online-ES na empresa ${nomeEmpresa}, realizada sob a vistoria de ${nomeVistoria}.`,
+        `Segue o Relatório Técnico de Atendimento referente à visita da Online-ES na empresa ${nomeEmpresa}, realizada sob a vistoria de ${nomeVistoria}.`,
         '',
         `Relatório nº: ${numeroRAT}`,
         `Data: ${dataTexto}`,
         `Técnico responsável: ${nomeTec}`,
-        '',
+        linkLinha,
         'Fico à disposição para quaisquer esclarecimentos.',
         '',
         'Atenciosamente,',
@@ -5116,26 +5352,83 @@ if (logoBase64) {
 
       const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(assuntoPlano)}&body=${encodeURIComponent(corpo)}`;
       window.location.href = mailto;
-      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email: email }); } catch(e){}
+      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email: email, comLink: !!pdfUrl }); } catch(e){}
     };
   }
 
 
-  btnWhatsLocal.onclick = () =>{
+  btnWhatsLocal.onclick = async () =>{
     const raw = String((aWhats && aWhats.value ? aWhats.value : (aTelefone && aTelefone.value ? aTelefone.value : ''))).trim();
     let tel = raw.replace(/\D/g,'');
-    if (!tel){
-      alert('Informe o WhatsApp ou telefone do cliente antes de enviar.');
-      return;
-    }
+    if (!tel){ alert('Informe o WhatsApp ou telefone do cliente antes de enviar.'); return; }
+    if (tel.length <= 11) tel = '55' + tel; // garante código do país Brasil
     ensureNumeroRat();
-    var r;
-    try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
-    const msgBase = `Olá, aqui é da ONLINE-ES – Eletroeletrônica. Encaminhamos o Relatório Técnico de Atendimento ao cliente ${r.cliente || ''}, RAT ${r.numero || ''}.`;
-    const msg = encodeURIComponent(msgBase);
-    window.open(`https://wa.me/${tel}?text=${msg}`,'_blank');
-    try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel }); } catch(e){}
-  };  if (btnLimparFormulario) btnLimparFormulario.onclick = ()=>{ limparFormularioNovoAtendimento(); };
+    var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
+
+    var pdfUrl = null;
+    try {
+      showLoader('Gerando PDF e enviando...');
+      var res = await _gerarESubirPDF(r);
+      pdfUrl = res.pdfUrl;
+    } catch(e) {
+      console.warn('Falha ao gerar/subir PDF:', e);
+    } finally {
+      hideLoader();
+    }
+
+    const linkTexto = pdfUrl ? `\n\n📄 Acesse o PDF aqui: ${pdfUrl}` : '';
+    const msgBase = `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.${linkTexto}\n\nQualquer dúvida estamos à disposição!`;
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msgBase)}`, '_blank');
+    try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comLink: !!pdfUrl }); } catch(e){}
+  };
+
+  // ── limparFormularioNovoAtendimento ──────────────────────────────────────────
+  function limparFormularioNovoAtendimento(){
+    try {
+      // Campos de texto/select
+      const ids = [
+        'aNumeroRat','aDataHoraBR','aContato','aTelefone','aWhats','aEmailCliente',
+        'aEndereco','aBairro','aCidade','aUF','aCep','aCnpj','aLocalizacao','aCoord','aLinkMaps',
+        'bEquipamento','bSerie','bKVA','bLocal','bCondicao','bTensaoEntrada','bTensaoSaida',
+        'cTipo','cStatus','cProblema','cDiagnostico','cAcoes','cPecas',
+        'dBatQtd','dBatTensao','dObs','sigNomeCliente'
+      ];
+      ids.forEach(function(id){
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
+      });
+      // Previews de mídia
+      ['bPreview','cPreview','dPreview'].forEach(function(id){
+        var el = document.getElementById(id); if (el) el.innerHTML = '';
+      });
+      // Assinaturas
+      try { clearSignature(); } catch(e){}
+      try {
+        var sigTec = document.getElementById('sigTecnico');
+        if (sigTec) { var ctx = sigTec.getContext('2d'); ctx.clearRect(0,0,sigTec.width,sigTec.height); }
+      } catch(e){}
+      assinaturaClienteAtual = null;
+      assinaturaTecnicoAtual = null;
+      // Select cliente e manual
+      if (aClienteSelect) { aClienteSelect.value = ''; }
+      if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
+      if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = true; }
+      var cnpjWrap = document.getElementById('aCnpjWrapper');
+      if (cnpjWrap) cnpjWrap.style.display = 'none';
+      // Apaga rascunho salvo
+      try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      // Gera novo número RAT e reinicia relógio
+      try { ensureNumeroRat(); } catch(e){}
+      try { startRelogioAtendimento(); } catch(e){}
+      showToast('Formulário limpo.');
+    } catch(e) {
+      console.warn('Erro ao limpar formulário:', e);
+    }
+  }
+
+  if (btnLimparFormulario) btnLimparFormulario.onclick = ()=>{ limparFormularioNovoAtendimento(); };
 
 
   
@@ -5155,8 +5448,9 @@ if (logoBase64) {
   }
 
 // Upload previews
-  var MAX_FILE_SIZE = 5 * 1024 * 1024;   // 5MB por arquivo
-  var MAX_TOTAL_SIZE = 20 * 1024 * 1024;  // 20MB total por relatório
+  var MAX_FILE_SIZE     = 5  * 1024 * 1024;  // 5MB por imagem
+  var MAX_VIDEO_SIZE    = 50 * 1024 * 1024;  // 50MB por vídeo
+  var MAX_TOTAL_SIZE    = 80 * 1024 * 1024;  // 80MB total por relatório
 
   function criarPreview(input, container){
     const files = Array.from(input.files);
@@ -5165,15 +5459,19 @@ if (logoBase64) {
     if (container) container.querySelectorAll('.preview-item').forEach(function(el){ totalSize += parseInt(el.dataset.filesize || '0'); });
     
     files.forEach(file=>{
-      // Limite por arquivo
-      if (file.size > MAX_FILE_SIZE) {
-        showToast('Arquivo "' + file.name + '" excede 5MB. Reduza o tamanho.');
+      // Limite por arquivo (imagem ou vídeo)
+      var isVideo = file.type.startsWith('video/');
+      var limiteArquivo = isVideo ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
+      var limiteMsg = isVideo ? '50MB' : '5MB';
+      if (file.size > limiteArquivo) {
+        var tamanhoMB = (file.size / 1024 / 1024).toFixed(1);
+        showToast('⚠️ ' + (isVideo ? 'Vídeo' : 'Imagem') + ' "' + file.name + '" tem ' + tamanhoMB + 'MB — limite é ' + limiteMsg + '.');
         return;
       }
       // Limite total
       totalSize += file.size;
       if (totalSize > MAX_TOTAL_SIZE) {
-        showToast('Limite total de 20MB de anexos excedido.');
+        showToast('⚠️ Limite total de 80MB de anexos por relatório excedido.');
         return;
       }
       const reader = new FileReader();
@@ -5190,6 +5488,45 @@ if (logoBase64) {
 if (bUploadFotos) bUploadFotos.addEventListener('change', ()=>criarPreview(bUploadFotos, bPreview));
 if (cUpload)      cUpload.addEventListener('change', ()=>criarPreview(cUpload, cPreview));
 if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, dPreview));
+
+  // ─── Botões Câmera: abrem câmera do dispositivo e adicionam foto ao preview ───
+  function _abrirCamera(previewContainerId) {
+    // Cria input oculto com capture=environment para abrir câmera traseira
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.setAttribute('capture', 'environment');
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.addEventListener('change', function() {
+      var container = document.getElementById(previewContainerId);
+      if (!container || !inp.files || !inp.files[0]) { document.body.removeChild(inp); return; }
+      var file = inp.files[0];
+      if (file.size > MAX_FILE_SIZE) {
+        showToast('⚠️ Foto muito grande (' + (file.size/1024/1024).toFixed(1) + 'MB). Limite: 5MB.');
+        document.body.removeChild(inp); return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = file.size;
+        var img = document.createElement('img'); img.src = ev.target.result; div.appendChild(img);
+        var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;';
+        btn.onclick = function(){ div.remove(); };
+        div.appendChild(btn); container.appendChild(div);
+        showToast('📷 Foto adicionada!');
+      };
+      reader.readAsDataURL(file);
+      document.body.removeChild(inp);
+    });
+    inp.click();
+  }
+
+  var btnCameraEquip     = document.getElementById('btnCameraEquip');
+  var btnCameraServico   = document.getElementById('btnCameraServico');
+  var btnCamerasBaterias = document.getElementById('btnCamerasBaterias');
+  if (btnCameraEquip)     btnCameraEquip.onclick     = function(){ _abrirCamera('bPreview'); };
+  if (btnCameraServico)   btnCameraServico.onclick   = function(){ _abrirCamera('cPreview'); };
+  if (btnCamerasBaterias) btnCamerasBaterias.onclick = function(){ _abrirCamera('dPreview'); };
 
 
   // GPS
@@ -5633,7 +5970,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       window.logoPromise = Promise.resolve(b64);
       atualizarPreviewLogo(b64);
       try { setTimeout(aplicarLogoUI, 50); } catch(e) {}
-     try { setTimeout(aplicarLogoUI, 50); } catch(e) {}
 
       showToast('Logo salva com sucesso. Gere um PDF para testar.');
       try { logInfo('Logo salva', {}); } catch(e){}
@@ -5675,7 +6011,7 @@ function aplicarPermissoesConfiguracoes(){
   if (btnBackup) btnBackup.style.display = 'inline-flex';
   if (btnRestaurarWrap) btnRestaurarWrap.style.display = 'inline-flex';
 }
-  function gerarBackupJSON(){
+  async function gerarBackupJSON(){
     const prefix = 'online-es-';
     const dump = {};
     for (let i=0;i<localStorage.length;i++){
@@ -5684,19 +6020,38 @@ function aplicarPermissoesConfiguracoes(){
         dump[k] = localStorage.getItem(k);
       }
     }
-    const blob = new Blob([JSON.stringify({generatedAt:new Date().toISOString(), data:dump}, null, 2)], {type:'application/json'});
+    // Inclui dados do Firestore no backup
+    var firestoreData = {};
+    if (navigator.onLine && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      try {
+        var colecoes = ['onlineEsRelatorios','onlineEsClientes','onlineEsEquipamentos','onlineEsUsuarios'];
+        for (var col of colecoes) {
+          try {
+            var docs = await _fetchColecaoREST(col);
+            if (docs && docs.length) firestoreData[col] = docs;
+          } catch(e) {}
+        }
+      } catch(e) { console.warn('Backup Firestore parcial:', e); }
+    }
+    const blob = new Blob([JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      version: '2.0',
+      localStorage: dump,
+      firestore: firestoreData
+    }, null, 2)], {type:'application/json'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `backup-online-es-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
     document.body.appendChild(a); a.click(); a.remove();
   }
- document.getElementById('btnBackup')?.addEventListener('click', ()=>{
+ document.getElementById('btnBackup')?.addEventListener('click', async ()=>{
   if (!isSupervisorOrAdmin()) {
     alert('Você não tem permissão para FAZER BACKUP.\nPerfis permitidos: Supervisor e Administrador.');
     return;
   }
-  gerarBackupJSON();
-  showToast('Backup gerado com sucesso.');
+  showToast('Gerando backup completo...');
+  await gerarBackupJSON();
+  showToast('✅ Backup gerado com sucesso (local + banco de dados).');
   try { logInfo('Backup gerado', { data: new Date().toISOString() }); } catch(e){}
 });
 
@@ -5729,7 +6084,8 @@ function aplicarPermissoesConfiguracoes(){
       }
       
       _db.collection('onlineEsBackups').doc(hoje).set({
-        data: dump,
+        localStorage: dump,
+        data: dump,        // mantém campo legado para compatibilidade
         generatedAt: hoje,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         geradoPor: (window.usuarioLogado && window.usuarioLogado.username) || 'sistema'
@@ -5751,7 +6107,6 @@ function aplicarPermissoesConfiguracoes(){
   async function _setDocREST(colecao, docId, dados) {
     const pid = firebaseConfig.projectId;
     const key = firebaseConfig.apiKey;
-
     // Converte objeto JS para formato Firestore REST
     function toFsValue(v) {
       if (v === null || v === undefined) return { nullValue: null };
@@ -5767,29 +6122,23 @@ function aplicarPermissoesConfiguracoes(){
       }
       return { stringValue: String(v) };
     }
-
     const fields = {};
     Object.entries(dados).forEach(([k, v]) => { fields[k] = toFsValue(v); });
-
     const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}/${encodeURIComponent(docId)}?key=${key}`;
-
-    // IMPORTANT: Para regras do Firestore funcionarem, a escrita via REST precisa de Authorization (Bearer ID Token).
-    // Se houver usuário autenticado no Firebase Auth, usamos o token automaticamente.
-    const headers = { 'Content-Type': 'application/json' };
+    // Inclui token de auth (necessário com regras Firestore seguras)
+    var _sHeaders = { 'Content-Type': 'application/json' };
     try {
-      const _fbAuth = window._firebaseAuth || (firebase && firebase.auth ? firebase.auth() : null);
-      if (_fbAuth && _fbAuth.currentUser) {
-        const token = await _fbAuth.currentUser.getIdToken();
-        if (token) headers['Authorization'] = 'Bearer ' + token;
+      var _sAuth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+      if (_sAuth && _sAuth.currentUser) {
+        var _sTok = await _sAuth.currentUser.getIdToken();
+        if (_sTok) _sHeaders['Authorization'] = 'Bearer ' + _sTok;
       }
-    } catch(e) { /* mantém compatibilidade sem token */ }
-
+    } catch(e) {}
     const resp = await fetch(url, {
       method: 'PATCH',
-      headers,
+      headers: _sHeaders,
       body: JSON.stringify({ fields })
     });
-
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
@@ -5798,29 +6147,99 @@ function aplicarPermissoesConfiguracoes(){
   }
 
   // Deleta um documento via REST
-
   async function _deleteDocREST(colecao, docId) {
     const pid = firebaseConfig.projectId;
     const key = firebaseConfig.apiKey;
     const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}/${encodeURIComponent(docId)}?key=${key}`;
-
-    const headers = {};
+    var _dHeaders = {};
     try {
-      const _fbAuth = window._firebaseAuth || (firebase && firebase.auth ? firebase.auth() : null);
-      if (_fbAuth && _fbAuth.currentUser) {
-        const token = await _fbAuth.currentUser.getIdToken();
-        if (token) headers['Authorization'] = 'Bearer ' + token;
+      var _dAuth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+      if (_dAuth && _dAuth.currentUser) {
+        var _dTok = await _dAuth.currentUser.getIdToken();
+        if (_dTok) _dHeaders['Authorization'] = 'Bearer ' + _dTok;
       }
-    } catch(e) { /* mantém compatibilidade sem token */ }
+    } catch(e) {}
+    await fetch(url, { method: 'DELETE', headers: _dHeaders });
+  }
 
-    const resp = await fetch(url, { method: 'DELETE', headers });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
+  // ===== Firebase Storage: Upload de imagem =====
+  async function _uploadImagemStorage(base64, path) {
+    try {
+      var storage = window._storage;
+      if (!storage) return null;
+      var parts = base64.split(',');
+      var mime = parts[0].match(/:(.*?);/)[1];
+      var bstr = atob(parts[1]);
+      var n = bstr.length;
+      var u8arr = new Uint8Array(n);
+      while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+      var blob = new Blob([u8arr], {type: mime});
+      var ref = storage.ref(path);
+      // Timeout de 30s para não travar em conexão ruim
+      var uploadPromise = ref.put(blob).then(function() { return ref.getDownloadURL(); });
+      var timeoutPromise = new Promise(function(_, rej) { setTimeout(function(){ rej(new Error('timeout')); }, 30000); });
+      return await Promise.race([uploadPromise, timeoutPromise]);
+    } catch(e) {
+      console.warn('Upload imagem falhou (' + path + '):', e.message || e);
+      return null;
     }
   }
-  // Converte campo Firestore REST para valor JS
+  window._uploadImagemStorage = _uploadImagemStorage;
 
+  // Upload de todas as imagens de um relatório → substitui base64 por URLs
+  async function _uploadImagensRelatorio(r) {
+    if (!window._storage || !window._firebaseAuth || !window._firebaseAuth.currentUser) return r;
+    // Cria cópia profunda para não mutar o objeto original no localStorage
+    r = JSON.parse(JSON.stringify(r));
+    var ratId = String(r.id || r.numero || Date.now());
+    var campos = [
+      {key: 'imgsEquip',    prefix: 'equip'},
+      {key: 'imgsServico',  prefix: 'serv'},
+      {key: 'imgsBaterias', prefix: 'bat'},
+    ];
+    for (var c of campos) {
+      var arr = r[c.key];
+      if (!Array.isArray(arr)) continue;
+      for (var idx = 0; idx < arr.length; idx++) {
+        var img = arr[idx];
+        if (img && typeof img === 'string' && img.startsWith('data:')) {
+          var ext = img.includes('jpeg') ? 'jpg' : 'png';
+          var url = await _uploadImagemStorage(img, 'relatorios/' + ratId + '/' + c.prefix + '_' + idx + '.' + ext);
+          if (url) arr[idx] = url;
+        }
+      }
+    }
+    // Upload de vídeos para Firebase Storage
+    var camposVid = [
+      {key: 'vidsEquip',    prefix: 'vid_equip'},
+      {key: 'vidsServico',  prefix: 'vid_serv'},
+      {key: 'vidsBaterias', prefix: 'vid_bat'},
+    ];
+    for (var cv of camposVid) {
+      var arrv = r[cv.key];
+      if (!Array.isArray(arrv)) continue;
+      for (var idxv = 0; idxv < arrv.length; idxv++) {
+        var vid = arrv[idxv];
+        if (vid && typeof vid === 'string' && vid.startsWith('data:')) {
+          var extv = vid.includes('mp4') ? 'mp4' : vid.includes('webm') ? 'webm' : 'mov';
+          var urlv = await _uploadImagemStorage(vid, 'relatorios/' + ratId + '/' + cv.prefix + '_' + idxv + '.' + extv);
+          if (urlv) arrv[idxv] = urlv;
+        }
+      }
+    }
+    if (r.assinaturaCliente && typeof r.assinaturaCliente === 'string' && r.assinaturaCliente.startsWith('data:')) {
+      var url = await _uploadImagemStorage(r.assinaturaCliente, 'relatorios/' + ratId + '/assinatura_cliente.png');
+      if (url) r.assinaturaCliente = url;
+    }
+    if (r.assinaturaTecnicoImg && typeof r.assinaturaTecnicoImg === 'string' && r.assinaturaTecnicoImg.startsWith('data:')) {
+      var url = await _uploadImagemStorage(r.assinaturaTecnicoImg, 'relatorios/' + ratId + '/assinatura_tecnico.png');
+      if (url) r.assinaturaTecnicoImg = url;
+    }
+    return r;
+  }
+  window._uploadImagensRelatorio = _uploadImagensRelatorio;
+
+  // Converte campo Firestore REST para valor JS
   function _fsFieldValue(fv) {
     if (!fv) return null;
     if (fv.stringValue  !== undefined) return fv.stringValue;
@@ -5845,19 +6264,46 @@ function aplicarPermissoesConfiguracoes(){
     const pid = firebaseConfig.projectId;
     const key = firebaseConfig.apiKey;
     const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/${colecao}?key=${key}&pageSize=${pageSize || 500}`;
-    const resp = await fetch(url);
+    var _fHeaders = {};
+    try {
+      var _fAuth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+      if (_fAuth && _fAuth.currentUser) {
+        var _fTok = await _fAuth.currentUser.getIdToken();
+        if (_fTok) _fHeaders['Authorization'] = 'Bearer ' + _fTok;
+      }
+    } catch(e) {}
+    const resp = await fetch(url, { headers: _fHeaders });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error((err.error && err.error.message) ? err.error.message : `HTTP ${resp.status}`);
     }
     const json = await resp.json();
-    return (json.documents || []).map(doc => {
+    var docs = (json.documents || []).map(doc => {
       const id = doc.name.split('/').pop();
       const fields = doc.fields || {};
       const obj = { _firestoreId: id };
       Object.entries(fields).forEach(([k, v]) => { obj[k] = _fsFieldValue(v); });
       return obj;
     });
+    // Paginação: busca próximas páginas se existir nextPageToken
+    if (json.nextPageToken && docs.length > 0) {
+      try {
+        var nextUrl = url + '&pageToken=' + encodeURIComponent(json.nextPageToken);
+        var nextResp = await fetch(nextUrl, { headers: _fHeaders });
+        if (nextResp.ok) {
+          var nextJson = await nextResp.json();
+          var nextDocs = (nextJson.documents || []).map(function(doc) {
+            var id = doc.name.split('/').pop();
+            var fields = doc.fields || {};
+            var obj = { _firestoreId: id };
+            Object.entries(fields).forEach(function(_kv) { obj[_kv[0]] = _fsFieldValue(_kv[1]); });
+            return obj;
+          });
+          docs = docs.concat(nextDocs);
+        }
+      } catch(e) { console.warn('_fetchColecaoREST: paginação falhou:', e); }
+    }
+    return docs;
   }
 
   // === LISTAR E RESTAURAR BACKUPS DO FIREBASE ===
@@ -5949,7 +6395,9 @@ function aplicarPermissoesConfiguracoes(){
         btn.onclick = async () => {
           const docId = btn.getAttribute('data-restore-id');
           const b = (container._backupsCache || []).find(x => x.id === docId);
-          await restaurarBackupFirebase(docId, b ? b.data : null);
+          // Suporta formato v2.0 (b.localStorage) e legado (b.data)
+          var _dadosRestore = b ? (b.localStorage || b.data || null) : null;
+          await restaurarBackupFirebase(docId, _dadosRestore);
         };
       });
 
@@ -5978,9 +6426,11 @@ function aplicarPermissoesConfiguracoes(){
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const json = await resp.json();
         const fields = (json.fields || {});
-        if (fields.data && fields.data.mapValue && fields.data.mapValue.fields) {
+        // Suporta v2.0 (fields.localStorage) e legado (fields.data)
+        var _fieldsSource = fields.localStorage || fields.data;
+        if (_fieldsSource && _fieldsSource.mapValue && _fieldsSource.mapValue.fields) {
           data = {};
-          Object.entries(fields.data.mapValue.fields).forEach(([k, v]) => {
+          Object.entries(_fieldsSource.mapValue.fields).forEach(([k, v]) => {
             data[k] = v.stringValue !== undefined ? v.stringValue : JSON.stringify(v);
           });
         }
@@ -6336,7 +6786,8 @@ window.AppStorage = AppStorage;
         // Cria usuario no Firebase Auth via REST API
         if (navigator.onLine) {
           var _emailNovo = user.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
-          var _senhaTemp = 'Trocar@' + Math.random().toString(36).slice(2, 10);
+          // Senha estável = 'OnlineEs@' + username — a ETAPA 4.5 usa essa mesma senha no primeiro login
+          var _senhaTemp = 'OnlineEs@' + user.toLowerCase();
           var _restResult = await criarUsuarioFirebaseREST(_emailNovo, _senhaTemp);
           if (_restResult.uid) {
             novo._firebaseUid = _restResult.uid;
@@ -6468,7 +6919,8 @@ window.AppStorage = AppStorage;
     const norm = (''+role).toLowerCase();
     const htmlEl = document.documentElement;
     if(['tecnico','technician','técnico','tech'].includes(norm)) htmlEl.setAttribute('data-role','tecnico');
-    else if(['admin','administrator','supervisor','gestor'].includes(norm)) htmlEl.setAttribute('data-role','admin');
+    else if(['admin','administrator'].includes(norm)) htmlEl.setAttribute('data-role','admin');
+    else if(['supervisor','gestor'].includes(norm)) htmlEl.setAttribute('data-role','supervisor');
     else htmlEl.setAttribute('data-role', norm);
   };
 
@@ -6873,12 +7325,16 @@ document.addEventListener('click', function(ev){
   function pad2(n){ return String(n).padStart(2,'0'); }
 
   function gerarNumeroRATSimplificado(){
+    // Fallback usa o MESMO contador principal para evitar colisão de numeração
+    try{
+      if (typeof proximoNumeroRAT === 'function') return proximoNumeroRAT();
+    }catch(e){}
     try{
       var now = new Date();
       var dd = pad2(now.getDate());
       var mm = pad2(now.getMonth()+1);
       var yyyy = now.getFullYear();
-      var key = 'online-es-contador-fallback';
+      var key = 'online-es-contador'; // mesmo key do STORAGE_CONTADOR
       var c = parseInt(localStorage.getItem(key) || '0', 10);
       if (isNaN(c)) c = 0;
       c++;
@@ -6953,7 +7409,8 @@ document.addEventListener('click', function(ev){
   const preview = document.getElementById('logoPreview');
   const previewEmpty = document.getElementById('logoPreviewEmpty');
 
-  function toast(msg){
+  function _showToastLogo(msg){
+    if (typeof window.showToast === 'function'){ window.showToast(msg); return; }
     const t = document.getElementById('toast');
     if (!t){ alert(msg); return; }
     t.textContent = msg;
@@ -7003,13 +7460,13 @@ document.addEventListener('click', function(ev){
       try{
         const file = inputLogoFile && inputLogoFile.files && inputLogoFile.files[0];
         if (!file){
-          toast('Selecione uma imagem para a logo.');
+          _showToastLogo('Selecione uma imagem para a logo.');
           return;
         }
         const b64 = await lerArquivoComoDataURL(file);
         localStorage.setItem('online-es-logo-b64', b64);
         aplicarLogoPersistida();
-        toast('Logo salva com sucesso. Gere um PDF para testar.');
+        _showToastLogo('Logo salva com sucesso. Gere um PDF para testar.');
       }catch(e){
         console.error(e);
         alert('Não foi possível salvar a logo.');
@@ -7024,7 +7481,7 @@ document.addEventListener('click', function(ev){
       try{
         localStorage.removeItem('online-es-logo-b64');
         aplicarLogoPersistida();
-        toast('Logo removida e logo padrão restaurada.');
+        _showToastLogo('Logo removida e logo padrão restaurada.');
       }catch(e){
         console.error(e);
       }
@@ -7336,6 +7793,9 @@ document.addEventListener('click', function(ev){
       btnLogout.onclick = null;
       btnLogout.addEventListener('click', function(ev){
         ev.preventDefault();
+        // Para o listener de relatórios em tempo real
+        try { if (window._relatoriosListener) { window._relatoriosListener(); window._relatoriosListener = null; } } catch(e){}
+        window._snapshotSaving = false;
         // Firebase Auth signOut
         try { if (window._firebaseAuth) window._firebaseAuth.signOut(); } catch(e){}
         try { window.usuarioLogado = null; } catch(e){}
@@ -7358,51 +7818,108 @@ document.addEventListener('click', function(ev){
 
 async function loginBuscarUsuarioFirestore(loginDigitado, firebaseUid) {
   try {
-    if (!window.firebase || !window.firebase.firestore) return null;
-    const db = window.firebase.firestore();
-    const col = db.collection('onlineEsUsuarios');
-
-    const raw = String(loginDigitado || '').trim();
+    const raw = String(loginDigitado || '').trim().toLowerCase();
     if (!raw) return null;
 
-    let snap = null;
+    const pid = firebaseConfig.projectId;
+    const key = firebaseConfig.apiKey;
 
-    // 1) Se temos um Firebase uid, tenta buscar por uid primeiro (compatível com Security Rules)
+    // Helper: busca documento via REST
+    // NOTA: Funciona sem auth se rules permitirem, ou com auth se Firebase Auth
+    // foi estabelecido na ETAPA 1. Para usuários novos sem conta no Firebase Auth,
+    // as regras Firestore precisam permitir leitura de onlineEsUsuarios sem auth.
+    // Sugestão de regra: match /onlineEsUsuarios/{doc} { allow read: if true; allow write: if request.auth != null; }
+    async function getDocREST(colecao, docId) {
+      try {
+        var url = 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents/' + colecao + '/' + encodeURIComponent(docId) + '?key=' + key;
+        var gHeaders = {};
+        try {
+          var _ga = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+          if (_ga && _ga.currentUser) { var _gt = await _ga.currentUser.getIdToken(); if (_gt) gHeaders['Authorization'] = 'Bearer ' + _gt; }
+        } catch(e) {}
+        var resp = await fetch(url, { headers: gHeaders });
+        if (!resp.ok) return null;
+        var json = await resp.json();
+        if (!json.fields) return null;
+        var obj = { _firestoreId: docId };
+        Object.entries(json.fields).forEach(function(kv) { obj[kv[0]] = _fsFieldValue(kv[1]); });
+        return obj;
+      } catch(e) { return null; }
+    }
+
+    // Helper: query por campo via REST
+    async function queryREST(colecao, campo, valor) {
+      try {
+        var url = 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents:runQuery?key=' + key;
+        var body = { structuredQuery: {
+          from: [{ collectionId: colecao }],
+          where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: { stringValue: valor } } },
+          limit: 1
+        }};
+        var qHeaders = { 'Content-Type': 'application/json' };
+        try {
+          var _qa = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+          if (_qa && _qa.currentUser) { var _qt = await _qa.currentUser.getIdToken(); if (_qt) qHeaders['Authorization'] = 'Bearer ' + _qt; }
+        } catch(e) {}
+        var resp = await fetch(url, { method: 'POST', headers: qHeaders, body: JSON.stringify(body) });
+        if (!resp.ok) return null;
+        var json = await resp.json();
+        var docs = Array.isArray(json) ? json : [];
+        var first = docs.find(function(d) { return d.document && d.document.fields; });
+        if (!first) return null;
+        var docId = first.document.name.split('/').pop();
+        var obj = { _firestoreId: docId };
+        Object.entries(first.document.fields).forEach(function(kv) { obj[kv[0]] = _fsFieldValue(kv[1]); });
+        return obj;
+      } catch(e) { return null; }
+    }
+
+    var d = null;
+
+    // 1) Busca por uid do Firebase Auth (se disponível)
     if (firebaseUid) {
-      try {
-        var uidSnap = await col.doc(firebaseUid).get();
-        if (uidSnap.exists) snap = uidSnap;
-      } catch(e) { /* rule pode bloquear, continua */ }
+      d = await getDocREST('onlineEsUsuarios', firebaseUid);
     }
 
-    // 2) Tenta por doc ID = username
-    if (!snap) {
-      try {
-        var userSnap = await col.doc(raw.toLowerCase()).get();
-        if (userSnap.exists) snap = userSnap;
-      } catch(e) { /* rule pode bloquear, continua */ }
+    // 2) Busca por doc ID = username
+    if (!d) {
+      d = await getDocREST('onlineEsUsuarios', raw);
     }
 
-    // 3) Tenta por campo "usuario" (query)
-    if (!snap) {
-      try {
-        var q = await col.where('usuario', '==', raw.toLowerCase()).get();
-        if (!q.empty) snap = q.docs[0];
-      } catch(e) { /* rule pode bloquear, continua */ }
+    // 3) Query por campo "usuario"
+    if (!d) {
+      d = await queryREST('onlineEsUsuarios', 'usuario', raw);
     }
 
-    // 4) Tenta por campo "username"
-    if (!snap) {
+    // 4) Query por campo "username"
+    if (!d) {
+      d = await queryREST('onlineEsUsuarios', 'username', raw);
+    }
+
+    // 5) Fallback: tenta via SDK (funciona se Firebase Auth já foi estabelecido na ETAPA 1)
+    if (!d && window.firebase && window.firebase.firestore) {
       try {
-        var q2 = await col.where('username', '==', raw.toLowerCase()).get();
-        if (!q2.empty) snap = q2.docs[0];
+        var _sdk = window.firebase.firestore();
+        var _tryIds = [raw];
+        if (firebaseUid) _tryIds.unshift(firebaseUid);
+        for (var _id of _tryIds) {
+          try {
+            var _snap = await _sdk.collection('onlineEsUsuarios').doc(_id).get();
+            if (_snap.exists) { d = Object.assign({ _firestoreId: _snap.id }, _snap.data()); break; }
+          } catch(e) {}
+        }
+        if (!d) {
+          try {
+            var _q = await _sdk.collection('onlineEsUsuarios').where('username', '==', raw).limit(1).get();
+            if (!_q.empty) { d = Object.assign({ _firestoreId: _q.docs[0].id }, _q.docs[0].data()); }
+          } catch(e) {}
+        }
       } catch(e) {}
     }
 
-    if (!snap || !snap.exists) return null;
+    if (!d) return null;
 
-    const d = snap.data() || {};
-    const username = (d.username || d.usuario || snap.id || '').toString().trim().toLowerCase();
+    var username = (d.username || d.usuario || d._firestoreId || '').toString().trim().toLowerCase();
     if (!username) return null;
 
     return {
@@ -7412,8 +7929,8 @@ async function loginBuscarUsuarioFirestore(loginDigitado, firebaseUid) {
       password: d._passwordHash || '',
       _salt: d._salt || '',
       mustChangePassword: d.mustChangePassword === true || d.precisaSenha === true,
-      active: d.ativo !== false,
-      _firebaseUid: d._firebaseUid || snap.id || '',
+      active: d.ativo !== false && d.active !== false,
+      _firebaseUid: d._firebaseUid || d._firestoreId || '',
       _email: d._email || '',
       _fromFirestore: true
     };
@@ -7423,19 +7940,29 @@ async function loginBuscarUsuarioFirestore(loginDigitado, firebaseUid) {
   }
 }
 
+
 // ===== SEGURANÇA: Proteção contra força bruta =====
-const _loginAttempts = {};
+// Persiste em sessionStorage para sobreviver a recarregamentos acidentais
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutos
+const _BF_KEY = 'online-es-bf';
+
+function _getBFData() {
+  try { return JSON.parse(sessionStorage.getItem(_BF_KEY) || '{}'); } catch(e) { return {}; }
+}
+function _saveBFData(data) {
+  try { sessionStorage.setItem(_BF_KEY, JSON.stringify(data)); } catch(e) {}
+}
 
 function _checkBruteForce(username) {
   const key = (username || '').toLowerCase().trim();
   const now = Date.now();
-  if (!_loginAttempts[key]) _loginAttempts[key] = { count: 0, lockedUntil: 0 };
-  const entry = _loginAttempts[key];
+  const data = _getBFData();
+  if (!data[key]) return { blocked: false };
+  const entry = data[key];
   if (entry.lockedUntil > now) {
     const mins = Math.ceil((entry.lockedUntil - now) / 60000);
-    return { blocked: true, message: `Muitas tentativas incorretas. Tente novamente em ${mins} minuto(s).` };
+    return { blocked: true, message: 'Muitas tentativas incorretas. Tente novamente em ' + mins + ' minuto(s).' };
   }
   return { blocked: false };
 }
@@ -7443,18 +7970,32 @@ function _checkBruteForce(username) {
 function _registerFailedAttempt(username) {
   const key = (username || '').toLowerCase().trim();
   const now = Date.now();
-  if (!_loginAttempts[key]) _loginAttempts[key] = { count: 0, lockedUntil: 0 };
-  const entry = _loginAttempts[key];
+  const data = _getBFData();
+  if (!data[key]) data[key] = { count: 0, lockedUntil: 0 };
+  const entry = data[key];
   entry.count++;
+  entry.lastAttempt = now;
   if (entry.count >= LOGIN_MAX_ATTEMPTS) {
     entry.lockedUntil = now + LOGIN_LOCKOUT_MS;
     entry.count = 0;
+    console.warn('🔐 Conta bloqueada por 15min:', username);
   }
+  _saveBFData(data);
 }
 
 function _clearLoginAttempts(username) {
   const key = (username || '').toLowerCase().trim();
-  delete _loginAttempts[key];
+  const data = _getBFData();
+  delete data[key];
+  _saveBFData(data);
+}
+
+// Retorna número de tentativas restantes
+function _tentativasRestantes(username) {
+  const key = (username || '').toLowerCase().trim();
+  const data = _getBFData();
+  if (!data[key]) return LOGIN_MAX_ATTEMPTS;
+  return Math.max(0, LOGIN_MAX_ATTEMPTS - data[key].count);
 }
 
 async function fazerLogin(){
@@ -7502,9 +8043,20 @@ async function fazerLogin(){
       firebaseUser = cred.user;
       console.log('Firebase Auth: login OK, uid:', firebaseUser.uid);
     } catch(authErr) {
-      // Qualquer erro no Firebase Auth: continua para validação local
-      // O usuário será criado no Firebase Auth na ETAPA 4.5 após validação local
-      console.warn('Firebase Auth:', authErr.code, '— continuando para validação local...');
+      if (authErr.code === 'auth/too-many-requests') {
+        // Bloqueado — aguarda 2s e tenta uma vez mais
+        try {
+          await new Promise(r => setTimeout(r, 2000));
+          var cred2 = await firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
+          firebaseUser = cred2.user;
+          console.log('Firebase Auth: login OK após retry, uid:', firebaseUser.uid);
+        } catch(e2) {
+          console.warn('Firebase Auth: retry falhou:', e2.code);
+        }
+      } else {
+        // Qualquer outro erro: continua para validação local
+        console.warn('Firebase Auth:', authErr.code, '— continuando para validação local...');
+      }
     }
   }
 
@@ -7577,7 +8129,8 @@ async function fazerLogin(){
 
       showToast('Bem-vindo! Seu perfil foi criado como Técnico.');
     } else {
-      msgErro.textContent = 'Usuário não encontrado ou inativo.';
+      _registerFailedAttempt(u);
+      msgErro.textContent = 'Usuário ou senha inválidos.';
       if (firebaseUser && firebaseAuth) { try { await firebaseAuth.signOut(); } catch(e){} }
       return;
     }
@@ -7603,8 +8156,7 @@ async function fazerLogin(){
           nome: achou.fullName || achou.nome || '',
           _firebaseUid: firebaseUser.uid,
           _email: emailAuth,
-          _passwordHash: (achou._salt && achou.password) ? achou.password : null,
-          _salt: achou._salt || null,
+          // Senha NÃO vai para o Firestore
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         console.log('Perfil migrado para uid:', firebaseUser.uid);
@@ -7638,7 +8190,14 @@ async function fazerLogin(){
     }
     if (!ok) {
       _registerFailedAttempt(u);
-      msgErro.textContent = 'Usuário ou senha inválidos.';
+      var _restantes = typeof _tentativasRestantes === 'function' ? _tentativasRestantes(u) : null;
+      var _msgBF = 'Usuário ou senha inválidos.';
+      if (_restantes !== null && _restantes <= 2 && _restantes > 0) {
+        _msgBF += ' (' + _restantes + ' tentativa(s) restante(s))';
+      } else if (_restantes === 0) {
+        _msgBF = 'Conta bloqueada por 15 minutos por excesso de tentativas.';
+      }
+      msgErro.textContent = _msgBF;
       console.warn('🔐 FALHA FINAL: senha não validada para', achou.username);
       return;
     }
@@ -7701,7 +8260,21 @@ async function fazerLogin(){
           console.warn('Firebase Auth: criação falhou:', createErr.code);
         }
       } else if (loginErr.code === 'auth/wrong-password' || loginErr.code === 'auth/invalid-credential') {
-        // Senha diverge: deleta conta antiga e recria com senha atual
+        // Senha diverge: tenta senha estável (OnlineEs@username) usada na criação automática
+        var _senhaEstavel = 'OnlineEs@' + (achou.username || u).toLowerCase();
+        try {
+          const _authEstavel = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, _senhaEstavel);
+          firebaseUser = _authEstavel.user;
+          achou._firebaseUid = firebaseUser.uid;
+          achou._email = emailAuth;
+          console.log('Firebase Auth: login com senha estável OK, uid:', firebaseUser.uid);
+        } catch(estavelErr) {
+          if (estavelErr.code !== 'auth/wrong-password' && estavelErr.code !== 'auth/invalid-credential') {
+            console.warn('Firebase Auth senha estável:', estavelErr.code);
+          }
+        }
+        if (firebaseUser) { /* resolvido com senha estável */ } else
+        // Senha diverge de tudo: usa conta alternativa
         try {
           // Usa Identity Toolkit para verificar qual é o uid atual da conta
           const _lookupResp = await fetch(
@@ -7731,6 +8304,18 @@ async function fazerLogin(){
             } else { console.warn('Firebase Auth alt criação falhou:', altErr.code); }
           }
         } catch(e) { console.warn('Firebase Auth: resolução de conflito falhou:', e); }
+      } else if (loginErr.code === 'auth/too-many-requests') {
+        // Bloqueado temporariamente — tenta novamente após 3 segundos
+        try {
+          await new Promise(r => setTimeout(r, 3000));
+          const _retryLogin = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
+          firebaseUser = _retryLogin.user;
+          achou._firebaseUid = firebaseUser.uid;
+          achou._email = emailAuth;
+          console.log('Firebase Auth: login OK após retry, uid:', firebaseUser.uid);
+        } catch(retryErr) {
+          console.warn('Firebase Auth: retry após too-many-requests falhou:', retryErr.code);
+        }
       } else {
         console.warn('Firebase Auth 4.5:', loginErr.code);
       }
@@ -7760,8 +8345,7 @@ async function fazerLogin(){
           usuario: achou.username || u,
           nome: achou.fullName || achou.nome || u,
           precisaSenha: !!achou.mustChangePassword,
-          _passwordHash: achou._salt && achou.password ? achou.password : null,
-          _salt: achou._salt || null,
+          // Senha NÃO vai para o Firestore
           _firebaseUid: _newUid,
           _email: achou._email || emailAuth
         };
@@ -7878,7 +8462,7 @@ async function fazerLogin(){
 
   waitReady(function(){
     // Salvar relatório
-    ensureHandler('btnSalvarLocal', function(){
+    ensureHandler('btnSalvarLocal', async function(){
       var ul = window.usuarioLogado;
       if (!ul){ alert('Faça login novamente.'); return; }
       if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
@@ -7889,6 +8473,14 @@ async function fazerLogin(){
       try {
         if (typeof window.ensureNumeroRat === 'function') window.ensureNumeroRat();
         var novo = window.montarRelatorioAtual();
+        // Upload imagens para Firebase Storage antes de salvar
+        if (typeof window._uploadImagensRelatorio === 'function' && navigator.onLine) {
+          try {
+            if (typeof window.showLoader === 'function') window.showLoader('Enviando fotos...');
+            novo = await window._uploadImagensRelatorio(novo);
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+          } catch(e) { console.warn('Upload fotos falhou:', e); if (typeof window.hideLoader === 'function') window.hideLoader(); }
+        }
         var relatorios = window.relatorios || [];
         relatorios.push(novo);
         window.relatorios = relatorios;
@@ -8026,5 +8618,105 @@ async function fazerLogin(){
 })();
 </script>
 
+<script>
+// ===== SERVICE WORKER INLINE =====
+// Registra SW via blob para não precisar de arquivo sw.js separado
+(function() {
+  if (!('serviceWorker' in navigator)) return;
+
+  var SW_VERSION = 'onlinees-v3';
+  var CACHE_ASSETS = [
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js',
+    'https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
+    'https://cdn.jsdelivr.net/npm/chart.js',
+  ];
+
+  var swCode = `
+    var CACHE = 'onlinees-v3';
+    var ASSETS = ["https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js","https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css","https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js","https://cdn.jsdelivr.net/npm/chart.js"];
+
+    self.addEventListener('install', function(e) {
+      e.waitUntil(
+        caches.open(CACHE).then(function(cache) {
+          // Cache a página principal
+          return cache.addAll(ASSETS.map(function(url) {
+            return new Request(url, {mode: 'no-cors'});
+          })).catch(function(err) {
+            console.warn('SW: falha ao cachear alguns assets:', err);
+          });
+        }).then(function() { return self.skipWaiting(); })
+      );
+    });
+
+    self.addEventListener('activate', function(e) {
+      e.waitUntil(
+        caches.keys().then(function(keys) {
+          return Promise.all(keys.filter(function(k) { return k !== CACHE; })
+            .map(function(k) { return caches.delete(k); }));
+        }).then(function() { return self.clients.claim(); })
+      );
+    });
+
+    self.addEventListener('fetch', function(e) {
+      var url = e.request.url;
+      // Não intercepta chamadas ao Firebase/Firestore/API
+      if (url.includes('firestore.googleapis.com') ||
+          url.includes('identitytoolkit.googleapis.com') ||
+          url.includes('firebase.googleapis.com') ||
+          url.includes('firebasestorage.googleapis.com') ||
+          url.includes('googleapis.com/v1') ||
+          e.request.method !== 'GET') return;
+
+      e.respondWith(
+        caches.match(e.request).then(function(cached) {
+          if (cached) return cached;
+          return fetch(e.request).then(function(resp) {
+            // Cacheia apenas respostas válidas de assets estáticos
+            if (resp && resp.status === 200 && ASSETS.some(function(a){ return url.startsWith(a.split('?')[0]); })) {
+              var clone = resp.clone();
+              caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+            }
+            return resp;
+          }).catch(function() {
+            // Offline e não cacheado — retorna página principal como fallback
+            return caches.match('/') || caches.match('/index.html');
+          });
+        })
+      );
+    });
+  `;
+
+  // Registra o SW via blob URL
+  try {
+    var blob = new Blob([swCode], { type: 'application/javascript' });
+    var swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl)
+      .then(function(reg) {
+        console.log('✅ Service Worker registrado (PWA offline ativo).');
+        caches.open('onlinees-v3').then(function(cache) {
+          cache.add(window.location.href).catch(function(){});
+        });
+      })
+      .catch(function(err) {
+        // Fallback: tenta via data URL
+        try {
+          var swDataUrl = 'data:application/javascript;charset=utf-8,' + encodeURIComponent(swCode);
+          navigator.serviceWorker.register(swDataUrl)
+            .then(function() { console.log('✅ Service Worker registrado (data URL).'); })
+            .catch(function() { console.info('ℹ️ Service Worker indisponível — app funciona normalmente.'); });
+        } catch(e2) {
+          console.info('ℹ️ Service Worker não suportado neste ambiente.');
+        }
+      });
+  } catch(e) {
+    console.info('ℹ️ Service Worker não suportado neste browser.');
+  }
+})();
+</script>
 </body>
 </html>
