@@ -254,7 +254,7 @@
       .supervisor-panel .section-card{padding:12px 10px 10px}
       /* Relatório overlay */
       .report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0;display:flex;flex-direction:column}
-      .report-body{font-size:1rem}
+      .report-body{font-size:1.15rem}
       /* Topbar */
       .sidebar-toggle{display:flex!important}
       .topbar{gap:8px;padding:8px 10px}
@@ -359,10 +359,7 @@
     .section-card input, .section-card select, .section-card textarea {
       font-size: 16px !important;
     }
-    /* Fix 2: barra de ações fixa no rodapé no mobile */
-    #barraAcoesMobile {
-      display: flex !important;
-    }
+    /* Fix 2: barra de ações — controlada exclusivamente pelo JS (MutationObserver) */
     /* Espaço extra no fundo do formulário para não sobrepor o conteúdo */
     #telaNovo .form-panel {
       padding-bottom: 80px !important;
@@ -374,12 +371,17 @@
     #dObs {
       min-height: 80px !important;
     }
-    /* Fix 3: área de toque mínima 44px em btn.small (Google/Apple guideline) */
-    .btn.small {
+    /* Fix 3: área de toque mínima 44px em btn.small — exceto botões inline em tabelas */
+    .btn.small:not(.relatorio-acoes .btn):not(.user-table .btn) {
       min-height: 44px !important;
       min-width: 44px !important;
       padding: 10px 14px !important;
       font-size: .78rem !important;
+    }
+    /* Botões de ação em tabelas/cards: toque confortável mas sem quebrar layout */
+    .relatorio-acoes .btn, .user-table .btn {
+      min-height: 40px !important;
+      min-width: 40px !important;
     }
     /* Fix 5: preview de fotos maior e botão × acessível */
     .preview-item {
@@ -489,12 +491,7 @@ html[data-role="technician"] nav button {
 
   /* --- Content legibility boost --- */
 /* Tipografia também nas áreas internas (cards, tabelas, formulários) */
-:root{
-  --font-scale: calc(var(--font-scale, 1) * 1.0); /* respeita controle A+/A- existente */
-  --fs-body: calc(16px * var(--font-scale));
-  --fs-small: calc(14px * var(--font-scale));
-  --fs-btn: calc(15px * var(--font-scale));
-}
+/* Nota: --font-scale e --fs-* já definidos no bloco :root principal abaixo — sem redefinição aqui */
 .panel p, .panel li, .panel label, .panel span.text, .section-card p, .section-card li, .section-card label,
 .relatorio-card, .user-table, .user-table td, .user-table th, .list-relatorios, .filters-bar,
 .modal .report-body, .report-body, .report-body p, .report-body li {
@@ -565,6 +562,18 @@ html[data-role="technician"] nav button {
     box-sizing:border-box;
     width:100%;
   }
+  /* Fix 4: aviso visual que o canvas bloqueia scroll — aparece só no mobile */
+  @media (max-width:880px){
+    #assinaturaClienteBox::before,
+    #assinaturaTecnicoBox::before{
+      content: '✍️ Toque aqui para assinar — role a página fora desta área';
+      display:block;
+      font-size:11px;
+      color:#64748b;
+      margin-bottom:4px;
+      line-height:1.4;
+    }
+  }
 
   /* --- Mobile: override inline small font-sizes ilegíveis --- */
   @media (max-width:880px){
@@ -604,6 +613,29 @@ html[data-role="technician"] nav button {
       gap: 8px !important;
     }
   }
+
+  /* --- Validação visual de campos obrigatórios --- */
+  #cDiagnostico:invalid-visual, #cAcoes:invalid-visual {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220,38,38,.12) !important;
+  }
+  /* Indicador de auto-save no canto superior direito do formulário */
+  #autoSaveIndicator {
+    position: fixed;
+    top: 58px;
+    right: 10px;
+    background: rgba(15,23,42,.82);
+    color: #94a3b8;
+    font-size: .65rem;
+    border-radius: 999px;
+    padding: 3px 10px;
+    z-index: 30;
+    display: none;
+    pointer-events: none;
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(148,163,184,.15);
+  }
+  #autoSaveIndicator.visible { display: block; }
 
   /* --- v24 inactive user styling --- */
 .usuario-inativo td{
@@ -1163,9 +1195,13 @@ html[data-role="technician"] nav button {
               <i class="ri-mail-send-line"></i> Enviar por e-mail
             </button>
             <button class="btn" id="btnWhatsLocal"><i class="ri-whatsapp-line"></i> Enviar via WhatsApp</button>
+            <button class="btn" id="btnCompartilharPDF" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border-color:rgba(124,58,237,.5);display:none;"><i class="ri-share-line"></i> Compartilhar PDF</button>
           </div>
           <p style="font-size:1rem;color:#475569;margin-top:6px;font-weight:500;">
             Informe o WhatsApp ou telefone do cliente para enviar o relatório diretamente para ele.
+          </p>
+          <p id="dica-compartilhar" style="display:none;font-size:.85rem;color:#7c3aed;margin-top:2px;font-weight:500;">
+            <i class="ri-smartphone-line"></i> No celular: <strong>Compartilhar PDF</strong> envia o arquivo direto pelo WhatsApp, e-mail, Drive ou qualquer app.
           </p>
         </div>
       </section>
@@ -3685,9 +3721,58 @@ function autoFillCamposAtendimento(){
 
       // 7. Resumo
       linha('');
+      // 7. Testar Firebase Storage (crucial para links de PDF)
+      linha('7. Teste Firebase Storage (upload de PDF)...');
+      var _stor = window._storage;
+      if (!_stor) {
+        // Tenta inicializar lazy
+        try {
+          if (window.firebase && typeof window.firebase.storage === 'function') {
+            window._storage = window.firebase.storage();
+            _stor = window._storage;
+            linha('   ⚡ Storage inicializado agora (estava nulo)');
+          }
+        } catch(eS) { linha('   ❌ Falha ao inicializar Storage: ' + eS.message); }
+      }
+      if (!_stor) {
+        linha('   ❌ Storage = null — SDK firebase-storage-compat.js não carregou');
+        linha('   🔧 Verifique se o script do Firebase Storage está incluído no HTML');
+      } else if (!_user) {
+        linha('   ⚠️ Storage disponível mas usuário não autenticado — upload bloqueado pelas regras');
+        linha('   🔧 Verifique Firebase Auth e as Storage Rules');
+      } else {
+        linha('   ✅ Storage disponível + usuário autenticado');
+        linha('   ⏳ Testando upload de arquivo pequeno...');
+        try {
+          var testBlob = new Blob(['ok'], { type: 'text/plain' });
+          var testRef  = _stor.ref('onlineEsDiag/storage-test-' + Date.now() + '.txt');
+          await Promise.race([
+            testRef.put(testBlob, { contentType: 'text/plain' }),
+            new Promise((_,rej) => setTimeout(() => rej(new Error('upload-timeout')), 10000))
+          ]);
+          var testUrl = await testRef.getDownloadURL();
+          linha('   ✅ Upload OK — URL gerada com sucesso');
+          linha('   → ' + testUrl.substring(0, 80) + '...');
+          // Limpa o arquivo de teste
+          try { await testRef.delete(); } catch(eD) {}
+        } catch(eSt) {
+          linha('   ❌ Upload FALHOU: ' + (eSt.code || eSt.message));
+          if ((eSt.code || '').includes('unauthorized') || (eSt.message||'').includes('unauthorized')) {
+            linha('   🔧 CAUSA: Storage Rules bloqueando. Adicione a regra:');
+            linha('   allow read, write: if request.auth != null;');
+          } else if ((eSt.code || '').includes('quota')) {
+            linha('   🔧 CAUSA: Cota do Firebase Storage excedida');
+          } else {
+            linha('   🔧 Veja o console do navegador para mais detalhes');
+          }
+        }
+      }
+
+      linha('');
       linha('=== RESUMO ===');
       if (!_user) linha('⚠️ Firebase Auth não ativo — Firestore SDK bloqueado pelas regras');
       if (!_db) linha('⚠️ db = null — Firebase SDK não inicializou');
+      if (!_stor) linha('⚠️ Storage = null — links de PDF não funcionarão');
       linha('Usuário logado local: ' + ((window.usuarioLogado && window.usuarioLogado.username) || 'nenhum'));
     };
   });
@@ -3773,8 +3858,13 @@ function autoFillCamposAtendimento(){
     };
   if (mSistema) mSistema.onclick = ()=>mostrarTela('sistema').catch(e=>console.warn('Erro ao abrir tela:', e));
 
-  btnLogout.onclick = ()=>{
+  btnLogout.onclick = async ()=>{
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
+    // Fix: encerra sessão Firebase Auth para invalidar token e evitar reautenticação automática
+    try {
+      var _fbAuth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+      if (_fbAuth && _fbAuth.currentUser) await _fbAuth.signOut();
+    } catch(e) { console.warn('Firebase signOut falhou (ignorado):', e); }
     usuarioLogado=null; app.style.display='none'; telaLogin.classList.remove('hidden'); telaLogin.style.display='flex';
   };
   btnToggleSidebar.onclick = ()=>{
@@ -4405,17 +4495,19 @@ function renderClientes(){
 
   (clientes || []).forEach(c => {
     const tr = document.createElement('tr');
+    // Fix XSS: todos os campos escapados com esc() antes de inserir no innerHTML
+    const _ec = (v) => (v||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     tr.innerHTML = `
-      <td>${c.nome || ''}</td>
-      <td>${c.cnpj || '-'}</td>
-      <td>${c.telefone || '-'}</td>
-      <td>${c.cep || '-'}</td>
-      <td>${c.endereco || '-'}</td>
-      <td>${c.bairro || '-'}</td>
-      <td>${c.cidade || '-'}</td>
-      <td>${c.uf || '-'}</td>
+      <td>${_ec(c.nome)}</td>
+      <td>${_ec(c.cnpj) || '-'}</td>
+      <td>${_ec(c.telefone) || '-'}</td>
+      <td>${_ec(c.cep) || '-'}</td>
+      <td>${_ec(c.endereco) || '-'}</td>
+      <td>${_ec(c.bairro) || '-'}</td>
+      <td>${_ec(c.cidade) || '-'}</td>
+      <td>${_ec(c.uf) || '-'}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button class="btn small" data-remover-cliente="${c.nome}">
+        <button class="btn small" data-remover-cliente="${_ec(c.nome)}">
           <i class="ri-delete-bin-6-line"></i> Remover
         </button>
       </td>`;
@@ -5311,6 +5403,7 @@ if (logoBase64) {
     if (navigator.onLine){
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
       showToast('Relatório salvo e enviado para o painel.');
@@ -5321,6 +5414,7 @@ if (logoBase64) {
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
       pendentes.push(novo); savePendentes(pendentes);
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
       try { logWarning('RAT salva (offline/pendente)', { numero: novo.numero || novo.id || 'N/A', cliente: novo.cliente || '' }); } catch(e){}
     }
@@ -5522,13 +5616,105 @@ if (logoBase64) {
     setTimeout(verificarRascunho, 1000);
   } catch(e){}
 
-  // Limpa rascunho quando relatório é salvo com sucesso
-  window.addEventListener('storage', function(e) {
-    if (e.key === STORAGE_REPORTS) {
-      try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
-    }
-  });
+  // Limpa rascunho quando relatório é salvo com sucesso NESTE dispositivo (não em outros)
+  // Fix: não remove rascunho por evento 'storage' de outros dispositivos — apenas quando salvar explicitamente
+  // (o rascunho é removido dentro do fluxo de salvar com sucesso — btnSalvarLocal)
 
+  // ═══ AUTO-SAVE SILENCIOSO (a cada 60s) ════════════════════════════════
+  (function() {
+    var _autoSaveTimer = null;
+    function _autoSaveRascunho() {
+      // Só salva se o formulário tiver algum dado relevante preenchido
+      var _diagEl = document.getElementById('cDiagnostico');
+      var _cliSel = document.getElementById('aClienteSelect');
+      var _cliMan = document.getElementById('aClienteManual');
+      var temConteudo = (_diagEl && _diagEl.value.trim()) ||
+                        (_cliSel && _cliSel.value) ||
+                        (_cliMan && _cliMan.style.display !== 'none' && _cliMan.value.trim());
+      if (!temConteudo) return; // não salva rascunho vazio
+      if (!window.usuarioLogado) return;
+      try {
+        if (typeof montarRelatorioAtual !== 'function') return;
+        var r = montarRelatorioAtual();
+        var rSem = Object.assign({}, r);
+        rSem._rascunho = true;
+        rSem._rascunhoData = new Date().toISOString();
+        rSem._autoSave = true;
+        rSem.imgsEquip = []; rSem.imgsServico = []; rSem.imgsBaterias = [];
+        rSem.vidsEquip = []; rSem.vidsServico = []; rSem.vidsBaterias = [];
+        rSem.assinaturaCliente = null; rSem.assinaturaTecnicoImg = null;
+        localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rSem));
+        // Mostra indicador visual por 2.5s
+        var ind = document.getElementById('autoSaveIndicator');
+        if (ind) {
+          ind.classList.add('visible');
+          setTimeout(function() { ind.classList.remove('visible'); }, 2500);
+        }
+      } catch(e) { /* silencioso */ }
+    }
+    // Inicia auto-save 10s após login, depois a cada 60s
+    setTimeout(function() {
+      _autoSaveTimer = setInterval(_autoSaveRascunho, 60000);
+    }, 10000);
+    // Expõe para limpar ao salvar manualmente
+    window._pararAutoSave = function() { if (_autoSaveTimer) { clearInterval(_autoSaveTimer); _autoSaveTimer = null; } };
+  })();
+
+  // ═══ VALIDAÇÃO VISUAL EM CAMPOS OBRIGATÓRIOS (blur) ═══════════════════
+  (function() {
+    var camposObrig = ['cDiagnostico', 'cAcoes'];
+    camposObrig.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('blur', function() {
+        if (!el.value.trim()) {
+          el.style.borderColor = '#dc2626';
+          el.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
+        } else {
+          el.style.borderColor = '';
+          el.style.boxShadow = '';
+        }
+      });
+      el.addEventListener('input', function() {
+        if (el.value.trim()) {
+          el.style.borderColor = '';
+          el.style.boxShadow = '';
+        }
+      });
+    });
+  })();
+
+  // ═══ CEP: BUSCA AUTOMÁTICA VIA VIACEP ═════════════════════════════════
+  (function() {
+    var _cepEl = document.getElementById('aCep');
+    if (!_cepEl) return;
+    var _cepBusy = false;
+    _cepEl.addEventListener('blur', async function() {
+      var cep = (_cepEl.value || '').replace(/\D/g, '');
+      if (cep.length !== 8 || _cepBusy) return;
+      var endEl   = document.getElementById('aEndereco');
+      var bairEl  = document.getElementById('aBairro');
+      var cidEl   = document.getElementById('aCidade');
+      var ufEl    = document.getElementById('aUF');
+      // Só preenche campos ainda vazios para não sobrescrever o que o usuário digitou
+      var algumVazio = (!endEl || !endEl.value.trim()) || (!cidEl || !cidEl.value.trim());
+      if (!algumVazio) return;
+      _cepBusy = true;
+      _cepEl.style.opacity = '0.6';
+      try {
+        var resp = await fetch('https://viacep.com.br/ws/' + cep + '/json/', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+        if (!resp.ok) return;
+        var d = await resp.json();
+        if (d.erro) return;
+        if (endEl  && !endEl.value.trim()  && d.logradouro) endEl.value  = d.logradouro;
+        if (bairEl && !bairEl.value.trim() && d.bairro)     bairEl.value = d.bairro;
+        if (cidEl  && !cidEl.value.trim()  && d.localidade) cidEl.value  = d.localidade;
+        if (ufEl   && !ufEl.value.trim()   && d.uf)         ufEl.value   = d.uf.toUpperCase();
+        if (typeof showToast === 'function') showToast('📍 Endereço preenchido pelo CEP.');
+      } catch(e) { /* sem internet ou timeout — silencioso */ }
+      finally { _cepBusy = false; _cepEl.style.opacity = ''; }
+    });
+  })();
 
   async function syncPendentes(){
     if (!navigator.onLine) return;
@@ -5634,14 +5820,9 @@ if (logoBase64) {
   // Gera PDF COM fotos (já comprimidas ~150-300KB) e sobe para Storage → URL permanente.
   async function _gerarPdfSilenciosoESubir(r) {
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
-    console.log('[PDF] Iniciando geração...');
 
     const rSilencioso = Object.assign({}, r, { _somenteMemoria: true });
-    console.log('[PDF] Fotos:', (rSilencioso.imgsEquip||[]).length, (rSilencioso.imgsServico||[]).length, (rSilencioso.imgsBaterias||[]).length);
-
-    console.log('[PDF] Chamando exportarPDF...');
     await exportarPDF(rSilencioso);
-    console.log('[PDF] exportarPDF concluído');
 
     const b64  = window._lastPdfBase64;
     const nome = window._lastPdfFilename || ('relatorio-' + (r.numero || 'online') + '.pdf');
@@ -5651,30 +5832,161 @@ if (logoBase64) {
     for (let i = 0; i < n; i++) u8[i] = bstr.charCodeAt(i);
     const blob = new Blob([u8], { type: 'application/pdf' });
 
-    // Sobe para Storage — pula se estiver rodando via file:// (CORS bloqueado)
+    // Sobe para Storage — pula se estiver rodando via file://
     var pdfUrl = null;
+    var uploadErro = null;
+
     if (window.location.protocol === 'file:') {
-      showToast('⚠️ Abra o sistema via servidor HTTP para enviar links de PDF.');
-    } else {
+      uploadErro = 'file-protocol';
+    } else if (!navigator.onLine) {
+      uploadErro = 'offline';
+    } else if (!window._storage) {
+      uploadErro = 'storage-not-init';
+      // Tenta inicializar Storage lazy
+      try {
+        if (window.firebase && typeof window.firebase.storage === 'function') {
+          window._storage = window.firebase.storage();
+          console.log('[PDF] Storage inicializado lazily.');
+        }
+      } catch(eInit) { console.warn('[PDF] Falha ao inicializar Storage:', eInit.message); }
+    }
+
+    if (!uploadErro && !window._firebaseAuth) {
+      uploadErro = 'auth-not-init';
+    } else if (!uploadErro && !window._firebaseAuth.currentUser) {
+      uploadErro = 'not-authenticated';
+    }
+
+    if (!uploadErro) {
       try {
         const storage = window._storage;
-        if (storage && window._firebaseAuth && window._firebaseAuth.currentUser) {
-          const ref = storage.ref('relatorios/' + String(r.id || r.numero || Date.now()) + '/' + nome);
-          await Promise.race([
-            ref.put(blob, { contentType: 'application/pdf', contentDisposition: 'inline' }),
-            new Promise((_,rej) => setTimeout(() => rej(new Error('upload-timeout')), 15000))
-          ]);
-          pdfUrl = await Promise.race([
-            ref.getDownloadURL(),
-            new Promise((_,rej) => setTimeout(() => rej(new Error('url-timeout')), 5000))
-          ]);
-        }
+        const ratId   = String(r.id || r.numero || Date.now());
+        const ref     = storage.ref('relatorios/' + ratId + '/' + nome);
+
+        await Promise.race([
+          ref.put(blob, { contentType: 'application/pdf', contentDisposition: 'inline' }),
+          new Promise((_,rej) => setTimeout(() => rej(new Error('upload-timeout')), 20000))
+        ]);
+
+        pdfUrl = await Promise.race([
+          ref.getDownloadURL(),
+          new Promise((_,rej) => setTimeout(() => rej(new Error('url-timeout')), 8000))
+        ]);
+
+        console.log('[PDF] Upload concluído. URL:', pdfUrl);
       } catch(e) {
-        console.warn('Upload Storage falhou:', e.message);
+        uploadErro = e.message || String(e);
+        console.warn('[PDF] Upload Storage falhou:', uploadErro);
       }
     }
-    return { pdfUrl, blob, nome };
+
+    // Log detalhado do motivo da falha (visível no console para diagnóstico)
+    if (!pdfUrl) {
+      var motivos = {
+        'file-protocol':      'Sistema aberto via file:// — use HTTPS',
+        'offline':            'Sem conexão com a internet',
+        'storage-not-init':   'Firebase Storage não inicializado (verifique SDK)',
+        'auth-not-init':      'Firebase Auth não inicializado',
+        'not-authenticated':  'Usuário não autenticado no Firebase Auth',
+        'upload-timeout':     'Timeout no upload (conexão lenta ou Storage offline)',
+        'url-timeout':        'Timeout ao obter URL de download',
+      };
+      var descricao = motivos[uploadErro] || uploadErro || 'Motivo desconhecido';
+      console.warn('[PDF] Link não gerado:', descricao);
+      // Exibe motivo claro ao usuário (subtil, não bloqueia)
+      if (typeof showToast === 'function') {
+        var msgUsuario = {
+          'file-protocol':     '⚠️ Use HTTPS para gerar links de PDF.',
+          'offline':           '⚠️ Sem internet — PDF enviado sem link.',
+          'not-authenticated': '⚠️ Faça login para gerar link do PDF.',
+          'storage-not-init':  '⚠️ Storage não disponível — PDF sem link.',
+        };
+        showToast(msgUsuario[uploadErro] || '⚠️ PDF gerado mas link não disponível: ' + descricao, 5000);
+      }
+    }
+
+    return { pdfUrl, blob, nome, uploadErro };
   }
+
+  // ══════════════════════════════════════════════════════════
+  // HELPER: gera Blob do PDF (sem upload) — para Web Share API
+  // ══════════════════════════════════════════════════════════
+  async function _gerarPdfBlob(r) {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
+    const rSil = Object.assign({}, r, { _somenteMemoria: true });
+    await exportarPDF(rSil);
+    const b64 = window._lastPdfBase64;
+    if (!b64) throw new Error('PDF não gerado em memória.');
+    const nome = window._lastPdfFilename || ('relatorio-' + (r.numero || 'online') + '.pdf');
+    const bstr = atob(b64), n = bstr.length, u8 = new Uint8Array(n);
+    for (let i = 0; i < n; i++) u8[i] = bstr.charCodeAt(i);
+    return { blob: new Blob([u8], { type: 'application/pdf' }), nome };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // HELPER: baixa PDF direto no dispositivo
+  // ══════════════════════════════════════════════════════════
+  function _baixarPdfBlob(blob, nome) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // BOTÃO: Compartilhar PDF (Web Share API — melhor no mobile)
+  // ══════════════════════════════════════════════════════════
+  (function() {
+    var btnShare = document.getElementById('btnCompartilharPDF');
+    var dicaShare = document.getElementById('dica-compartilhar');
+    // Só exibe o botão se o browser suportar Web Share com arquivos
+    var shareSupported = navigator.share && navigator.canShare;
+    if (shareSupported) {
+      // Testa se aceita arquivo (nem todo browser que tem share aceita File)
+      try {
+        var testeFile = new File(['x'], 't.pdf', { type: 'application/pdf' });
+        shareSupported = navigator.canShare({ files: [testeFile] });
+      } catch(e) { shareSupported = false; }
+    }
+    if (btnShare) btnShare.style.display = shareSupported ? '' : 'none';
+    if (dicaShare) dicaShare.style.display = shareSupported ? '' : 'none';
+
+    if (!btnShare || !shareSupported) return;
+
+    btnShare.onclick = async function() {
+      if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
+      ensureNumeroRat();
+      var r;
+      try { r = montarRelatorioAtual(); } catch(e) { showToast('Erro ao montar relatório: ' + e.message); return; }
+
+      showLoader('Gerando PDF...');
+      try {
+        const { blob, nome } = await _gerarPdfBlob(r);
+        hideLoader();
+        const pdfFile = new File([blob], nome, { type: 'application/pdf' });
+        const titulo = 'RAT ' + (r.numero || '') + ' – ' + (r.cliente || '');
+        const texto  = 'Relatório Técnico de Atendimento — Online-ES Eletroeletrônica.\nCliente: ' + (r.cliente || '') + '\nRAT nº: ' + (r.numero || '') + '\nData: ' + (r.dataHoraBr || '') + '\nTécnico: ' + (r.tecnico || '');
+        await navigator.share({
+          title: titulo,
+          text: texto,
+          files: [pdfFile]
+        });
+        showToast('✅ PDF compartilhado com sucesso!');
+        try { logInfo('PDF compartilhado (Web Share)', { numero: r.numero || 'N/A' }); } catch(e) {}
+      } catch(e) {
+        hideLoader();
+        if (e.name === 'AbortError') return; // usuário cancelou — normal
+        console.warn('[Share] Falha:', e);
+        showToast('⚠️ Compartilhamento falhou. Baixando PDF...', 3500);
+        // Fallback: baixa o PDF no dispositivo
+        try {
+          const { blob, nome } = await _gerarPdfBlob(r);
+          _baixarPdfBlob(blob, nome);
+        } catch(e2) { showToast('Erro ao gerar PDF: ' + e2.message); }
+      }
+    };
+  })();
 
   if (btnEnviarEmail){
     btnEnviarEmail.onclick = async ()=>{
@@ -5697,15 +6009,21 @@ if (logoBase64) {
       const dataTexto    = r.dataHoraBr || r.dataHoraBR || r.dataHora || '';
       const nomeTec      = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
 
-      // Gera PDF primeiro (com timeout de 25s), depois abre e-mail com link incluído
-      showLoader('Gerando PDF...');
+      // Salva o relatório antes de gerar o PDF (garante ID estável no Storage)
+      try {
+        if (typeof salvarRelatorioLocal === 'function') salvarRelatorioLocal(r);
+        if (typeof salvarRelatorioFirestore === 'function' && navigator.onLine) salvarRelatorioFirestore(r);
+      } catch(eSv) { console.warn('[E-mail] Falha ao pré-salvar RAT:', eSv); }
+
+      // Gera PDF e faz upload para Storage (timeout 30s)
+      showLoader('Gerando PDF e subindo link...');
       var pdfUrl = null;
       try {
-        const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 25000));
+        const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 30000));
         const res = await Promise.race([ _gerarPdfSilenciosoESubir(r), _timeout ]);
         if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
       } catch(e) {
-        if (e.message !== 'timeout') console.warn('PDF falhou:', e);
+        if (e.message !== 'timeout') console.warn('[E-mail] PDF/upload falhou:', e);
       } finally {
         hideLoader();
       }
@@ -5721,11 +6039,22 @@ if (logoBase64) {
         'Data: ' + dataTexto,
         'Técnico responsável: ' + nomeTec,
         linkLinha,
+        !pdfUrl ? '\n⚠️ O PDF foi gerado localmente. Baixe-o no botão "Gerar PDF" e anexe manualmente ao e-mail.' : null,
         'Fico à disposição para quaisquer esclarecimentos.',
         '',
         'Atenciosamente,',
         'Online-ES'
       ].filter(item => item !== null).join('\n');
+
+      // Se não tem link, baixa o PDF automaticamente e avisa o técnico
+      if (!pdfUrl) {
+        try {
+          const { blob: blobEmail, nome: nomeEmail } = await _gerarPdfBlob(r);
+          _baixarPdfBlob(blobEmail, nomeEmail);
+          await new Promise(res => setTimeout(res, 800));
+        } catch(eDl) { console.warn('[E-mail] Falha ao baixar PDF:', eDl); }
+        alert('Não foi possível anexar o PDF automaticamente.\n\nO arquivo foi baixado no seu dispositivo.\n\nAo abrir o e-mail, anexe o PDF manualmente antes de enviar.');
+      }
 
       window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
       try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comLink: !!pdfUrl }); } catch(e){}
@@ -5746,31 +6075,79 @@ if (logoBase64) {
     ensureNumeroRat();
     var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
 
-    // Gera o PDF primeiro (aguarda até 25s) e só depois abre o WhatsApp com a
-    // mensagem COMPLETA (incluindo link). Isso evita o SecurityError cross-origin
-    // que ocorria ao tentar alterar waWin.location.href após o navegador
-    // já ter carregado wa.me (domínio externo), impedindo o link de chegar.
+    // Salva o relatório antes de gerar o PDF (garante ID estável no Storage)
+    try {
+      if (typeof salvarRelatorioLocal === 'function') salvarRelatorioLocal(r);
+      if (typeof salvarRelatorioFirestore === 'function' && navigator.onLine) salvarRelatorioFirestore(r);
+    } catch(eSv) { console.warn('[WhatsApp] Falha ao pré-salvar RAT:', eSv); }
+
+    // Gera o PDF primeiro (aguarda até 30s) e só depois abre o WhatsApp com a
+    // mensagem COMPLETA (incluindo link). Isso evita o SecurityError cross-origin.
     showLoader('Gerando PDF para link...');
     var pdfUrl = null;
     try {
-      const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 25000));
+      const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 30000));
       const res = await Promise.race([ _gerarPdfSilenciosoESubir(r), _timeout ]);
       if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
     } catch(e) {
-      if (e.message !== 'timeout') console.warn('[WhatsApp] PDF falhou:', e);
+      if (e.message !== 'timeout') console.warn('[WhatsApp] PDF/upload falhou:', e);
     } finally {
       hideLoader();
     }
 
+    // Se não tem link, tenta Web Share API (envia PDF como arquivo direto)
     if (!pdfUrl) {
-      const semStorage = !window._storage || !window._firebaseAuth || !window._firebaseAuth.currentUser;
-      if (semStorage) showToast('⚠️ Faça login no Firebase para gerar link do PDF. Abrindo WhatsApp sem link.');
-      else showToast('⚠️ Não foi possível gerar o link do PDF. Abrindo WhatsApp sem link.');
+      var shareComArquivoDisponivel = false;
+      try {
+        var testeF = new File(['x'], 't.pdf', { type: 'application/pdf' });
+        shareComArquivoDisponivel = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [testeF] }));
+      } catch(eT) {}
+
+      if (shareComArquivoDisponivel) {
+        // Oferece compartilhar direto via Web Share (envia o PDF como arquivo)
+        try {
+          const { blob: blobWa, nome: nomeWa } = await _gerarPdfBlob(r);
+          const pdfFileWa = new File([blobWa], nomeWa, { type: 'application/pdf' });
+          await navigator.share({
+            title: 'RAT ' + (r.numero || '') + ' – ' + (r.cliente || ''),
+            text: 'Olá! Aqui é da *ONLINE-ES*. Segue o Relatório Técnico de Atendimento, RAT ' + (r.numero || '') + ', cliente ' + (r.cliente || '') + '.',
+            files: [pdfFileWa]
+          });
+          showToast('✅ PDF enviado com sucesso!');
+          try { logInfo('RAT enviada por WhatsApp (Web Share)', { numero: r.numero || 'N/A' }); } catch(e) {}
+          return; // encerra aqui — arquivo enviado
+        } catch(eShare) {
+          if (eShare.name === 'AbortError') return; // usuário cancelou
+          console.warn('[WhatsApp] Web Share falhou, abrindo wa.me:', eShare);
+        }
+      }
+    }
+
+    // Se ainda sem link, baixa PDF e avisa o técnico antes de abrir WhatsApp
+    if (!pdfUrl) {
+      try {
+        const { blob: blobWa2, nome: nomeWa2 } = await _gerarPdfBlob(r);
+        _baixarPdfBlob(blobWa2, nomeWa2);
+        await new Promise(res => setTimeout(res, 800));
+      } catch(eDl2) { console.warn('[WhatsApp] Falha ao baixar PDF:', eDl2); }
+      alert('Não foi possível anexar o PDF automaticamente.\n\nO arquivo foi baixado no seu dispositivo.\n\nApós enviar a mensagem no WhatsApp, anexe o PDF manualmente na conversa.');
     }
 
     const msgFinal = pdfUrl
-      ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.\n\n📄 Acesse o PDF: ${pdfUrl}\n\nQualquer dúvida estamos à disposição!`
-      : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.\n\nQualquer dúvida estamos à disposição!`;
+      ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊
+
+Segue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.
+
+📄 Acesse o PDF: ${pdfUrl}
+
+Qualquer dúvida estamos à disposição!`
+      : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊
+
+Segue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.
+
+📎 O PDF foi baixado no seu dispositivo — anexe-o nesta conversa.
+
+Qualquer dúvida estamos à disposição!`;
     const waUrl = `https://wa.me/${tel}?text=${encodeURIComponent(msgFinal)}`;
     window.open(waUrl, '_blank');
     if (pdfUrl) showToast('✅ WhatsApp aberto com link do PDF incluído!');
@@ -6726,23 +7103,25 @@ function aplicarPermissoesConfiguracoes(){
       Object.entries(fields).forEach(([k, v]) => { obj[k] = _fsFieldValue(v); });
       return obj;
     });
-    // Paginação: busca próximas páginas se existir nextPageToken
-    if (json.nextPageToken && docs.length > 0) {
+    // Paginação completa: percorre TODAS as páginas enquanto houver nextPageToken
+    var _pageToken = json.nextPageToken;
+    var _safetyLimit = 20; // máximo de 20 páginas (~10.000 docs) para evitar loop infinito
+    while (_pageToken && _safetyLimit-- > 0) {
       try {
-        var nextUrl = url + '&pageToken=' + encodeURIComponent(json.nextPageToken);
+        var nextUrl = url + '&pageToken=' + encodeURIComponent(_pageToken);
         var nextResp = await fetch(nextUrl, { headers: _fHeaders });
-        if (nextResp.ok) {
-          var nextJson = await nextResp.json();
-          var nextDocs = (nextJson.documents || []).map(function(doc) {
-            var id = doc.name.split('/').pop();
-            var fields = doc.fields || {};
-            var obj = { _firestoreId: id };
-            Object.entries(fields).forEach(function(_kv) { obj[_kv[0]] = _fsFieldValue(_kv[1]); });
-            return obj;
-          });
-          docs = docs.concat(nextDocs);
-        }
-      } catch(e) { console.warn('_fetchColecaoREST: paginação falhou:', e); }
+        if (!nextResp.ok) break;
+        var nextJson = await nextResp.json();
+        var nextDocs = (nextJson.documents || []).map(function(doc) {
+          var id = doc.name.split('/').pop();
+          var fields = doc.fields || {};
+          var obj = { _firestoreId: id };
+          Object.entries(fields).forEach(function(_kv) { obj[_kv[0]] = _fsFieldValue(_kv[1]); });
+          return obj;
+        });
+        docs = docs.concat(nextDocs);
+        _pageToken = nextJson.nextPageToken || null;
+      } catch(e) { console.warn('_fetchColecaoREST: paginação falhou:', e); break; }
     }
     return docs;
   }
@@ -7618,6 +7997,7 @@ async function renderMeus(){
         '<div style="font-size:.72rem;color:#4b5563;margin-top:4px;">'+ (dataBr || '') +'</div>'+
         '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
           '<button class="btn small" data-meus-ver="'+ r.id +'"><i class="ri-eye-line"></i> Ver</button>'+
+          '<button class="btn small" data-meus-editar="'+ r.id +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
           '<button class="btn small" data-meus-whats="'+ r.id +'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
           '<button class="btn small" data-meus-pdf="'+ r.id +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
         '</div>';
@@ -7631,6 +8011,65 @@ async function renderMeus(){
         var id = btn.getAttribute('data-meus-ver');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if(r2 && typeof abrirRelatorioOverlay==='function') abrirRelatorioOverlay(r2);
+      };
+    });
+    // Editar relatório: carrega dados no formulário de Novo Atendimento
+    lista.querySelectorAll('[data-meus-editar]').forEach(function(btn){
+      btn.onclick = function(e){ e.stopPropagation();
+        var id = btn.getAttribute('data-meus-editar');
+        var r2 = filtrados.find(function(x){ return x.id===id; });
+        if (!r2) return;
+        if (!confirm('Editar o relatório Nº ' + (r2.numero||'') + '?\n\nO formulário será preenchido com os dados deste relatório. Após salvar, o relatório original será atualizado.')) return;
+        // Marca para edição (o salvar irá substituir este ID)
+        window._editandoRelatorioId = r2.id;
+        // Navega para o formulário
+        if (typeof mostrarTela === 'function') mostrarTela('novo');
+        // Preenche os campos após a tela abrir
+        setTimeout(function() {
+          try {
+            var _s = function(id, v) { var el = document.getElementById(id); if (el && v != null) el.value = v; };
+            _s('aNumeroRat', r2.numero);
+            _s('aDataHoraBR', r2.dataHoraBr || r2.dataHoraBR);
+            _s('aTecnico', r2.tecnico);
+            _s('aContato', r2.contato);
+            _s('aTelefone', r2.telefone);
+            _s('aWhats', r2.whatsapp);
+            _s('aEmailCliente', r2.emailCliente);
+            _s('aEndereco', r2.endereco);
+            _s('aBairro', r2.bairro);
+            _s('aCidade', r2.cidade);
+            _s('aUF', r2.uf);
+            _s('aCep', r2.cepCliente);
+            _s('aCnpj', r2.cnpjCliente || r2.cnpj);
+            _s('bEquipamento', r2.equipamento);
+            _s('bSerie', r2.serie);
+            _s('bKVA', r2.kva);
+            _s('bLocal', r2.localInstalacao);
+            _s('bCondicao', r2.condicao);
+            _s('bTensaoEntrada', r2.tensaoEntrada);
+            _s('bTensaoSaida', r2.tensaoSaida);
+            _s('cTipo', r2.tipo);
+            _s('cStatus', r2.status);
+            _s('cProblema', r2.problema);
+            _s('cDiagnostico', r2.diagnostico);
+            _s('cAcoes', Array.isArray(r2.acoes) ? r2.acoes.join('\n') : (r2.acoes||''));
+            _s('cPecas', r2.pecas);
+            _s('dBatQtd', r2.bateriasQtd);
+            _s('dBatTensao', r2.bateriasTensao);
+            _s('dObs', r2.bateriasObs);
+            // Cliente
+            var cliSel = document.getElementById('aClienteSelect');
+            var cliMan = document.getElementById('aClienteManual');
+            if (r2.clienteManual && cliMan) {
+              cliMan.value = r2.cliente || '';
+              cliMan.style.display = 'block';
+              if (cliSel) cliSel.value = '';
+            } else if (cliSel) {
+              cliSel.value = r2.cliente || '';
+            }
+            if (typeof showToast === 'function') showToast('✏️ Editando RAT ' + (r2.numero||'') + '. Salve para atualizar.');
+          } catch(ex) { console.warn('Erro ao preencher formulário para edição:', ex); }
+        }, 350);
       };
     });
     lista.querySelectorAll('[data-meus-whats]').forEach(function(btn){
@@ -9251,10 +9690,15 @@ async function fazerLogin(){
       });
       video.srcObject = stream;
     } catch (err) {
-      // Fallback: abre input nativo se câmera não puder ser acessada
       modal.classList.add('hidden');
       document.body.style.overflow = '';
-      _abrirCameraFallback(targetPreview);
+      // Permissão negada: avisa o usuário antes de abrir fallback
+      var isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+      if (isDenied && typeof showToast === 'function') {
+        showToast('⚠️ Permissão de câmera negada. Abrindo seleção de arquivo...');
+      }
+      // Fallback: abre input nativo se câmera não puder ser acessada
+      setTimeout(function() { _abrirCameraFallback(targetPreview); }, isDenied ? 1200 : 0);
     }
   }
 
@@ -9435,6 +9879,9 @@ async function fazerLogin(){
 
 })();
 </script>
+
+<!-- ══ INDICADOR DE AUTO-SAVE ══ -->
+<div id="autoSaveIndicator">💾 Rascunho salvo automaticamente</div>
 
 <!-- ══ BARRA DE AÇÕES FIXA (mobile) ══ -->
 <div id="barraAcoesMobile">
