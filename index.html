@@ -130,6 +130,7 @@
       max-width:130px;
     }
     .list-relatorios{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+    @media(max-width:880px){.list-relatorios{max-height:calc(100svh - 240px)}}
     .relatorio-card{background:rgba(236,252,203,.5)!important;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:5px;color:#0f172a}
     .relatorio-card.visto{border-color:rgba(148,163,184,.9);background:rgba(236,252,203,.85)!important}
     .badge-status{display:inline-block;padding:2px 10px 3px;border-radius:999px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
@@ -178,7 +179,7 @@
     .report-body .linha{border-bottom:2px dashed rgba(148,163,184,.4);margin:10px 0 14px}
     .report-body .campo{margin-bottom:10px;font-size:1.45rem}
     .report-body .rotulo{font-weight:700;color:#0f172a}
-    .report-close{background:transparent;border:none;color:#fff;font-size:1.1rem;cursor:pointer}
+    .report-close{background:transparent;border:none;color:#fff;font-size:1.1rem;cursor:pointer;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px}
     .toast{position:fixed;bottom:16px;right:16px;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(17,79,145,.3);border-radius:10px;padding:6px 12px;font-size:.7rem;display:none;z-index:9999}
 
     .global-loader{
@@ -226,7 +227,7 @@
   #modalDeletarRAT>div{background:#fff;border-radius:18px;padding:28px 24px 22px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(15,23,42,.18);}
   #modalDeletarRAT.hidden{display:none;}
   #inputConfirmarRAT:focus{outline:none;border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12);}
-  #assinaturaClienteBox{margin-top:10px;background:#f8fafc;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px 12px}
+  /* assinaturaClienteBox styling moved to unified block above (shared with assinaturaTecnicoBox) */
     
     #sigBtns{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .inline-badge{display:inline-block;background:#fde68a;color:#7c2d12;border:1px solid #f59e0b;padding:2px 8px;border-radius:999px;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
@@ -261,7 +262,7 @@
       .dash-cards > div{width:100%!important}
       /* Botões de ação nas tabelas */
       .relatorio-acoes{flex-wrap:wrap;gap:4px}
-      .relatorio-acoes .btn{font-size:.7rem;padding:4px 8px}
+      .relatorio-acoes .btn{font-size:.78rem;padding:8px 12px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
       /* Alinhamento flex-end -> flex-start no mobile */
       .col[style*="justify-content:flex-end"]{justify-content:flex-start!important}
       /* Filtros de busca */
@@ -347,6 +348,118 @@
   /* Responsivo leve */
   @media (max-width: 880px){
     :root{ --font-scale: 1.08; }
+    /* iOS Safari: font-size < 16px dispara zoom automático — força mínimo 16px em todos os inputs */
+    input, select, textarea,
+    .panel input, .panel select, .panel textarea,
+    .section-card input, .section-card select, .section-card textarea {
+      font-size: 16px !important;
+    }
+    /* Fix 2: barra de ações fixa no rodapé no mobile */
+    #barraAcoesMobile {
+      display: flex !important;
+    }
+    /* Espaço extra no fundo do formulário para não sobrepor o conteúdo */
+    #telaNovo .form-panel {
+      padding-bottom: 80px !important;
+    }
+    /* Fix 6: campos de texto longos com altura mínima confortável no mobile */
+    #cProblema, #cDiagnostico, #cAcoes {
+      min-height: 100px !important;
+    }
+    #dObs {
+      min-height: 80px !important;
+    }
+    /* Fix 3: área de toque mínima 44px em btn.small (Google/Apple guideline) */
+    .btn.small {
+      min-height: 44px !important;
+      min-width: 44px !important;
+      padding: 10px 14px !important;
+      font-size: .78rem !important;
+    }
+    /* Fix 5: preview de fotos maior e botão × acessível */
+    .preview-item {
+      width: 90px !important;
+      height: 72px !important;
+    }
+    .preview-remove {
+      width: 28px !important;
+      height: 28px !important;
+      font-size: .75rem !important;
+      top: 3px !important;
+      right: 3px !important;
+    }
+    .cam-thumb {
+      width: 80px !important;
+      height: 64px !important;
+    }
+    .cam-thumb-rm {
+      width: 26px !important;
+      height: 26px !important;
+      font-size: .65rem !important;
+    }
+  }
+  /* Barra de ações fixa — oculta no desktop, visível no mobile */
+  #barraAcoesMobile {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(15,23,42,.97);
+    border-top: 1px solid rgba(249,115,22,.35);
+    backdrop-filter: blur(12px);
+    padding: 10px 14px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    gap: 8px;
+    align-items: center;
+    justify-content: stretch;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.35);
+  }
+  #barraAcoesMobile .btn-save-mobile {
+    flex: 1;
+    justify-content: center;
+    background: linear-gradient(90deg,#f97316,#ea580c);
+    border: 1px solid rgba(249,115,22,.5);
+    border-radius: 12px;
+    padding: 13px 12px;
+    font-size: .85rem;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(249,115,22,.4);
+  }
+  #barraAcoesMobile .btn-whats-mobile {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: #25d366;
+    border: 1px solid rgba(37,211,102,.4);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(37,211,102,.35);
+  }
+  #barraAcoesMobile .btn-pdf-mobile {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: rgba(226,232,240,.1);
+    border: 1px solid rgba(148,163,184,.35);
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    flex-shrink: 0;
   }
   /* Toast suave (se existir) */
   #toast{ font-size: var(--fs-small) !important; }
@@ -433,15 +546,58 @@ html[data-role="technician"] nav button {
     background:#ffffff;
     cursor:crosshair;
     touch-action:none;
+    display:block;
   }
 
-  /* Card da assinatura do técnico com mesma largura útil do cliente */
+  /* Ambos os cards de assinatura com o mesmo layout — usando section-card como base */
+  #assinaturaClienteBox,
   #assinaturaTecnicoBox{
     margin-top:10px;
     background:#f8fafc;
     border:1px solid rgba(148,163,184,.35);
     border-radius:12px;
     padding:8px 10px 12px;
+    box-sizing:border-box;
+    width:100%;
+  }
+
+  /* --- Mobile: override inline small font-sizes ilegíveis --- */
+  @media (max-width:880px){
+    /* Textos auxiliares (small/hint) que usam rem muito baixo inline */
+    small, .hint, [style*="font-size:.6"], [style*="font-size: .6"],
+    [style*="font-size:.7"], [style*="font-size: .7"]{
+      font-size: 13px !important;
+      line-height: 1.45 !important;
+    }
+    /* Labels do formulário */
+    label[style*="font-size"]{
+      font-size: 14px !important;
+    }
+    /* Botão logout da sidebar */
+    .logout{
+      font-size: .75rem !important;
+      padding: 8px 12px !important;
+      min-height: 36px !important;
+    }
+    /* Badge status nos cards de relatório */
+    .badge-status{
+      font-size: .7rem !important;
+      padding: 4px 12px 5px !important;
+    }
+    /* Assinatura maior no mobile para facilitar desenho */
+    #sigCliente, #sigTecnico{
+      height: 180px !important;
+    }
+    /* Inputs de data com altura confortável */
+    input[type="date"], input[type="time"]{
+      min-height: 44px !important;
+      font-size: 16px !important;
+    }
+    /* Espaçamento extra nos cards de relatório */
+    .relatorio-card{
+      padding: 14px 12px !important;
+      gap: 8px !important;
+    }
   }
 
   /* --- v24 inactive user styling --- */
@@ -711,7 +867,13 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>Link para Google Maps</label>
-              <input id="aLinkMaps" placeholder="-" readonly style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input id="aLinkMaps" placeholder="-" readonly style="flex:1;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
+                <a id="btnVerMaps" href="#" target="_blank" rel="noopener"
+                   style="display:none;white-space:nowrap;background:#1a73e8;color:#fff;border-radius:10px;padding:7px 10px;font-size:.72rem;font-weight:600;text-decoration:none;align-items:center;gap:4px;min-height:36px;box-sizing:border-box;">
+                  <i class="ri-map-pin-2-line"></i> Ver
+                </a>
+              </div>
             </div>
             <div class="col" style="max-width:min(170px,100%);display:flex;flex-direction:column;">
               <label style="visibility:hidden;">Pegar localização</label>
@@ -1083,10 +1245,10 @@ html[data-role="technician"] nav button {
           </div>
           <div class="row" style="gap:6px;margin-bottom:6px;width:100%;box-sizing:border-box;">
             <div class="col" style="min-width:0;flex:1 1 0;">
-              <input id="filtroTexto" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:.72rem;">
+              <input id="filtroTexto" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:1rem;">
             </div>
             <div class="col" style="display:flex;gap:6px;min-width:0;flex:0 1 auto;max-width:min(250px,100%);">
-              <select id="filtroStatus" style="width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;font-size:.72rem;">
+              <select id="filtroStatus" style="width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:9px 12px;color:#0f172a;font-size:1rem;">
                 <option value="">Status (todos)</option>
                 <option value="Concluído">Concluído</option>
                 <option value="Concluído com pendência">Concluído com pendência</option>
@@ -2164,22 +2326,15 @@ html[data-role="technician"] nav button {
       }
       saveLogs(logs);
 
-      // Opcional: envia para Firestore se disponível e online
+      // BUG FIX: usa SDK compat (firebase.firestore()) em vez do SDK modular (addDoc/collection)
+      // O app usa firebase-firestore-compat.js — funções globais como addDoc/collection não existem
       try{
-        if (typeof db !== 'undefined' &&
-            db &&
-            typeof collection === 'function' &&
-            typeof addDoc === 'function' &&
-            typeof serverTimestamp === 'function' &&
-            navigator.onLine){
-
-          if (!colLogsFS){
-            colLogsFS = collection(db, 'onlineEsLogs');
-          }
-
-          await addDoc(colLogsFS, {
+        var _dbLog = (typeof window._getDb === 'function') ? window._getDb() : null;
+        if (!_dbLog && window.firebase && window.firebase.firestore) _dbLog = window.firebase.firestore();
+        if (_dbLog && navigator.onLine){
+          await _dbLog.collection('onlineEsLogs').add({
             ...entry,
-            createdAt: serverTimestamp(),
+            createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
             navegador: navigator.userAgent || '',
             origem: 'ONLINE-ES-APP'
           });
@@ -3012,7 +3167,7 @@ function autoFillCamposAtendimento(){
   const btnExecutarBusca = document.getElementById('btnExecutarBusca');
   const listaBusca = document.getElementById('listaBusca');
 
-  function showToast(msg){ toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=>toast.style.display='none', 2700); }
+  function showToast(msg, duration){ toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=>toast.style.display='none', duration || 2700); }
   function showLoader(msg){
     const el = document.getElementById('globalLoader');
     if (!el) return;
@@ -3260,6 +3415,11 @@ function autoFillCamposAtendimento(){
         setVal('aLocalizacao',  r.localizacao);
         setVal('aCoord',        r.localizacaoCoordenadas);
         setVal('aLinkMaps',     r.localizacaoLink);
+        // Fix 7: mostra botão Ver no Maps se já existe link salvo
+        try {
+          var _btnVM = document.getElementById('btnVerMaps');
+          if (_btnVM && r.localizacaoLink) { _btnVM.href = r.localizacaoLink; _btnVM.style.display = 'inline-flex'; }
+        } catch(e){}
         setVal('bEquipamento',  r.equipamento);
         setVal('bSerie',        r.serie);
         setVal('bKVA',          r.kva);
@@ -3303,7 +3463,7 @@ function autoFillCamposAtendimento(){
     // Registra login na auditoria
     try { logInfo('Login realizado', { user: user.fullName || user.username, role: user.role || 'N/A' }); } catch(e){}
 
-    startRelogioAtendimento(); try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); }catch(e){}
+    startRelogioAtendimento(); try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); }catch(e){} try{ if (typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); else if(typeof window.resizeSigTecnicoCanvas==='function') window.resizeSigTecnicoCanvas(); }catch(e){}
     ensureNumeroRat();
     popularSelectClientes();
     popularBuscaTecnicoEmpresa();
@@ -3522,6 +3682,12 @@ function autoFillCamposAtendimento(){
     limparMenu();
     const tituloEl = document.getElementById('tituloTela');
 
+    // BUG FIX: limpa o id de edicao ao navegar para outra tela (nao 'novo')
+    // Evita que RAT original seja deletada ao salvar nova RAT apos sair sem salvar
+    if (nome !== 'novo' && window._editandoRelatorioId) {
+      window._editandoRelatorioId = null;
+    }
+
     if (nome === 'meus'){
       if (mMeus) mMeus.classList.add('active');
       if (telaMeus) telaMeus.style.display='block';
@@ -3556,7 +3722,7 @@ function autoFillCamposAtendimento(){
       ensureNumeroRat();
       popularSelectClientes();
       startRelogioAtendimento();
-      try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); }catch(e){}
+      try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); if (typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); }catch(e){}
     }
   }
   mNovo.onclick = ()=>mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e));
@@ -3597,11 +3763,13 @@ function autoFillCamposAtendimento(){
     if (ov) ov.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
   };
 
-  // Fecha sidebar no mobile ao clicar fora dela
+  // Fix 4: fechar sidebar ao clicar fora também esconde o overlay
   document.addEventListener('click', function(e){
     if (window.innerWidth <= 880 && sidebar.classList.contains('open')) {
       if (!sidebar.contains(e.target) && e.target !== btnToggleSidebar) {
         sidebar.classList.remove('open');
+        var ov = document.getElementById('sidebarOverlay');
+        if (ov) ov.style.display = 'none';
       }
     }
   });
@@ -3619,6 +3787,37 @@ function autoFillCamposAtendimento(){
       return _mTOrig(nome);
     };
   }
+
+  // Swipe para esquerda fecha a sidebar no mobile
+  (function(){
+    var _swipeStartX = null;
+    var _swipeStartY = null;
+    document.addEventListener('touchstart', function(e){
+      if(e.touches.length === 1){
+        _swipeStartX = e.touches[0].clientX;
+        _swipeStartY = e.touches[0].clientY;
+      }
+    }, {passive:true});
+    document.addEventListener('touchend', function(e){
+      if(_swipeStartX === null) return;
+      var dx = e.changedTouches[0].clientX - _swipeStartX;
+      var dy = Math.abs(e.changedTouches[0].clientY - _swipeStartY);
+      // swipe horizontal > 60px e não vertical (evita scroll)
+      if(dx < -60 && dy < 60 && window.innerWidth <= 880 && sidebar.classList.contains('open')){
+        sidebar.classList.remove('open');
+        var ov = document.getElementById('sidebarOverlay');
+        if(ov) ov.style.display = 'none';
+      }
+      // swipe da borda esquerda (< 30px) para direita abre sidebar
+      if(dx > 60 && dy < 60 && _swipeStartX < 30 && window.innerWidth <= 880 && !sidebar.classList.contains('open')){
+        sidebar.classList.add('open');
+        var ov = document.getElementById('sidebarOverlay');
+        if(ov) ov.style.display = 'block';
+      }
+      _swipeStartX = null;
+      _swipeStartY = null;
+    }, {passive:true});
+  })();
 
   
   
@@ -5331,10 +5530,9 @@ if (logoBase64) {
       if (usuarioLogado && isSupervisorOrAdmin(usuarioLogado)){ renderLista(); atualizarDashboard(); }
     }
   }
-  window.addEventListener('online', function(){ syncPendentes(); });
-  // syncOnlineAfterSave removed: syncPendentes listener above already handles this
-  // Reinicia listener ao reconectar
+  // BUG FIX: listeners 'online' unificados em um só para evitar syncPendentes duplo
   window.addEventListener('online', function(){
+    syncPendentes();
     setTimeout(function(){
       if (!window._relatoriosListener && typeof _iniciarListenerRelatorios === 'function') {
         _iniciarListenerRelatorios();
@@ -5586,6 +5784,8 @@ if (logoBase64) {
       // Gera novo número RAT e reinicia relógio
       try { ensureNumeroRat(); } catch(e){}
       try { startRelogioAtendimento(); } catch(e){}
+      // Fix 7: oculta botão Ver no Maps
+      try { var _bvm = document.getElementById('btnVerMaps'); if (_bvm) { _bvm.href='#'; _bvm.style.display='none'; } } catch(e){}
       showToast('Formulário limpo.');
     } catch(e) {
       console.warn('Erro ao limpar formulário:', e);
@@ -5727,7 +5927,11 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     navigator.geolocation.getCurrentPosition(pos=>{
       const lat=pos.coords.latitude.toFixed(6); const lon=pos.coords.longitude.toFixed(6);
       const coord = lat+', '+lon; const link=`https://www.google.com/maps?q=${lat},${lon}`;
-      aLocalizacao.value=coord; aCoord.value=coord; aLinkMaps.value=link; showToast('Localização capturada.');
+      aLocalizacao.value=coord; aCoord.value=coord; aLinkMaps.value=link;
+      // Fix 7: exibe botão "Ver no Maps" ao lado do campo
+      var btnVerMaps = document.getElementById('btnVerMaps');
+      if (btnVerMaps) { btnVerMaps.href = link; btnVerMaps.style.display = 'inline-flex'; }
+      showToast('Localização capturada.');
       try { logInfo('Localização GPS capturada', { coordenadas: coord }); } catch(e){}
     }, err=>{ alert('Não foi possível obter a localização. Verifique se o GPS está ativo e se o navegador tem permissão.'); }, {enableHighAccuracy:true,timeout:8000});
   });
@@ -5741,8 +5945,12 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
   function resizeSignatureCanvas(){
     if (!sigCanvas) return;
-    const box = document.getElementById('assinaturaClienteBox') || sigCanvas.parentElement;
-    const rect = box.getBoundingClientRect();
+    // BUG FIX: usa o mesmo box de referência que o canvas do técnico para garantir largura idêntica
+    var tecBox = document.getElementById('assinaturaTecnicoBox');
+    var cliBox = document.getElementById('assinaturaClienteBox') || sigCanvas.parentElement;
+    // Usa a largura do tecBox como referência (se disponível e visível)
+    var refBox = (tecBox && tecBox.getBoundingClientRect().width > 0) ? tecBox : cliBox;
+    const rect = refBox.getBoundingClientRect();
     const ratio = window.devicePixelRatio || 1;
 
     const width = Math.max(320, (rect.width || sigCanvas.clientWidth || 600) - 24);
@@ -5830,7 +6038,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   sigCanvas.addEventListener('touchmove', moveDraw, {passive:false});
   sigCanvas.addEventListener('touchend', endDraw);
 
-  window.addEventListener('resize', ()=>resizeSignatureCanvas());
+  window.addEventListener('resize', ()=>{ resizeSignatureCanvas(); try{ if(typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); }catch(e){} });
 
   // Inicializa ao carregar
   resizeSignatureCanvas();
@@ -5966,6 +6174,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     sigTecnicoCanvas.addEventListener('touchend', endDrawTec);
 
     window.addEventListener('resize', ()=>resizeSigTecnicoCanvas());
+    // Expõe globalmente para ser chamada de fora do escopo (entrarSistema, mostrarTela)
+    window.resizeSigTecnicoCanvas = resizeSigTecnicoCanvas;
 
     resizeSigTecnicoCanvas();
 
@@ -7644,40 +7854,8 @@ document.addEventListener('click', function(ev){
   }
 
   // lerArquivoComoDataURL já definida no módulo principal
-
-  if (btnSalvarLogo){
-    btnSalvarLogo.addEventListener('click', async function(ev){
-      ev.preventDefault();
-      try{
-        const file = inputLogoFile && inputLogoFile.files && inputLogoFile.files[0];
-        if (!file){
-          _showToastLogo('Selecione uma imagem para a logo.');
-          return;
-        }
-        const b64 = await lerArquivoComoDataURL(file);
-        localStorage.setItem('online-es-logo-b64', b64);
-        aplicarLogoPersistida();
-        _showToastLogo('Logo salva com sucesso. Gere um PDF para testar.');
-      }catch(e){
-        console.error(e);
-        alert('Não foi possível salvar a logo.');
-      }
-    });
-  }
-
-  if (btnRemoverLogo){
-    btnRemoverLogo.addEventListener('click', function(ev){
-      ev.preventDefault();
-      if (!confirm('Remover a logo salva?')) return;
-      try{
-        localStorage.removeItem('online-es-logo-b64');
-        aplicarLogoPersistida();
-        _showToastLogo('Logo removida e logo padrão restaurada.');
-      }catch(e){
-        console.error(e);
-      }
-    });
-  }
+  // NOTA: handlers de btnSalvarLogo e btnRemoverLogo registrados no bloco principal (com sync Firestore)
+  // Duplicatas removidas para evitar execução dupla ao clicar
 
   window.addEventListener('load', aplicarLogoPersistida);
 })();
@@ -8470,7 +8648,7 @@ async function fazerLogin(){
             console.warn('Firebase Auth senha estável:', estavelErr.code);
           }
         }
-        if (firebaseUser) { /* resolvido com senha estável */ } else
+        if (firebaseUser) { console.warn('⚠️ Firebase Auth: autenticado via senha estável (divergência de senha). O usuário deve redefinir a senha para corrigir.'); showToast('⚠️ Atenção: sincronize sua senha nas configurações de conta.', 5000); } else
         // Senha diverge de tudo: usa conta alternativa
         try {
           // Usa Identity Toolkit para verificar qual é o uid atual da conta
@@ -9060,6 +9238,9 @@ async function fazerLogin(){
     // Flash visual
     modal.style.background = 'rgba(255,255,255,.25)';
     setTimeout(function(){ modal.style.background = ''; }, 80);
+
+    // Fix 8: vibração tátil ao capturar foto (Android/iOS com suporte)
+    try { if (navigator.vibrate) navigator.vibrate(40); } catch(e){}
   });
 
   function atualizarContador() {
@@ -9184,5 +9365,44 @@ async function fazerLogin(){
 })();
 </script>
 
+<!-- ══ BARRA DE AÇÕES FIXA (mobile) ══ -->
+<div id="barraAcoesMobile">
+  <button class="btn-save-mobile" id="btnSalvarMobile"><i class="ri-save-3-line"></i> Salvar relatório</button>
+  <button class="btn-whats-mobile" id="btnWhatsMobile" title="Enviar WhatsApp"><i class="ri-whatsapp-line"></i></button>
+  <button class="btn-pdf-mobile" id="btnPdfMobile" title="Gerar PDF"><i class="ri-file-pdf-line"></i></button>
+</div>
+<script>
+// Conecta botões da barra mobile aos handlers principais
+(function(){
+  function waitEl(id, fn){ var el=document.getElementById(id); if(el) fn(el); }
+  function bindMobile(){
+    waitEl('btnSalvarMobile', function(btn){
+      btn.onclick = function(){ var orig=document.getElementById('btnSalvarLocal'); if(orig) orig.click(); };
+    });
+    waitEl('btnWhatsMobile', function(btn){
+      btn.onclick = function(){ var orig=document.getElementById('btnWhatsLocal'); if(orig) orig.click(); };
+    });
+    waitEl('btnPdfMobile', function(btn){
+      btn.onclick = function(){ var orig=document.getElementById('btnGerarPdfLocal'); if(orig) orig.click(); };
+    });
+    // Só exibe a barra quando a tela "Novo Atendimento" está visível
+    var barra = document.getElementById('barraAcoesMobile');
+    if (!barra) return;
+    var observer = new MutationObserver(function(){
+      var telaNovo = document.getElementById('telaNovo');
+      if (!telaNovo) return;
+      barra.style.display = (telaNovo.style.display !== 'none' && window.innerWidth <= 880) ? 'flex' : 'none';
+    });
+    var telaNovo = document.getElementById('telaNovo');
+    if (telaNovo) observer.observe(telaNovo, {attributes:true, attributeFilter:['style']});
+    window.addEventListener('resize', function(){
+      if (!telaNovo) return;
+      barra.style.display = (telaNovo.style.display !== 'none' && window.innerWidth <= 880) ? 'flex' : 'none';
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindMobile);
+  else bindMobile();
+})();
+</script>
 </body>
 </html>
