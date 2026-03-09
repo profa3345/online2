@@ -2855,6 +2855,11 @@ function saveUsers(lista){
         saveEquipamentos(equipamentos);
         if (typeof renderEquipamentos === 'function') renderEquipamentos();
         if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque();
+        // Sincroniza estoque atualizado no Firestore (evita reversão no próximo sync)
+        var _eqDeducted = (equipamentos || []).find(function(e){ return String(e.id) === String(idSel); });
+        if (_eqDeducted && typeof salvarEquipamentoNoFirestore === 'function') {
+          try { salvarEquipamentoNoFirestore(_eqDeducted); } catch(e2) {}
+        }
       }
     } catch(e){
       console.warn('Erro ao baixar estoque de equipamento:', e);
@@ -3830,7 +3835,7 @@ function autoFillCamposAtendimento(){
       try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); if (typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); }catch(e){}
     }
   }
-  mNovo.onclick = ()=>mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e));
+  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e)); };
   mMeus.onclick = ()=>mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
   mPainel.onclick = ()=>mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mCadastros) 
@@ -5721,6 +5726,8 @@ if (logoBase64) {
   async function syncPendentes(){
     if (!navigator.onLine) return;
     if (!window.usuarioLogado) return; // Não sincroniza sem sessão ativa
+    if (window._syncPendentesRunning) return; // Evita execuções concorrentes
+    window._syncPendentesRunning = true;
     let alterou = 0;
     var lista = pendentes.slice();
     for (var p of lista) {
@@ -5740,6 +5747,7 @@ if (logoBase64) {
       try { logInfo('RATs pendentes sincronizadas com Firestore', { quantidade: alterou }); } catch(e){}
       if (usuarioLogado && isSupervisorOrAdmin(usuarioLogado)){ renderLista(); atualizarDashboard(); }
     }
+    window._syncPendentesRunning = false;
   }
   // BUG FIX: listeners 'online' unificados em um só para evitar syncPendentes duplo
   // BUG FIX: atualiza badge Online/Offline dinamicamente
@@ -6205,6 +6213,8 @@ Qualquer dúvida estamos à disposição!`;
       if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
       var cnpjWrap = (aCnpj && aCnpj.parentElement) ? aCnpj.parentElement : document.getElementById('aCnpjWrapper');
       if (cnpjWrap) cnpjWrap.style.display = 'none';
+      // Limpa estado de edição (evita deletar RAT original ao salvar nova)
+      window._editandoRelatorioId = null;
       // Apaga rascunho salvo
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       // Gera novo número RAT e reinicia relógio
