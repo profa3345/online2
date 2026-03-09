@@ -5558,14 +5558,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     inp.click();
   }
 
-  var btnCameraEquip     = document.getElementById('btnCameraEquip');
-  var btnCameraServico   = document.getElementById('btnCameraServico');
-  var btnCamerasBaterias = document.getElementById('btnCamerasBaterias');
-  if (btnCameraEquip)     btnCameraEquip.onclick     = function(){ _abrirCamera('bPreview'); };
-  if (btnCameraServico)   btnCameraServico.onclick   = function(){ _abrirCamera('cPreview'); };
-  if (btnCamerasBaterias) btnCamerasBaterias.onclick = function(){ _abrirCamera('dPreview'); };
-
-
   // GPS
   btnPegarGps.addEventListener('click', ()=>{
     if (!navigator.geolocation){ alert('Este dispositivo/navegador não suporta geolocalização.'); return; }
@@ -8964,17 +8956,20 @@ async function fazerLogin(){
   window._abrirModalCamera = abrirModalCamera;
 
   // ── Atualiza handlers dos botões existentes ───────────────────
-  document.addEventListener('DOMContentLoaded', function() {
-    // Aguarda um tick para garantir que os elementos existam
-    setTimeout(function() {
-      var btnEquip     = document.getElementById('btnCameraEquip');
-      var btnServico   = document.getElementById('btnCameraServico');
-      var btnBaterias  = document.getElementById('btnCamerasBaterias');
-      if (btnEquip)    btnEquip.onclick    = function(){ window._abrirModalCamera('bPreview'); };
-      if (btnServico)  btnServico.onclick  = function(){ window._abrirModalCamera('cPreview'); };
-      if (btnBaterias) btnBaterias.onclick = function(){ window._abrirModalCamera('dPreview'); };
-    }, 200);
-  });
+  // Usa readyState para evitar race condition: se DOM já está pronto o callback executa imediatamente
+  function _bindCameraButtons() {
+    var btnEquip     = document.getElementById('btnCameraEquip');
+    var btnServico   = document.getElementById('btnCameraServico');
+    var btnBaterias  = document.getElementById('btnCamerasBaterias');
+    if (btnEquip)    btnEquip.onclick    = function(){ window._abrirModalCamera('bPreview'); };
+    if (btnServico)  btnServico.onclick  = function(){ window._abrirModalCamera('cPreview'); };
+    if (btnBaterias) btnBaterias.onclick = function(){ window._abrirModalCamera('dPreview'); };
+  }
+  if (/complete|interactive/.test(document.readyState)) {
+    _bindCameraButtons();
+  } else {
+    document.addEventListener('DOMContentLoaded', _bindCameraButtons);
+  }
 
   // ── Sobreescreve _abrirCamera global (caso exista) ─────────
   window._abrirCamera = function(previewContainerId) {
