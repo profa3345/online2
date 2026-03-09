@@ -5119,8 +5119,27 @@ if (logoBase64) {
         const rascunho = montarRelatorioAtual();
         rascunho._rascunho = true;
         rascunho._rascunhoData = new Date().toISOString();
-        localStorage.setItem(STORAGE_RASCUNHO, JSON.stringify(rascunho));
-        showToast('Rascunho salvo! Pode continuar depois.');
+        // Remove imagens base64 antes de salvar no rascunho para evitar QuotaExceededError
+        // (imagens ficam apenas no preview visual; o rascunho salva só os campos de texto)
+        var rascunhoSemImagens = Object.assign({}, rascunho);
+        rascunhoSemImagens.imgsEquip        = [];
+        rascunhoSemImagens.imgsServico      = [];
+        rascunhoSemImagens.imgsBaterias     = [];
+        rascunhoSemImagens.vidsEquip        = [];
+        rascunhoSemImagens.vidsServico      = [];
+        rascunhoSemImagens.vidsBaterias     = [];
+        rascunhoSemImagens.assinaturaCliente    = null;
+        rascunhoSemImagens.assinaturaTecnicoImg = null;
+        try {
+          localStorage.setItem(STORAGE_RASCUNHO, JSON.stringify(rascunhoSemImagens));
+          showToast('Rascunho salvo! (fotos não incluídas — continuam no formulário)');
+        } catch(qe) {
+          if (qe.name === 'QuotaExceededError' || String(qe).includes('quota')) {
+            showToast('⚠️ Armazenamento cheio! Não foi possível salvar o rascunho.');
+          } else {
+            throw qe;
+          }
+        }
         try { logInfo('Rascunho salvo', { numero: rascunho.numero || 'N/A', cliente: rascunho.cliente || '' }); } catch(e){}
       } catch(e) {
         console.error('Erro ao salvar rascunho:', e);
