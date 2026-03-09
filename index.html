@@ -574,7 +574,7 @@ html[data-role="technician"] nav button {
   <div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99;" onclick="document.getElementById('sidebar').classList.remove('open');this.style.display='none';"></div>
   <div class="content">
     <div class="topbar">
-      <button class="sidebar-toggle" id="btnToggleSidebar" style="display:none;">
+      <button class="sidebar-toggle" id="btnToggleSidebar">
         <i class="ri-menu-3-line"></i>
       </button>
       <div>
@@ -1169,9 +1169,9 @@ html[data-role="technician"] nav button {
             <tbody></tbody>
           </table>
 </div>
+        </div><!-- /gestClientes -->
 
         <!-- GESTÃO DE EQUIPAMENTOS -->
-<!-- GESTÃO DE EQUIPAMENTOS -->
         <div class="section-card" id="gestEquipamentos">
           <h3><i class="ri-cpu-line"></i> Cadastro de Equipamentos</h3>
 
@@ -1287,7 +1287,7 @@ html[data-role="technician"] nav button {
   <tbody id="tbUsuariosBody"></tbody>
 </table>
 </div>
-
+        </div><!-- /gestUsuarios -->
 
         <!-- CONFIGURAÇÕES DO SISTEMA -->
         <div class="section-card" id="configSistema">
@@ -1477,6 +1477,8 @@ html[data-role="technician"] nav button {
   const WHATSAPP_PADRAO = "552899931598";
   const STORAGE_USERS = 'online-es-usuarios-v3';
   const AUTH_DOMAIN = 'onlinees.local'; // Domínio usado no Firebase Auth
+  window.AUTH_DOMAIN    = AUTH_DOMAIN;
+  window.STORAGE_USERS  = STORAGE_USERS;
   const FIREBASE_API_KEY = 'AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8';
   async function criarUsuarioFirebaseREST(email, senha, _tentativa) {
     _tentativa = _tentativa || 0;
@@ -2712,8 +2714,12 @@ function saveUsers(lista){
       var data = snap.data();
       var tecAtual = (window.usuarioLogado && window.usuarioLogado.username) || '';
       if (data.tecnico === tecAtual) return numero; // mesmo técnico, OK
-      // Colisão detectada — gera novo número com sufixo
-      var novo = numero + '-' + tecAtual.substring(0,3).toUpperCase();
+      // Colisão detectada — incrementa contador e gera novo número com mesmo formato
+      var c2 = parseInt(localStorage.getItem(typeof STORAGE_CONTADOR !== 'undefined' ? STORAGE_CONTADOR : 'online-es-contador') || '0', 10);
+      c2++;
+      localStorage.setItem(typeof STORAGE_CONTADOR !== 'undefined' ? STORAGE_CONTADOR : 'online-es-contador', String(c2));
+      var partes = numero.split('-'); // ['RAT','DDMMAAAA','0001']
+      var novo = (partes[0] || 'RAT') + '-' + (partes[1] || '') + '-' + String(c2).padStart(4, '0');
       console.warn('Colisão RAT detectada, usando:', novo);
       return novo;
     } catch(e) { return numero; }
@@ -2809,15 +2815,7 @@ function autoFillCamposAtendimento(){
 
   const tabelaUsuarios = document.getElementById('tabelaUsuarios') ? document.getElementById('tabelaUsuarios').querySelector('tbody') : null;
 
-  if (tabelaUsuarios){
-    tabelaUsuarios.addEventListener('click', function(ev){
-      const btn = ev.target.closest('[data-remover]');
-      if (!btn) return;
-      const user = btn.getAttribute('data-remover');
-      if (!user) return;
-      removerUsuarioPorUsername(user);
-    });
-  }
+  // Nota: os handlers de remoção são registrados dentro de renderUsuarios() para evitar duplicatas
   const btnAddUsuario = document.getElementById('btnAddUsuario');
   // Campos corretos do formulário de gestão de usuários
   const novoNomeCompleto = document.getElementById('uNome');
@@ -2860,7 +2858,6 @@ function autoFillCamposAtendimento(){
   const aCnpj = document.getElementById('aCnpj');
   let aCnpjWrapper = null;
   if (aCnpj){
-    aCnpj.readOnly = true;
     // esconde o bloco de documento do cliente até selecionar/editar
     aCnpjWrapper = aCnpj.parentElement;
     if (aCnpjWrapper) aCnpjWrapper.style.display = 'none';
@@ -2922,7 +2919,7 @@ function autoFillCamposAtendimento(){
   }
 
   if (aCnpj){
-    aCnpj.readOnly = true;
+    aCnpj.readOnly = false;
     aCnpj.addEventListener('input', () => {
       // Salva quantos dígitos havia ANTES do cursor para recalcular posição correta após a máscara
       const posAntes = aCnpj.selectionStart;
@@ -3278,9 +3275,8 @@ function autoFillCamposAtendimento(){
         setVal('dBatTensao',    r.bateriasTensao);
         setVal('dObs',          r.bateriasObs);
 
-        // Remove o relatório antigo para ser substituído ao salvar
-        relatorios = relatorios.filter(x => x.id !== r.id);
-        saveRelatorios(relatorios);
+        // Guarda o id do relatório em edição — será removido apenas ao salvar
+        window._editandoRelatorioId = r.id;
 
         try { logInfo('RAT aberta para edição', { numero: r.numero || r.id }); } catch(e) {}
         showToast('Relatório carregado para edição. Salve ao finalizar.');
@@ -3593,7 +3589,7 @@ function autoFillCamposAtendimento(){
 
   btnLogout.onclick = ()=>{
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
-    usuarioLogado=null; app.style.display='none'; telaLogin.style.display='flex';
+    usuarioLogado=null; app.style.display='none'; telaLogin.classList.remove('hidden'); telaLogin.style.display='flex';
   };
   btnToggleSidebar.onclick = ()=>{
     sidebar.classList.toggle('open');
@@ -3616,10 +3612,10 @@ function autoFillCamposAtendimento(){
     var _mTOrig = mostrarTela;
     mostrarTela = async function(nome) {
       if (window.innerWidth <= 880) {
-      sidebar.classList.remove('open');
-      var ov = document.getElementById('sidebarOverlay');
-      if (ov) ov.style.display = 'none';
-    }
+        sidebar.classList.remove('open');
+        var ov = document.getElementById('sidebarOverlay');
+        if (ov) ov.style.display = 'none';
+      }
       return _mTOrig(nome);
     };
   }
@@ -3954,22 +3950,21 @@ function autoFillCamposAtendimento(){
       console.warn('Falha ao remover usuario no Firestore:', e);
     }
 
-    // Remove do Firebase Authentication via REST API
+    // Remove do Firebase Authentication via Admin REST API usando o uid do usuário-alvo
     try {
-      const uRemovido = (window._usuariosRemovidos || []).find(x => (x.username||'').toLowerCase() === user.toLowerCase());
-      const emailRemover = user.toLowerCase().replace(/[^a-z0-9._-]/g,'') + '@' + (typeof AUTH_DOMAIN !== 'undefined' ? AUTH_DOMAIN : 'onlinees.local');
-      // Deleta via REST (requer token do usuario logado — usa o token do admin atual)
-      const _fbAuth = window._firebaseAuth || firebase.auth();
-      if (_fbAuth && _fbAuth.currentUser) {
-        const token = await _fbAuth.currentUser.getIdToken();
-        // Busca o uid do usuario removido
-        const uObj = (window._lastRemovedUser) || null;
-        if (uObj && uObj._firebaseUid) {
-          await fetch('https://identitytoolkit.googleapis.com/v1/accounts:delete?key=' + FIREBASE_API_KEY, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken: token })
-          });
+      const uObj = (window._lastRemovedUser) || null;
+      if (uObj && uObj._firebaseUid) {
+        const _fbAuth = window._firebaseAuth || firebase.auth();
+        if (_fbAuth && _fbAuth.currentUser) {
+          const adminToken = await _fbAuth.currentUser.getIdToken();
+          // Usa o endpoint correto que deleta por uid (requer token de admin com permissão)
+          await fetch(
+            'https://identitytoolkit.googleapis.com/v1/projects/' + firebaseConfig.projectId + '/accounts/' + uObj._firebaseUid + '?key=' + firebaseConfig.apiKey,
+            {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + adminToken, 'Content-Type': 'application/json' }
+            }
+          );
         }
       }
     } catch(e){
@@ -4093,10 +4088,10 @@ function renderUsuarios(){
         return {...x, fullName: (novoNome||u.fullName), username: (novoUser||u.username), role: novoRole};
       });
       saveUsers(usuarios);
-      _syncUsuarioFirestore(user);
+      _syncUsuarioFirestore(novoUser || u.username);
       renderUsuarios();
       showToast('Usuário atualizado com sucesso.');
-        try { logInfo('Usuário atualizado', { usuario: user || '' }); } catch(e){}
+        try { logInfo('Usuário atualizado', { usuario: uname || '' }); } catch(e){}
     };
   });
 }
@@ -4400,37 +4395,28 @@ document.getElementById('btnAddCliente').onclick=()=>{
   return new Promise((resolve)=>{
     if (!imgSrc) { resolve(0); return; }
     const img = new Image();
+    var _done = false;
+    // Timeout de 8s — evita travar indefinidamente em imagens CORS/lentas
+    const _timer = setTimeout(()=>{ if(!_done){ _done=true; resolve(0); } }, 8000);
     img.onload = function(){
+      if (_done) return; _done = true; clearTimeout(_timer);
       let w = img.width;
       let h = img.height;
       if (!w || !h){
-        try {
-          doc.addImage(imgSrc, 'JPEG', x, y, maxWmm, maxHmm);
-        } catch(e){}
+        try { doc.addImage(imgSrc, 'JPEG', x, y, maxWmm, maxHmm); } catch(e){}
         resolve(maxHmm);
         return;
       }
-      // converte limites de mm para px (aprox.)
       const pxPerMm = 96/25.4;
       const maxWpx = maxWmm * pxPerMm;
       const maxHpx = maxHmm * pxPerMm;
-
-      // calcula escala máxima preservando proporção
       const ratio = permitirAmpliacao ? Math.min(maxWpx / w, maxHpx / h) : Math.min(maxWpx / w, maxHpx / h, 1);
-      const dw = w * ratio;
-      const dh = h * ratio;
-
-      // volta para mm
-      const drawWmm = dw / pxPerMm;
-      const drawHmm = dh / pxPerMm;
-
-      try {
-        doc.addImage(imgSrc, 'JPEG', x, y, drawWmm, drawHmm);
-      } catch(e){}
+      const drawWmm = (w * ratio) / pxPerMm;
+      const drawHmm = (h * ratio) / pxPerMm;
+      try { doc.addImage(imgSrc, 'JPEG', x, y, drawWmm, drawHmm); } catch(e){}
       resolve(drawHmm);
     };
-    img.onerror = function(){ resolve(0); };
-    // crossOrigin necessário para URLs do Firebase Storage (CORS)
+    img.onerror = function(){ if(!_done){ _done=true; clearTimeout(_timer); resolve(0); } };
     if (typeof imgSrc === 'string' && imgSrc.startsWith('http')) {
       img.crossOrigin = 'anonymous';
     }
@@ -4443,7 +4429,11 @@ document.getElementById('btnAddCliente').onclick=()=>{
     return new Promise(function(resolve) {
       if (!dataUrl) { resolve(null); return; }
       var img = new Image();
+      var _sig_done = false;
+      var _sig_timer = setTimeout(function(){ if(!_sig_done){ _sig_done=true; resolve(dataUrl); } }, 5000);
+      img.onerror = function() { if(!_sig_done){ _sig_done=true; clearTimeout(_sig_timer); resolve(dataUrl); } };
       img.onload = function() {
+        if (_sig_done) return; _sig_done = true; clearTimeout(_sig_timer);
         // Cria canvas temporário para ler pixels
         var tmp = document.createElement('canvas');
         tmp.width = img.width;
@@ -4503,7 +4493,6 @@ document.getElementById('btnAddCliente').onclick=()=>{
 
         resolve(out.toDataURL('image/png'));
       };
-      img.onerror = function() { resolve(dataUrl); };
       img.src = dataUrl;
     });
   }
@@ -4545,13 +4534,16 @@ const doc = new jsPDF("p","mm","a4");
 
     doc.setFillColor(15,23,42); doc.rect(0,0,210,22,'F');
 
-    // Garante que a logo foi carregada antes de desenhar o cabeçalho
+    // Garante que a logo foi carregada antes de desenhar o cabeçalho (timeout 3s)
+    console.log('[PDF] Carregando logo...');
     if (!logoBase64) {
       try {
-        if (window.logoPromise) { await window.logoPromise; }
-        if (!logoBase64) { logoBase64 = await loadLogoBase64(); }
+        const _logoTimeout = new Promise(_res => setTimeout(_res, 3000));
+        if (window.logoPromise) { await Promise.race([window.logoPromise, _logoTimeout]); }
+        if (!logoBase64) { await Promise.race([loadLogoBase64().then(b=>{ if(b) logoBase64=b; }), _logoTimeout]); }
       } catch(e) { /* segue sem logo */ }
     }
+    console.log('[PDF] Logo OK, gerando conteúdo...');
 
     if (!logoBase64) {
       try {
@@ -4697,7 +4689,9 @@ if (logoBase64) {
       for(let i=0;i<allImages.length;i++){
         if(y>265){ doc.addPage(); y=15; }
         const x = col===0 ? 10 : 110;
+        console.log('[PDF] Processando imagem', i+1, 'de', allImages.length, '— tamanho:', allImages[i] ? Math.round(allImages[i].length/1024)+'KB' : 'null');
         const imgH = await addImagemReduzidaAoPdf(doc, allImages[i], x, y, 85, 55);
+        console.log('[PDF] Imagem', i+1, 'OK');
         lastImgH = imgH || lastImgH || 40;
         if(col===1){
           // fechou a linha (2 colunas), desce para a próxima linha
@@ -4746,7 +4740,9 @@ if (logoBase64) {
 
     // Normaliza e insere cliente (bloco esquerdo: 20-90mm)
     if (r.assinaturaCliente) {
+      console.log('[PDF] Normalizando assinatura cliente...');
       const sigCliNorm = await normalizarAssinaturaPNG(r.assinaturaCliente, SIG_NORM_W, SIG_NORM_H);
+      console.log('[PDF] Assinatura cliente OK');
       if (sigCliNorm) {
         const cx = 20 + (70 - SIG_W) / 2;
         const cy = topoAssY;
@@ -4756,7 +4752,9 @@ if (logoBase64) {
 
     // Normaliza e insere técnico (bloco direito: 120-190mm)
     if (r.assinaturaTecnicoImg) {
+      console.log('[PDF] Normalizando assinatura técnico...');
       const sigTecNorm = await normalizarAssinaturaPNG(r.assinaturaTecnicoImg, SIG_NORM_W, SIG_NORM_H);
+      console.log('[PDF] Assinatura técnico OK');
       if (sigTecNorm) {
         const cx = 120 + (70 - SIG_W) / 2;
         const cy = topoAssY;
@@ -4831,25 +4829,59 @@ if (logoBase64) {
       doc.text(linha3, 105, 296, { align: 'center' });
     }
 
-    // Gera PDF, salva arquivo localmente e guarda uma cópia em memória para uso em anexos de e-mail
+    // Gera PDF em memória e salva referência global
+    const _nomePdf = `relatorio-${r.numero || 'online'}.pdf`;
+    console.log('[PDF] Gerando output base64...');
     try {
-      const dataUri = doc.output('datauristring'); // data:application/pdf;base64,AAAA
+      const dataUri = doc.output('datauristring');
       if (dataUri && dataUri.startsWith('data:')) {
-        const parts = dataUri.split(',');
-        window._lastPdfBase64 = parts[1] || null;
-        window._lastPdfFilename = `relatorio-${r.numero || 'online'}.pdf`;
+        window._lastPdfBase64    = dataUri.split(',')[1] || null;
+        window._lastPdfFilename  = _nomePdf;
+        window._lastPdfDoc       = doc; // guarda o doc para reuso rápido
       }
-    } catch(e) {
-      console.warn('Falha ao gerar cópia em base64 do PDF:', e);
-    }
+    } catch(e) { console.warn('Falha ao capturar base64 do PDF:', e); }
 
-    doc.save(`relatorio-${r.numero || 'online'}.pdf`);
-    try { logInfo('PDF da RAT gerado', { numero: r.numero || 'N/A', cliente: r.cliente || '', status: r.status || '' }); } catch(e){}
+    // Só baixa o arquivo se NÃO for chamada silenciosa (somenteMemoria)
+    if (!r._somenteMemoria) {
+      doc.save(_nomePdf);
+      try { logInfo('PDF da RAT gerado', { numero: r.numero || 'N/A', cliente: r.cliente || '', status: r.status || '' }); } catch(e){}
+    }
     } catch(e) {
       console.error('Erro ao gerar PDF:', e);
       if (typeof logError === 'function') logError('Falha na geração de PDF', { erro: String(e), stack: e && e.stack ? String(e.stack).substring(0, 500) : '' });
-      alert('Erro ao gerar o PDF. Verifique o console para mais detalhes.');
+      if (!r._somenteMemoria) alert('Erro ao gerar o PDF. Verifique o console para mais detalhes.');
+      throw e;
     }
+  }
+
+  // Gera PDF em memória + sobe para Storage → retorna URL permanente
+  async function _gerarPdfEObterUrl(r) {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
+    // Gera sem baixar arquivo
+    const rSilencioso = Object.assign({}, r, { _somenteMemoria: true });
+    // Timeout global de 15s para geração do PDF (evita travar em imagens/logo)
+    await Promise.race([
+      exportarPDF(rSilencioso),
+      new Promise((_,rej) => setTimeout(()=>rej(new Error('pdf-timeout')), 15000))
+    ]);
+    const b64  = window._lastPdfBase64;
+    const nome = window._lastPdfFilename || `relatorio-${r.numero || 'online'}.pdf`;
+    if (!b64) throw new Error('PDF não gerado em memória.');
+
+    // Converte base64 → Blob
+    const bstr = atob(b64), n = bstr.length, u8 = new Uint8Array(n);
+    for (let i = 0; i < n; i++) u8[i] = bstr.charCodeAt(i);
+    const blob = new Blob([u8], { type: 'application/pdf' });
+
+    // Sobe para Firebase Storage
+    const storage = window._storage;
+    if (!storage || !window._firebaseAuth || !window._firebaseAuth.currentUser) {
+      throw new Error('Storage não disponível.');
+    }
+    const ratId = String(r.id || r.numero || Date.now());
+    const ref   = storage.ref(`relatorios/${ratId}/${nome}`);
+    await ref.put(blob, { contentType: 'application/pdf', contentDisposition: 'inline' });
+    return await ref.getDownloadURL();
   }
 // Auxiliares
   function gerarId(){ return 'id-'+Math.random().toString(36).slice(2)+Date.now().toString(36); }
@@ -4995,7 +5027,6 @@ if (logoBase64) {
   }
 
   function validarObrigatorios(){
-    window.validarObrigatorios = validarObrigatorios;
     const usandoManual = (aClienteManual && aClienteManual.style.display==='block');
     const temCliente = usandoManual ? (aClienteManual.value||'').trim() : (aClienteSelect.value||'').trim();
     if (!temCliente){ showToast('O campo "Cliente / Empresa" é obrigatório.'); return false; }
@@ -5024,6 +5055,7 @@ if (logoBase64) {
     }
     return true;
   }
+  window.validarObrigatorios = validarObrigatorios;
 
   // === RASCUNHO: constante declarada aqui para evitar ReferenceError no btnSalvarLocal ===
   const STORAGE_RASCUNHO = 'online-es-rascunho-v1';
@@ -5046,6 +5078,13 @@ if (logoBase64) {
       showToast('Erro ao montar relatório: ' + e.message);
       return;
     }
+
+    // Se estava editando um relatório existente, remove o original agora (ao salvar)
+    if (window._editandoRelatorioId) {
+      relatorios = relatorios.filter(x => x.id !== window._editandoRelatorioId);
+      window._editandoRelatorioId = null;
+    }
+
     try { baixarEstoqueEquipamentoSelecionado(novo); } catch(e){}
 
     if (navigator.onLine){
@@ -5097,7 +5136,7 @@ if (logoBase64) {
       assinaturaTecnicoAtual = null;
       // Limpa cliente manual
       if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
-      if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = true; }
+      if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
       var _cnpjWrap = document.getElementById('aCnpjWrapper') || (aCnpj && aCnpj.parentElement);
       if (_cnpjWrap) _cnpjWrap.style.display = 'none';
       // Limpa o campo de número e gera o próximo
@@ -5158,11 +5197,11 @@ if (logoBase64) {
       _rascunhoAtivado = true;
       ativarBtnRascunho();
     }
-    const telaNovo = document.getElementById('telaNovo');
-    if (telaNovo) {
+    var _telaNovoBind = document.getElementById('telaNovo');
+    if (_telaNovoBind) {
       // Ativa ao digitar em qualquer campo
-      telaNovo.addEventListener('input', _ativarUmaVez);
-      telaNovo.addEventListener('change', _ativarUmaVez);
+      _telaNovoBind.addEventListener('input', _ativarUmaVez);
+      _telaNovoBind.addEventListener('change', _ativarUmaVez);
     }
     // Ativa também quando o relógio preenche a data automaticamente
     var _aDataHoraBREl = document.getElementById('aDataHoraBR');
@@ -5215,24 +5254,24 @@ if (logoBase64) {
         if ((r.cnpjCliente || r.cnpj) && aCnpj) aCnpj.value = r.cnpjCliente || r.cnpj || '';
 
         // Equipamento
-        if (r.equipamento) { var _fx = document.getElementById('bEquipamento'); if (_fx) _fx.value = r.equipamento || ''; }
+        if (r.equipamento) { var _fxEq = document.getElementById('bEquipamento'); if (_fxEq) _fxEq.value = r.equipamento || ''; }
         // bMarca e bModelo não existem como campos separados neste form
-        if (r.serie) { var _fx = document.getElementById('bSerie'); if (_fx) _fx.value = r.serie || ''; }
-        if (r.kva) { var _fx = document.getElementById('bKVA'); if (_fx) _fx.value = r.kva || ''; }
-        if (r.localInstalacao) { var _fx = document.getElementById('bLocal'); if (_fx) _fx.value = r.localInstalacao || ''; }
-        if (r.condicao) { var _fx = document.getElementById('bCondicao'); if (_fx) _fx.value = r.condicao || ''; }
+        if (r.serie) { var _fxSerie = document.getElementById('bSerie'); if (_fxSerie) _fxSerie.value = r.serie || ''; }
+        if (r.kva) { var _fxKva = document.getElementById('bKVA'); if (_fxKva) _fxKva.value = r.kva || ''; }
+        if (r.localInstalacao) { var _fxLocal = document.getElementById('bLocal'); if (_fxLocal) _fxLocal.value = r.localInstalacao || ''; }
+        if (r.condicao) { var _fxCond = document.getElementById('bCondicao'); if (_fxCond) _fxCond.value = r.condicao || ''; }
 
         // Serviço
-        if (r.tipo) { var _fx = document.getElementById('cTipo'); if (_fx) _fx.value = r.tipo || ''; }
-        if (r.status) { var _fx = document.getElementById('cStatus'); if (_fx) _fx.value = r.status || ''; }
-        if (r.problema) { var _fx = document.getElementById('cProblema'); if (_fx) _fx.value = r.problema || ''; }
-        if (r.diagnostico) { var _fx = document.getElementById('cDiagnostico'); if (_fx) _fx.value = r.diagnostico || ''; }
-        if (r.acoes && Array.isArray(r.acoes)) { var _fx = document.getElementById('cAcoes'); if (_fx) _fx.value = r.acoes.join('\n'); }
-        if (r.pecas) { var _fx = document.getElementById('cPecas'); if (_fx) _fx.value = r.pecas || ''; }
+        if (r.tipo) { var _fxTipo = document.getElementById('cTipo'); if (_fxTipo) _fxTipo.value = r.tipo || ''; }
+        if (r.status) { var _fxStatus = document.getElementById('cStatus'); if (_fxStatus) _fxStatus.value = r.status || ''; }
+        if (r.problema) { var _fxProb = document.getElementById('cProblema'); if (_fxProb) _fxProb.value = r.problema || ''; }
+        if (r.diagnostico) { var _fxDiag = document.getElementById('cDiagnostico'); if (_fxDiag) _fxDiag.value = r.diagnostico || ''; }
+        if (r.acoes && Array.isArray(r.acoes)) { var _fxAcoes = document.getElementById('cAcoes'); if (_fxAcoes) _fxAcoes.value = r.acoes.join('\n'); }
+        if (r.pecas) { var _fxPecas = document.getElementById('cPecas'); if (_fxPecas) _fxPecas.value = r.pecas || ''; }
 
         // Baterias
-        if (r.bateriasQtd) { var _fx = document.getElementById('dBatQtd'); if (_fx) _fx.value = r.bateriasQtd || ''; }
-        if (r.bateriasTensao) { var _fx = document.getElementById('dBatTensao'); if (_fx) _fx.value = r.bateriasTensao || ''; }
+        if (r.bateriasQtd) { var _fxBatQtd = document.getElementById('dBatQtd'); if (_fxBatQtd) _fxBatQtd.value = r.bateriasQtd || ''; }
+        if (r.bateriasTensao) { var _fxBatTen = document.getElementById('dBatTensao'); if (_fxBatTen) _fxBatTen.value = r.bateriasTensao || ''; }
         if (r.bateriasObs) { var _dObs = document.getElementById('dObs'); if (_dObs) _dObs.value = r.bateriasObs || ''; }
 
         showToast('Rascunho restaurado. Continue preenchendo.');
@@ -5293,7 +5332,7 @@ if (logoBase64) {
     }
   }
   window.addEventListener('online', function(){ syncPendentes(); });
-  window.addEventListener('online', function(){ window.syncOnlineAfterSave && window.syncOnlineAfterSave(); });
+  // syncOnlineAfterSave removed: syncPendentes listener above already handles this
   // Reinicia listener ao reconectar
   window.addEventListener('online', function(){
     setTimeout(function(){
@@ -5356,80 +5395,151 @@ if (logoBase64) {
     return { pdfUrl, nome };
   }
 
+  // Gera PDF COM fotos (já comprimidas ~150-300KB) e sobe para Storage → URL permanente.
+  async function _gerarPdfSilenciosoESubir(r) {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
+    console.log('[PDF] Iniciando geração...');
+
+    const rSilencioso = Object.assign({}, r, { _somenteMemoria: true });
+    console.log('[PDF] Fotos:', (rSilencioso.imgsEquip||[]).length, (rSilencioso.imgsServico||[]).length, (rSilencioso.imgsBaterias||[]).length);
+
+    console.log('[PDF] Chamando exportarPDF...');
+    await exportarPDF(rSilencioso);
+    console.log('[PDF] exportarPDF concluído');
+
+    const b64  = window._lastPdfBase64;
+    const nome = window._lastPdfFilename || ('relatorio-' + (r.numero || 'online') + '.pdf');
+    if (!b64) throw new Error('PDF não gerado em memória.');
+
+    const bstr = atob(b64), n = bstr.length, u8 = new Uint8Array(n);
+    for (let i = 0; i < n; i++) u8[i] = bstr.charCodeAt(i);
+    const blob = new Blob([u8], { type: 'application/pdf' });
+
+    // Sobe para Storage — pula se estiver rodando via file:// (CORS bloqueado)
+    var pdfUrl = null;
+    if (window.location.protocol === 'file:') {
+      showToast('⚠️ Abra o sistema via servidor HTTP para enviar links de PDF.');
+    } else {
+      try {
+        const storage = window._storage;
+        if (storage && window._firebaseAuth && window._firebaseAuth.currentUser) {
+          const ref = storage.ref('relatorios/' + String(r.id || r.numero || Date.now()) + '/' + nome);
+          await Promise.race([
+            ref.put(blob, { contentType: 'application/pdf', contentDisposition: 'inline' }),
+            new Promise((_,rej) => setTimeout(() => rej(new Error('upload-timeout')), 15000))
+          ]);
+          pdfUrl = await Promise.race([
+            ref.getDownloadURL(),
+            new Promise((_,rej) => setTimeout(() => rej(new Error('url-timeout')), 5000))
+          ]);
+        }
+      } catch(e) {
+        console.warn('Upload Storage falhou:', e.message);
+      }
+    }
+    return { pdfUrl, blob, nome };
+  }
+
   if (btnEnviarEmail){
     btnEnviarEmail.onclick = async ()=>{
+      if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
+
       const email = aEmailCliente && aEmailCliente.value ? aEmailCliente.value.trim() : '';
-      if (!email){ alert('Informe o e-mail do cliente para enviar.'); return; }
+      if (!email){
+        showToast('📧 Informe o e-mail do cliente para enviar.');
+        if (aEmailCliente) { aEmailCliente.focus(); aEmailCliente.style.outline = '2px solid #f97316'; setTimeout(()=>{ aEmailCliente.style.outline = ''; }, 2500); }
+        return;
+      }
       if (typeof autoFillCamposAtendimento === 'function') autoFillCamposAtendimento();
       ensureNumeroRat();
       var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
-      if (!r){ alert('Erro ao montar relatório.'); return; }
+      if (!r){ showToast('Erro ao montar relatório.'); return; }
 
-      const numeroRAT   = r.numero || '';
-      const nomeEmpresa = r.cliente || r.clienteManual || '';
+      const numeroRAT    = r.numero || '';
+      const nomeEmpresa  = r.cliente || r.clienteManual || '';
       const nomeVistoria = r.nomeAssinaturaCliente || r.assinaturaNome || r.contato || '';
-      const dataTexto   = r.dataHoraBr || r.dataHoraBR || r.dataHora || (document.getElementById('aDataHoraBR') ? document.getElementById('aDataHoraBR').value : '') || '';
-      const nomeTec     = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
+      const dataTexto    = r.dataHoraBr || r.dataHoraBR || r.dataHora || '';
+      const nomeTec      = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
 
+      // Gera PDF primeiro (com timeout de 25s), depois abre e-mail com link incluído
+      showLoader('Gerando PDF...');
       var pdfUrl = null;
       try {
-        showLoader('Gerando PDF e enviando...');
-        var res = await _gerarESubirPDF(r);
-        pdfUrl = res.pdfUrl;
+        const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 25000));
+        const res = await Promise.race([ _gerarPdfSilenciosoESubir(r), _timeout ]);
+        if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
       } catch(e) {
-        console.warn('Falha ao gerar/subir PDF:', e);
+        if (e.message !== 'timeout') console.warn('PDF falhou:', e);
       } finally {
         hideLoader();
       }
 
-      const assuntoPlano = `Online-ES / Relatório Técnico – RAT ${numeroRAT}`;
-      const linkLinha = pdfUrl
-        ? `\n\n📄 Acesse o relatório em PDF pelo link abaixo:\n${pdfUrl}\n`
-        : '';
+      const linkLinha = pdfUrl ? '\n\n📄 Acesse o relatório em PDF:\n' + pdfUrl + '\n' : null;
+      const assunto = 'Online-ES / Relatório Técnico - RAT ' + numeroRAT;
       const corpo = [
         'Olá,',
         '',
-        `Segue o Relatório Técnico de Atendimento referente à visita da Online-ES na empresa ${nomeEmpresa}, realizada sob a vistoria de ${nomeVistoria}.`,
+        'Segue o Relatório Técnico de Atendimento referente à visita da Online-ES na empresa ' + nomeEmpresa + ', realizada sob a vistoria de ' + nomeVistoria + '.',
         '',
-        `Relatório nº: ${numeroRAT}`,
-        `Data: ${dataTexto}`,
-        `Técnico responsável: ${nomeTec}`,
+        'Relatório nº: ' + numeroRAT,
+        'Data: ' + dataTexto,
+        'Técnico responsável: ' + nomeTec,
         linkLinha,
         'Fico à disposição para quaisquer esclarecimentos.',
         '',
         'Atenciosamente,',
         'Online-ES'
-      ].join('\n');
+      ].filter(item => item !== null).join('\n');
 
-      const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(assuntoPlano)}&body=${encodeURIComponent(corpo)}`;
-      window.location.href = mailto;
-      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email: email, comLink: !!pdfUrl }); } catch(e){}
+      window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comLink: !!pdfUrl }); } catch(e){}
     };
   }
 
-
   btnWhatsLocal.onclick = async () =>{
+    if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
+
     const raw = String((aWhats && aWhats.value ? aWhats.value : (aTelefone && aTelefone.value ? aTelefone.value : ''))).trim();
     let tel = raw.replace(/\D/g,'');
-    if (!tel){ alert('Informe o WhatsApp ou telefone do cliente antes de enviar.'); return; }
-    if (tel.length <= 11) tel = '55' + tel; // garante código do país Brasil
+    if (!tel){
+      showToast('📱 Informe o WhatsApp ou telefone do cliente para enviar.');
+      if (aWhats) { aWhats.focus(); aWhats.style.outline = '2px solid #f97316'; setTimeout(()=>{ aWhats.style.outline = ''; }, 2500); }
+      return;
+    }
+    if (tel.length <= 11) tel = '55' + tel;
     ensureNumeroRat();
     var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
 
+    // Gera o PDF primeiro (aguarda até 25s) e só depois abre o WhatsApp com a
+    // mensagem COMPLETA (incluindo link). Isso evita o SecurityError cross-origin
+    // que ocorria ao tentar alterar waWin.location.href após o navegador
+    // já ter carregado wa.me (domínio externo), impedindo o link de chegar.
+    showLoader('Gerando PDF para link...');
     var pdfUrl = null;
     try {
-      showLoader('Gerando PDF e enviando...');
-      var res = await _gerarESubirPDF(r);
-      pdfUrl = res.pdfUrl;
+      const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 25000));
+      const res = await Promise.race([ _gerarPdfSilenciosoESubir(r), _timeout ]);
+      if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
     } catch(e) {
-      console.warn('Falha ao gerar/subir PDF:', e);
+      if (e.message !== 'timeout') console.warn('[WhatsApp] PDF falhou:', e);
     } finally {
       hideLoader();
     }
 
-    const linkTexto = pdfUrl ? `\n\n📄 Acesse o PDF aqui: ${pdfUrl}` : '';
-    const msgBase = `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.${linkTexto}\n\nQualquer dúvida estamos à disposição!`;
-    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msgBase)}`, '_blank');
+    if (!pdfUrl) {
+      const semStorage = !window._storage || !window._firebaseAuth || !window._firebaseAuth.currentUser;
+      if (semStorage) showToast('⚠️ Faça login no Firebase para gerar link do PDF. Abrindo WhatsApp sem link.');
+      else showToast('⚠️ Não foi possível gerar o link do PDF. Abrindo WhatsApp sem link.');
+    }
+
+    const msgFinal = pdfUrl
+      ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.\n\n📄 Acesse o PDF: ${pdfUrl}\n\nQualquer dúvida estamos à disposição!`
+      : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.\n\nQualquer dúvida estamos à disposição!`;
+    const waUrl = `https://wa.me/${tel}?text=${encodeURIComponent(msgFinal)}`;
+    window.open(waUrl, '_blank');
+    if (pdfUrl) showToast('✅ WhatsApp aberto com link do PDF incluído!');
+
+
     try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comLink: !!pdfUrl }); } catch(e){}
   };
 
@@ -5468,8 +5578,8 @@ if (logoBase64) {
       // Select cliente e manual
       if (aClienteSelect) { aClienteSelect.value = ''; }
       if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
-      if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = true; }
-      var cnpjWrap = document.getElementById('aCnpjWrapper');
+      if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
+      var cnpjWrap = (aCnpj && aCnpj.parentElement) ? aCnpj.parentElement : document.getElementById('aCnpjWrapper');
       if (cnpjWrap) cnpjWrap.style.display = 'none';
       // Apaga rascunho salvo
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
@@ -5506,6 +5616,26 @@ if (logoBase64) {
   var MAX_VIDEO_SIZE    = 50 * 1024 * 1024;  // 50MB por vídeo
   var MAX_TOTAL_SIZE    = 80 * 1024 * 1024;  // 80MB total por relatório
 
+  // Comprime imagem via canvas: máx 1200px no lado maior, JPEG 75%
+  // Reduz fotos de câmera de ~3-5MB para ~150-300KB sem perda visual perceptível
+  function comprimirImagem(dataUrl, callback) {
+    var img = new Image();
+    img.onload = function() {
+      var MAX_DIM = 1200;
+      var w = img.width, h = img.height;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        var ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+        w = Math.round(w * ratio); h = Math.round(h * ratio);
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = function() { callback(dataUrl); };
+    img.src = dataUrl;
+  }
+
   function criarPreview(input, container){
     const files = Array.from(input.files);
     var totalSize = 0;
@@ -5531,10 +5661,20 @@ if (logoBase64) {
       const reader = new FileReader();
       reader.onload = (ev)=>{
         const div=document.createElement('div'); div.className='preview-item'; div.dataset.filesize = file.size;
-        if (file.type.startsWith('video')){ const vid=document.createElement('video'); vid.src=ev.target.result; vid.controls=false; div.appendChild(vid); }
-        else { const img=document.createElement('img'); img.src=ev.target.result; div.appendChild(img); }
         const btn=document.createElement('button'); btn.className='preview-remove'; btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
-        div.appendChild(btn); container.appendChild(div);
+        if (file.type.startsWith('video')){
+          const vid=document.createElement('video'); vid.src=ev.target.result; vid.controls=false;
+          div.appendChild(vid); div.appendChild(btn); container.appendChild(div);
+        } else {
+          // Comprime imagem antes de exibir e armazenar
+          comprimirImagem(ev.target.result, function(comprimida) {
+            const img=document.createElement('img'); img.src=comprimida;
+            // Atualiza tamanho real após compressão
+            var bytes = Math.round((comprimida.length - 22) * 3 / 4);
+            div.dataset.filesize = bytes;
+            div.appendChild(img); div.appendChild(btn); container.appendChild(div);
+          });
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -5564,12 +5704,16 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       }
       var reader = new FileReader();
       reader.onload = function(ev) {
-        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = file.size;
-        var img = document.createElement('img'); img.src = ev.target.result; div.appendChild(img);
-        var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;';
-        btn.onclick = function(){ div.remove(); };
-        div.appendChild(btn); container.appendChild(div);
-        showToast('📷 Foto adicionada!');
+        comprimirImagem(ev.target.result, function(comprimida) {
+          var div = document.createElement('div'); div.className = 'preview-item';
+          var bytes = Math.round((comprimida.length - 22) * 3 / 4);
+          div.dataset.filesize = bytes;
+          var img = document.createElement('img'); img.src = comprimida; div.appendChild(img);
+          var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;';
+          btn.onclick = function(){ div.remove(); };
+          div.appendChild(btn); container.appendChild(div);
+          showToast('📷 Foto adicionada!');
+        });
       };
       reader.readAsDataURL(file);
       document.body.removeChild(inp);
@@ -5887,6 +6031,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   if (typeof hideLoader === 'function')        window.hideLoader           = hideLoader;
   if (typeof renderLista === 'function')       window.renderLista          = renderLista;
   if (typeof atualizarDashboard === 'function') window.atualizarDashboard  = atualizarDashboard;
+  if (typeof _gerarPdfSilenciosoESubir === 'function') window._gerarPdfSilenciosoESubir = _gerarPdfSilenciosoESubir;
   function formatarWhatsParaEnvio(tel){
     if (!tel) return WHATSAPP_PADRAO;
     let dig = tel.replace(/\D/g,'');
@@ -6276,12 +6421,12 @@ function aplicarPermissoesConfiguracoes(){
       }
     }
     if (r.assinaturaCliente && typeof r.assinaturaCliente === 'string' && r.assinaturaCliente.startsWith('data:')) {
-      var url = await _uploadImagemStorage(r.assinaturaCliente, 'relatorios/' + ratId + '/assinatura_cliente.png');
-      if (url) r.assinaturaCliente = url;
+      var urlCli = await _uploadImagemStorage(r.assinaturaCliente, 'relatorios/' + ratId + '/assinatura_cliente.png');
+      if (urlCli) r.assinaturaCliente = urlCli;
     }
     if (r.assinaturaTecnicoImg && typeof r.assinaturaTecnicoImg === 'string' && r.assinaturaTecnicoImg.startsWith('data:')) {
-      var url = await _uploadImagemStorage(r.assinaturaTecnicoImg, 'relatorios/' + ratId + '/assinatura_tecnico.png');
-      if (url) r.assinaturaTecnicoImg = url;
+      var urlTec = await _uploadImagemStorage(r.assinaturaTecnicoImg, 'relatorios/' + ratId + '/assinatura_tecnico.png');
+      if (urlTec) r.assinaturaTecnicoImg = urlTec;
     }
     return r;
   }
@@ -6517,10 +6662,12 @@ function aplicarPermissoesConfiguracoes(){
     if (!ok){ e.target.value=''; return; }
 
     try{
+      const file = e.target.files && e.target.files[0];
+      if (!file) throw new Error('Nenhum arquivo selecionado.');
       const text = await file.text();
       const json = JSON.parse(text);
-      if (!json || !json.data || typeof json.data !== 'object') throw new Error('Arquivo inválido.');
-      Object.entries(json.data).forEach(([k,v])=> localStorage.setItem(k, v));
+      if (!json || (!json.data && !json.localStorage) || typeof (json.data || json.localStorage) !== 'object') throw new Error('Arquivo inválido.');
+      Object.entries(json.data || json.localStorage).forEach(([k,v])=> localStorage.setItem(k, v));
       showToast('Backup restaurado. Recarregando…');
       try { logInfo('Backup restaurado', { data: new Date().toISOString() }); } catch(e){}
       setTimeout(()=> location.reload(), 800);
@@ -6601,10 +6748,6 @@ window.setCustomLogoBase64 = function(b64){
 
   // aplica ao carregar
   try { setTimeout(aplicarLogoUI, 50); } catch(e) {}
-
-  window.setCustomLogoBase64 = function(b64){
-    try { localStorage.setItem('online-es-logo-b64', b64); logoBase64 = b64; window.logoPromise = Promise.resolve(b64); alert('Logo personalizada salva. Gere um PDF para testar.'); } catch(e){ alert('Falha ao salvar logo personalizada.'); }
-  };
 
   // === EXPOSIÇÃO DE FUNÇÕES PARA MÓDULOS EXTERNOS ===
   // Funções do core que precisam ser acessíveis pelos módulos
@@ -7184,8 +7327,8 @@ async function renderMeus(){
     }
     filtrados.sort(function(a,b){
       var da = new Date(a.dataIso || a.dataHoraIso || a.dataHora || 0).getTime();
-      var db = new Date(b.dataIso || b.dataHoraIso || b.dataHora || 0).getTime();
-      return (isNaN(db)?0:db) - (isNaN(da)?0:da);
+      var dbTs = new Date(b.dataIso || b.dataHoraIso || b.dataHora || 0).getTime();
+      return (isNaN(dbTs)?0:dbTs) - (isNaN(da)?0:da);
     });
     if(!filtrados.length){
       lista.innerHTML = '<p style="font-size:.78rem;color:#475569;">Não há relatórios salvos localmente.</p>';
@@ -7657,7 +7800,10 @@ document.addEventListener('click', function(ev){
     renderTabela(filtrados);
   }
 
+  var _tabelaLogsCache = [];
+
   function renderTabela(lista){
+    _tabelaLogsCache = lista;
     tabelaBody.innerHTML = '';
 
     if (!lista.length){
@@ -7718,7 +7864,7 @@ document.addEventListener('click', function(ev){
         detalhesStr
       ].join(';'));
     });
-    const blob = new Blob([linhas.join('\\n')], {type:'text/csv;charset=utf-8;'});
+    const blob = new Blob([linhas.join('\n')], {type:'text/csv;charset=utf-8;'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url;
@@ -7744,8 +7890,7 @@ document.addEventListener('click', function(ev){
 
     tabelaBody.querySelectorAll('.audit-details-row').forEach(r => r.remove());
 
-    const logs = obterLogs();
-    const l = logs[idx];
+    const l = _tabelaLogsCache[idx];
     if (!l) return;
 
     const detTr = document.createElement('tr');
@@ -8047,6 +8192,9 @@ function _tentativasRestantes(username) {
 }
 
 async function fazerLogin(){
+  // Resolve constantes que podem estar em outro escopo de script
+  var AUTH_DOMAIN    = window.AUTH_DOMAIN    || 'onlinees.local';
+  var STORAGE_USERS  = window.STORAGE_USERS  || 'online-es-usuarios-v3';
   const loginInput = document.getElementById('loginUsuario');
   const senhaInput = document.getElementById('loginSenha');
   const msgErro    = document.getElementById('msgErro');
@@ -8076,7 +8224,7 @@ async function fazerLogin(){
   }
 
   // Domínio para converter username → email no Firebase Auth
-  const emailAuth = u.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
+  const emailAuth = u.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + (typeof AUTH_DOMAIN !== 'undefined' ? AUTH_DOMAIN : window.AUTH_DOMAIN || 'onlinees.local');
 
   // ============================================================
   // ETAPA 1: Firebase Authentication (se online e disponível)
@@ -8225,7 +8373,7 @@ async function fazerLogin(){
       ok = true;
       achou.mustChangePassword = true;
     } else {
-      ok = await verifyPassword(p, stored, achou);
+      ok = await (window.verifyPassword || verifyPassword)(p, stored, achou);
     }
     if (!ok) {
       // Recovery: apenas se o usuário veio do Firestore E não tem senha salva localmente
@@ -8605,9 +8753,14 @@ async function fazerLogin(){
 
     // Enviar por e-mail
     ensureHandler('btnEnviarEmail', function(){
+      if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
       var emailEl = document.getElementById('aEmailCliente');
       var email = emailEl ? emailEl.value.trim() : '';
-      if (!email){ alert('Informe o e-mail do cliente para enviar.'); return; }
+      if (!email){
+        if (typeof showToast === 'function') showToast('📧 Informe o e-mail do cliente (campo "E-mail do cliente") para enviar.');
+        if (emailEl) { emailEl.focus(); emailEl.style.outline = '2px solid #f97316'; setTimeout(function(){ emailEl.style.outline = ''; }, 2500); }
+        return;
+      }
       if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
       try {
         var r = window.montarRelatorioAtual();
@@ -8628,26 +8781,49 @@ async function fazerLogin(){
 
     // Enviar via WhatsApp
     ensureHandler('btnWhatsLocal', function(){
+      if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
       var wEl = document.getElementById('aWhats');
       var tEl = document.getElementById('aTelefone');
       var raw = (wEl && wEl.value) ? wEl.value : (tEl && tEl.value ? tEl.value : '');
       var tel = raw.replace(/\D/g,'');
-      if (!tel){ alert('Informe o WhatsApp ou telefone do cliente antes de enviar.'); return; }
+      if (!tel){
+        if (typeof showToast === 'function') showToast('📱 Informe o WhatsApp ou telefone do cliente (campo "WhatsApp / Tel.") para enviar.');
+        var focusEl = wEl || tEl;
+        if (focusEl) { focusEl.focus(); focusEl.style.outline = '2px solid #f97316'; setTimeout(function(){ focusEl.style.outline = ''; }, 2500); }
+        return;
+      }
       if (tel.length <= 11) tel = '55' + tel;
       if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
       try {
         var r = window.montarRelatorioAtual();
-        window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(
-          'Olá! Segue o relatório técnico\n' +
-          'RAT: ' + (r.numero || '') + '\n' +
-          'Técnico: ' + (r.tecnico || '') + '\n' +
-          'Data: ' + (r.dataHoraBr || '')
-        ), '_blank');
+        var msgBase = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\nQualquer dúvida estamos à disposição!';
         var toast = document.getElementById('toast');
-        if (toast){
-          toast.textContent = '💬 Abrindo WhatsApp...';
-          toast.style.display = 'block';
-          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+        // Gera PDF primeiro e só depois abre WhatsApp com mensagem completa (evita SecurityError cross-origin)
+        if (typeof window._gerarPdfSilenciosoESubir === 'function') {
+          if (toast){ toast.textContent = '⏳ Gerando PDF para link...'; toast.style.display = 'block'; }
+          (async function(){
+            var pdfUrl = null;
+            try {
+              var res = await Promise.race([
+                window._gerarPdfSilenciosoESubir(r),
+                new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('timeout')); }, 25000); })
+              ]);
+              if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
+            } catch(e) { console.warn('[SAFETY NET] PDF WhatsApp falhou:', e.message); }
+            var msgFinal = pdfUrl
+              ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\n📄 Acesse o PDF: ' + pdfUrl + '\n\nQualquer dúvida estamos à disposição!'
+              : msgBase;
+            var waUrl = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal);
+            window.open(waUrl, '_blank');
+            if (toast){
+              toast.textContent = pdfUrl ? '✅ WhatsApp aberto com link do PDF!' : '💬 WhatsApp aberto (sem link de PDF).';
+              toast.style.display = 'block'; setTimeout(function(){ toast.style.display = 'none'; }, 3500);
+            }
+          })();
+        } else {
+          // Fallback: abre sem PDF
+          window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgBase), '_blank');
+          if (toast){ toast.textContent = '💬 WhatsApp aberto.'; toast.style.display = 'block'; setTimeout(function(){ toast.style.display = 'none'; }, 3000); }
         }
       } catch(err){ alert('Erro ao abrir WhatsApp: ' + err.message); }
     });
@@ -8662,6 +8838,7 @@ async function fazerLogin(){
     if (typeof hideLoader === 'function') window.hideLoader = hideLoader;
     if (typeof renderLista === 'function') window.renderLista = renderLista;
     if (typeof atualizarDashboard === 'function') window.atualizarDashboard = atualizarDashboard;
+    if (typeof _gerarPdfSilenciosoESubir === 'function') window._gerarPdfSilenciosoESubir = _gerarPdfSilenciosoESubir;
   });
 })();
 </script>
@@ -8842,13 +9019,19 @@ async function fazerLogin(){
     if (!stream) return;
     var w = video.videoWidth  || 1280;
     var h = video.videoHeight || 720;
+    // Limita a 1200px no lado maior (reduz fotos de ~4MB para ~150-300KB)
+    var MAX_CAM = 1200;
+    if (w > MAX_CAM || h > MAX_CAM) {
+      var ratio = Math.min(MAX_CAM / w, MAX_CAM / h);
+      w = Math.round(w * ratio); h = Math.round(h * ratio);
+    }
     canvas.width  = w;
     canvas.height = h;
     var ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, w, h);
 
-    // Comprime para JPEG 0.82 para economizar espaço
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    // JPEG 0.75 — boa qualidade visual, ~150-300KB por foto
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
     var approxSize = Math.round(dataUrl.length * 0.75); // bytes estimados
     capturedPhotos.push({ dataUrl: dataUrl, size: approxSize });
 
@@ -8920,7 +9103,6 @@ async function fazerLogin(){
       var div = document.createElement('div');
       div.className = 'preview-item';
       div.dataset.filesize = photo.size;
-      div.dataset.src = photo.dataUrl; // guardado para coleta posterior
 
       var img = document.createElement('img');
       img.src = photo.dataUrl;
@@ -8959,7 +9141,7 @@ async function fazerLogin(){
       }
       var reader = new FileReader();
       reader.onload = function(ev) {
-        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = file.size; div.dataset.src = ev.target.result;
+        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = file.size;
         var img = document.createElement('img'); img.src = ev.target.result; div.appendChild(img);
         var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;'; btn.onclick = function(){ div.remove(); }; div.appendChild(btn);
         container.appendChild(div);
