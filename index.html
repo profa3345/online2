@@ -6014,8 +6014,12 @@ if (logoBase64) {
 
       // Salva o relatório antes de gerar o PDF (garante ID estável no Storage)
       try {
-        if (typeof salvarRelatorioLocal === 'function') salvarRelatorioLocal(r);
-        if (typeof salvarRelatorioFirestore === 'function' && navigator.onLine) salvarRelatorioFirestore(r);
+        // Pré-salva o relatório localmente antes de gerar o PDF
+        if (!relatorios.find(function(x){ return x.id === r.id; })) {
+          relatorios.push(r);
+          saveRelatorios(relatorios);
+        }
+        if (navigator.onLine && typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(r);
       } catch(eSv) { console.warn('[E-mail] Falha ao pré-salvar RAT:', eSv); }
 
       // Gera PDF e faz upload para Storage (timeout 30s)
@@ -6080,8 +6084,12 @@ if (logoBase64) {
 
     // Salva o relatório antes de gerar o PDF (garante ID estável no Storage)
     try {
-      if (typeof salvarRelatorioLocal === 'function') salvarRelatorioLocal(r);
-      if (typeof salvarRelatorioFirestore === 'function' && navigator.onLine) salvarRelatorioFirestore(r);
+      // Pré-salva o relatório localmente antes de gerar o PDF
+      if (!relatorios.find(function(x){ return x.id === r.id; })) {
+        relatorios.push(r);
+        saveRelatorios(relatorios);
+      }
+      if (navigator.onLine && typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(r);
     } catch(eSv) { console.warn('[WhatsApp] Falha ao pré-salvar RAT:', eSv); }
 
     // Gera o PDF primeiro (aguarda até 30s) e só depois abre o WhatsApp com a
