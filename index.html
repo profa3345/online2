@@ -145,6 +145,30 @@
     .preview-item{position:relative;width:78px;height:62px;border-radius:8px;overflow:hidden;background:#0f172a}
     .preview-item img,.preview-item video{width:100%;height:100%;object-fit:cover}
     .preview-remove{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:18px;height:18px;border-radius:999px;cursor:pointer;font-size:.55rem;display:flex;align-items:center;justify-content:center}
+
+    /* ── Modal Câmera ── */
+    #modalCamera{position:fixed;inset:0;background:rgba(2,6,23,.92);backdrop-filter:blur(10px);z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:12px}
+    #modalCamera.hidden{display:none}
+    #modalCamera video{width:100%;max-width:480px;max-height:55vh;border-radius:14px;object-fit:cover;border:2px solid rgba(249,115,22,.5);background:#000;box-shadow:0 0 30px rgba(249,115,22,.2)}
+    #modalCamera canvas{display:none}
+    .cam-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;width:100%;max-width:480px}
+    .cam-capture-btn{width:64px;height:64px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 6px 24px rgba(249,115,22,.5);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0}
+    .cam-capture-btn:hover{transform:scale(1.08);box-shadow:0 10px 32px rgba(249,115,22,.65)}
+    .cam-capture-btn:active{transform:scale(.95)}
+    .cam-flip-btn{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;flex-shrink:0}
+    .cam-flip-btn:hover{background:rgba(255,255,255,.22)}
+    .cam-close-btn{width:42px;height:42px;border-radius:999px;background:rgba(248,113,113,.18);border:1px solid rgba(248,113,113,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fca5a5;transition:.15s;flex-shrink:0}
+    .cam-close-btn:hover{background:rgba(248,113,113,.35)}
+    #camPreviewStrip{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:480px;max-height:110px;overflow-y:auto;padding:4px 0}
+    #camPreviewStrip .cam-thumb{position:relative;width:70px;height:56px;border-radius:8px;overflow:hidden;border:2px solid rgba(249,115,22,.4);flex-shrink:0}
+    #camPreviewStrip .cam-thumb img{width:100%;height:100%;object-fit:cover}
+    #camPreviewStrip .cam-thumb-rm{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:.5rem;display:flex;align-items:center;justify-content:center}
+    .cam-hint{font-size:.72rem;color:rgba(226,232,240,.65);text-align:center;max-width:340px;line-height:1.4}
+    .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s}
+    .cam-send-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(34,197,94,.45)}
+    .cam-send-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    .btn.camera-btn{background:linear-gradient(135deg,rgba(249,115,22,.18),rgba(234,88,12,.12));border:1px solid rgba(249,115,22,.45);color:#f97316;gap:5px}
+    .btn.camera-btn:hover{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border-color:transparent}
     .report-overlay{position:fixed;inset:0;background:rgba(2,6,23,.65);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px;z-index:5000}
     .report-overlay.active{display:flex}
     .report-box{background:#fff;border-radius:14px;max-width:70vw;width:820px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -754,11 +778,12 @@ html[data-role="technician"] nav button {
             </div>
           </div>
           <div style="margin-top:8px;">
-            <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Upload de fotos do equipamento</label>
+            <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos do equipamento</label>
             <div class="upload-field">
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
-                <input type="file" id="bUploadFotos" accept="image/*,video/*" multiple style="flex:1;min-width:0;">
-                <button type="button" class="btn small" id="btnCameraEquip" title="Tirar foto com a câmera" style="white-space:nowrap;flex-shrink:0;"><i class="ri-camera-line"></i> Câmera</button>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                <input type="file" id="bUploadFotos" accept="image/*,video/*" multiple style="display:none;">
+                <button type="button" class="btn small" id="btnUploadEquip" onclick="document.getElementById('bUploadFotos').click()" style="flex:1;justify-content:center;"><i class="ri-attachment-line"></i> Arquivo</button>
+                <button type="button" class="btn small camera-btn" id="btnCameraEquip" title="Tirar foto com a câmera" style="flex:1;justify-content:center;"><i class="ri-camera-line"></i> Câmera</button>
               </div>
               <div id="bPreview" class="preview-list"></div>
             </div>
@@ -809,11 +834,12 @@ html[data-role="technician"] nav button {
             <input id="cPecas" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;" placeholder="Ex.: 4 baterias 12V/7Ah, fusível, cabo...">
           </div>
           <div style="margin-top:8px;">
-            <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Upload de fotos / vídeos do serviço</label>
+            <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos / vídeos do serviço</label>
             <div class="upload-field">
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
-                <input type="file" id="cUpload" accept="image/*,video/*" multiple style="flex:1;min-width:0;">
-                <button type="button" class="btn small" id="btnCameraServico" title="Tirar foto com a câmera" style="white-space:nowrap;flex-shrink:0;"><i class="ri-camera-line"></i> Câmera</button>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                <input type="file" id="cUpload" accept="image/*,video/*" multiple style="display:none;">
+                <button type="button" class="btn small" id="btnUploadServico" onclick="document.getElementById('cUpload').click()" style="flex:1;justify-content:center;"><i class="ri-attachment-line"></i> Arquivo</button>
+                <button type="button" class="btn small camera-btn" id="btnCameraServico" title="Tirar foto com a câmera" style="flex:1;justify-content:center;"><i class="ri-camera-line"></i> Câmera</button>
               </div>
               <div id="cPreview" class="preview-list"></div>
             </div>
@@ -854,12 +880,14 @@ html[data-role="technician"] nav button {
         <div class="row" style="margin-top:8px;">
           <div class="col">
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos / Vídeos das baterias</label>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">
-              <input type="file" id="dUpload" multiple accept="image/*,video/*"
-                style="font-size:.72rem;color:#0f172a;flex:1;min-width:0;">
-              <button type="button" class="btn small" id="btnCamerasBaterias" title="Tirar foto com a câmera" style="white-space:nowrap;flex-shrink:0;"><i class="ri-camera-line"></i> Câmera</button>
+            <div class="upload-field" style="margin-top:4px;">
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                <input type="file" id="dUpload" multiple accept="image/*,video/*" style="display:none;">
+                <button type="button" class="btn small" id="btnUploadBaterias" onclick="document.getElementById('dUpload').click()" style="flex:1;justify-content:center;"><i class="ri-attachment-line"></i> Arquivo</button>
+                <button type="button" class="btn small camera-btn" id="btnCamerasBaterias" title="Tirar foto com a câmera" style="flex:1;justify-content:center;"><i class="ri-camera-line"></i> Câmera</button>
+              </div>
+              <div id="dPreview" class="preview-list"></div>
             </div>
-            <div id="dPreview" class="preview-list"></div>
           </div>
         </div>
 
@@ -1450,17 +1478,18 @@ html[data-role="technician"] nav button {
   const STORAGE_USERS = 'online-es-usuarios-v3';
   const AUTH_DOMAIN = 'onlinees.local'; // Domínio usado no Firebase Auth
   const FIREBASE_API_KEY = 'AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8';
-  async function criarUsuarioFirebaseREST(email, senha) {
+  async function criarUsuarioFirebaseREST(email, senha, _tentativa) {
+    _tentativa = _tentativa || 0;
     try {
       const resp = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + FIREBASE_API_KEY,
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email, password: senha, returnSecureToken: true }) });
       const data = await resp.json();
       if (data.error) {
-        if (data.error.message && data.error.message.includes('TOO_MANY_ATTEMPTS')) {
-          // Aguarda 3s e tenta novamente
+        if (data.error.message && data.error.message.includes('TOO_MANY_ATTEMPTS') && _tentativa < 2) {
+          // Aguarda 3s e tenta novamente (máximo 2 retentativas)
           await new Promise(r => setTimeout(r, 3000));
-          return criarUsuarioFirebaseREST(email, senha);
+          return criarUsuarioFirebaseREST(email, senha, _tentativa + 1);
         }
         return { uid: null, error: data.error.message };
       }
@@ -3835,7 +3864,7 @@ function autoFillCamposAtendimento(){
       <div class="campo"><span class="rotulo">Tipo de serviço:</span> ${r.tipo}</div>
       <div class="campo"><span class="rotulo">Problema informado:</span><br>${(r.problema||'').replace(/\n/g,'<br>')}</div>
       <div class="campo"><span class="rotulo">Diagnóstico do técnico:</span><br>${(r.diagnostico||'').replace(/\n/g,'<br>')}</div>
-      <div class="campo"><span class="rotulo">Ações realizadas:</span><br>${r.acoes && r.acoes.length ? r.acoes.map(a=>'- '+a).join('<br>') : '-'}</div>
+      <div class="campo"><span class="rotulo">Ações realizadas:</span><br>${r.acoes && r.acoes.length ? (Array.isArray(r.acoes) ? r.acoes.map(a=>'- '+a).join('<br>') : String(r.acoes).replace(/\n/g,'<br>')) : '-'}</div>
       <div class="campo"><span class="rotulo">Peças utilizadas:</span> ${r.pecas||'-'}</div>
       <div class="linha"></div>
       <div class="campo"><span class="rotulo">Baterias:</span> Qtd: ${r.bateriasQtd} · Tensão: ${r.bateriasTensao}</div>
@@ -4597,7 +4626,7 @@ if (logoBase64) {
     y = doc.lastAutoTable.finalY + 4;
 
     function textoLongo(label, texto){ return [{content:label,styles:{fontStyle:'bold'}},{content:(texto&&texto.toString().trim().length?texto:'-').toString().replace(/\r\n/g,'\n'),styles:{}}]; }
-    const acoesTexto = (r.acoes && r.acoes.length) ? r.acoes.map(a=>'- '+a).join('\n') : '-';
+    const acoesTexto = (r.acoes && r.acoes.length) ? (Array.isArray(r.acoes) ? r.acoes.map(a=>'- '+a).join('\n') : String(r.acoes)) : '-';
 
     doc.autoTable({
       startY:y,
@@ -5051,9 +5080,12 @@ if (logoBase64) {
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = '';
       });
-      // Limpa previews de mídia
+      // Limpa previews de mídia e reseta inputs de arquivo
       ['bPreview','cPreview','dPreview'].forEach(function(id){
         var el = document.getElementById(id); if (el) el.innerHTML = '';
+      });
+      ['bUploadFotos','cUpload','dUpload'].forEach(function(id){
+        var el = document.getElementById(id); if (el) try { el.value = ''; } catch(e) {}
       });
       // Limpa assinaturas
       try { clearSignature(); } catch(e){}
@@ -5403,6 +5435,9 @@ if (logoBase64) {
       ['bPreview','cPreview','dPreview'].forEach(function(id){
         var el = document.getElementById(id); if (el) el.innerHTML = '';
       });
+      ['bUploadFotos','cUpload','dUpload'].forEach(function(id){
+        var el = document.getElementById(id); if (el) try { el.value = ''; } catch(e) {}
+      });
       // Assinaturas
       try { clearSignature(); } catch(e){}
       try {
@@ -5484,6 +5519,8 @@ if (logoBase64) {
       };
       reader.readAsDataURL(file);
     });
+    // Reseta o input para permitir selecionar o mesmo arquivo novamente
+    try { input.value = ''; } catch(e) {}
   }
 if (bUploadFotos) bUploadFotos.addEventListener('change', ()=>criarPreview(bUploadFotos, bPreview));
 if (cUpload)      cUpload.addEventListener('change', ()=>criarPreview(cUpload, cPreview));
@@ -8180,8 +8217,9 @@ async function fazerLogin(){
       ok = await verifyPassword(p, stored, achou);
     }
     if (!ok) {
-      // Recovery: hash do Firestore incompatível — força redefinição de senha
-      if (achou.fromFirestore || achou._fromFirestore) {
+      // Recovery: apenas se o usuário veio do Firestore E não tem senha salva localmente
+      // (situação de primeiro login de outro dispositivo) — não permite bypass se há senha local
+      if ((achou.fromFirestore || achou._fromFirestore) && !stored) {
         achou.password = '';
         achou._salt = '';
         achou.mustChangePassword = true;
@@ -8588,13 +8626,12 @@ async function fazerLogin(){
       if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
       try {
         var r = window.montarRelatorioAtual();
-        var msg = encodeURIComponent(
+        window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(
           'Olá! Segue o relatório técnico\n' +
           'RAT: ' + (r.numero || '') + '\n' +
           'Técnico: ' + (r.tecnico || '') + '\n' +
           'Data: ' + (r.dataHoraBr || '')
-        );
-        window.open('https://wa.me/' + tel + '?text=' + msg, '_blank');
+        ), '_blank');
         var toast = document.getElementById('toast');
         if (toast){
           toast.textContent = '💬 Abrindo WhatsApp...';
@@ -8718,5 +8755,238 @@ async function fazerLogin(){
   }
 })();
 </script>
+
+<!-- ══════════════════ MODAL CÂMERA ══════════════════ -->
+<div id="modalCamera" class="hidden" role="dialog" aria-modal="true" aria-label="Câmera">
+  <video id="camVideo" autoplay playsinline muted></video>
+  <canvas id="camCanvas"></canvas>
+
+  <div id="camPreviewStrip"></div>
+
+  <div class="cam-controls">
+    <button class="cam-close-btn" id="camCloseBtn" title="Cancelar"><i class="ri-close-line"></i></button>
+    <button class="cam-capture-btn" id="camCaptureBtn" title="Tirar foto"><i class="ri-camera-line"></i></button>
+    <button class="cam-flip-btn" id="camFlipBtn" title="Virar câmera"><i class="ri-refresh-line"></i></button>
+  </div>
+
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;">
+    <p class="cam-hint"><i class="ri-information-line"></i> Toque no botão laranja para capturar. Você pode tirar várias fotos antes de confirmar.</p>
+    <button class="cam-send-btn" id="camSendBtn" disabled><i class="ri-check-line"></i> Confirmar fotos (<span id="camCount">0</span>)</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════ LÓGICA DO MODAL DE CÂMERA ══════════════════
+(function() {
+  var modal      = document.getElementById('modalCamera');
+  var video      = document.getElementById('camVideo');
+  var canvas     = document.getElementById('camCanvas');
+  var strip      = document.getElementById('camPreviewStrip');
+  var captureBtn = document.getElementById('camCaptureBtn');
+  var closeBtn   = document.getElementById('camCloseBtn');
+  var flipBtn    = document.getElementById('camFlipBtn');
+  var sendBtn    = document.getElementById('camSendBtn');
+  var countSpan  = document.getElementById('camCount');
+
+  var stream         = null;
+  var facingMode     = 'environment'; // câmera traseira por padrão
+  var capturedPhotos = [];            // { dataUrl, size }
+  var targetPreview  = null;          // id do container de preview de destino
+
+  // ── Abre o modal e inicia câmera ──────────────────────────────
+  function abrirModalCamera(previewContainerId) {
+    targetPreview  = previewContainerId;
+    capturedPhotos = [];
+    strip.innerHTML = '';
+    countSpan.textContent = '0';
+    sendBtn.disabled = true;
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    iniciarCamera();
+  }
+
+  async function iniciarCamera() {
+    pararCamera();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      video.srcObject = stream;
+    } catch (err) {
+      // Fallback: abre input nativo se câmera não puder ser acessada
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      _abrirCameraFallback(targetPreview);
+    }
+  }
+
+  function pararCamera() {
+    if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+    video.srcObject = null;
+  }
+
+  // ── Captura foto do vídeo ─────────────────────────────────────
+  captureBtn.addEventListener('click', function() {
+    if (!stream) return;
+    var w = video.videoWidth  || 1280;
+    var h = video.videoHeight || 720;
+    canvas.width  = w;
+    canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+
+    // Comprime para JPEG 0.82 para economizar espaço
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    var approxSize = Math.round(dataUrl.length * 0.75); // bytes estimados
+    capturedPhotos.push({ dataUrl: dataUrl, size: approxSize });
+
+    // Miniatura no strip
+    var thumb = document.createElement('div');
+    thumb.className = 'cam-thumb';
+    var img = document.createElement('img');
+    img.src = dataUrl;
+    var rm = document.createElement('button');
+    rm.className = 'cam-thumb-rm';
+    rm.innerHTML = '&times;';
+    // Guarda o dataUrl no thumb para remoção correta (não usa índice estático)
+    thumb.dataset.dataUrl = dataUrl;
+    rm.onclick = function() {
+      var url = thumb.dataset.dataUrl;
+      var i = capturedPhotos.findIndex(function(p){ return p.dataUrl === url; });
+      if (i !== -1) capturedPhotos.splice(i, 1);
+      thumb.remove();
+      atualizarContador();
+    };
+    thumb.appendChild(img);
+    thumb.appendChild(rm);
+    strip.appendChild(thumb);
+    atualizarContador();
+
+    // Flash visual
+    modal.style.background = 'rgba(255,255,255,.25)';
+    setTimeout(function(){ modal.style.background = ''; }, 80);
+  });
+
+  function atualizarContador() {
+    countSpan.textContent = capturedPhotos.length;
+    sendBtn.disabled = capturedPhotos.length === 0;
+  }
+
+  // ── Virar câmera ──────────────────────────────────────────────
+  flipBtn.addEventListener('click', function() {
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    iniciarCamera();
+  });
+
+  // ── Fechar sem confirmar ──────────────────────────────────────
+  closeBtn.addEventListener('click', fechar);
+  modal.addEventListener('click', function(e){ if (e.target === modal) fechar(); });
+
+  function fechar() {
+    pararCamera();
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+    capturedPhotos = [];
+    strip.innerHTML = '';
+    countSpan.textContent = '0';
+    sendBtn.disabled = true;
+  }
+
+  // ── Confirmar e enviar fotos ao preview do formulário ─────────
+  sendBtn.addEventListener('click', function() {
+    var container = document.getElementById(targetPreview);
+    if (!container) { fechar(); return; }
+
+    var MAX = 5 * 1024 * 1024; // 5MB
+    var enviadas = 0;
+
+    capturedPhotos.forEach(function(photo) {
+      if (photo.size > MAX) {
+        if (typeof showToast === 'function') showToast('⚠️ Foto muito grande, ignorada.');
+        return;
+      }
+      var div = document.createElement('div');
+      div.className = 'preview-item';
+      div.dataset.filesize = photo.size;
+      div.dataset.src = photo.dataUrl; // guardado para coleta posterior
+
+      var img = document.createElement('img');
+      img.src = photo.dataUrl;
+      var btn = document.createElement('button');
+      btn.className = 'preview-remove';
+      btn.innerHTML = '&times;';
+      btn.onclick = function(){ div.remove(); };
+      div.appendChild(img);
+      div.appendChild(btn);
+      container.appendChild(div);
+      enviadas++;
+    });
+
+    if (typeof showToast === 'function') {
+      showToast('📷 ' + enviadas + (enviadas === 1 ? ' foto adicionada!' : ' fotos adicionadas!'));
+    }
+    fechar();
+  });
+
+  // ── Fallback: input nativo com capture ───────────────────────
+  function _abrirCameraFallback(previewContainerId) {
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.setAttribute('capture', 'environment');
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.addEventListener('change', function() {
+      var container = document.getElementById(previewContainerId);
+      if (!container || !inp.files || !inp.files[0]) { document.body.removeChild(inp); return; }
+      var file = inp.files[0];
+      var MAX = 5 * 1024 * 1024;
+      if (file.size > MAX) {
+        if (typeof showToast === 'function') showToast('⚠️ Foto muito grande (' + (file.size/1024/1024).toFixed(1) + 'MB). Limite: 5MB.');
+        document.body.removeChild(inp); return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = file.size; div.dataset.src = ev.target.result;
+        var img = document.createElement('img'); img.src = ev.target.result; div.appendChild(img);
+        var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;'; btn.onclick = function(){ div.remove(); }; div.appendChild(btn);
+        container.appendChild(div);
+        if (typeof showToast === 'function') showToast('📷 Foto adicionada!');
+      };
+      reader.readAsDataURL(file);
+      document.body.removeChild(inp);
+    });
+    inp.click();
+  }
+
+  // ── Expõe função global para os botões do formulário ─────────
+  window._abrirModalCamera = abrirModalCamera;
+
+  // ── Atualiza handlers dos botões existentes ───────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    // Aguarda um tick para garantir que os elementos existam
+    setTimeout(function() {
+      var btnEquip     = document.getElementById('btnCameraEquip');
+      var btnServico   = document.getElementById('btnCameraServico');
+      var btnBaterias  = document.getElementById('btnCamerasBaterias');
+      if (btnEquip)    btnEquip.onclick    = function(){ window._abrirModalCamera('bPreview'); };
+      if (btnServico)  btnServico.onclick  = function(){ window._abrirModalCamera('cPreview'); };
+      if (btnBaterias) btnBaterias.onclick = function(){ window._abrirModalCamera('dPreview'); };
+    }, 200);
+  });
+
+  // ── Sobreescreve _abrirCamera global (caso exista) ─────────
+  window._abrirCamera = function(previewContainerId) {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      window._abrirModalCamera(previewContainerId);
+    } else {
+      _abrirCameraFallback(previewContainerId);
+    }
+  };
+
+})();
+</script>
+
 </body>
 </html>
