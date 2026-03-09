@@ -4070,7 +4070,7 @@ function autoFillCamposAtendimento(){
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
           <div>
             <strong>${esc(r.numero)} · ${esc(r.cliente)} ${r.clienteManual?'<span class="inline-badge">Manual</span>':''}</strong>
-            <div><small>${r.dataHoraBr || isoToBR(r.dataHoraIso) || new Date(r.dataHora).toLocaleString('pt-BR')}</small></div>
+            <div><small>${esc(r.dataHoraBr || isoToBR(r.dataHoraIso) || new Date(r.dataHora).toLocaleString('pt-BR'))}</small></div>
             <div><small>Téc.: ${esc(r.tecnico)}</small></div>
             <div><small>Tel: ${esc(r.telefone || '-')} · Whats: ${esc(r.whatsapp || '-')}</small></div>
             ${r.clienteManual ? `<div><small class="help"><strong>Aviso:</strong> Cliente inserido manualmente pelo técnico. Verifique e adicione ao cadastro.</small></div>` : ''}
@@ -4144,7 +4144,7 @@ function autoFillCamposAtendimento(){
       <div class="linha"></div>
       <div class="campo" style="text-align:center;font-weight:700;">Relatório técnico de atendimento ao cliente</div>
       <div class="campo"><span class="rotulo">Nº (RAT):</span> ${esc(r.numero)}</div>
-      <div class="campo"><span class="rotulo">Data:</span> ${r.dataHoraBr || isoToBR(r.dataHoraIso)}</div>
+      <div class="campo"><span class="rotulo">Data:</span> ${esc(r.dataHoraBr || isoToBR(r.dataHoraIso))}</div>
       <div class="campo"><span class="rotulo">Técnico:</span> ${esc(r.tecnico)}</div>
       <div class="linha"></div>
       <div class="campo"><span class="rotulo">Cliente / Empresa:</span> ${esc(r.cliente)} ${r.clienteManual?'<span class="inline-badge">Manual</span>':''}</div>
@@ -4192,7 +4192,7 @@ function autoFillCamposAtendimento(){
         <img src="${r.assinaturaCliente}" alt="Assinatura do cliente" style="max-width:260px;display:block;margin-top:6px;border:1px solid #cbd5e1;border-radius:6px;">
         ${r.nomeAssinaturaCliente ? `
           <div style="margin-top:4px;font-size:.95rem;font-weight:500;">
-            ${r.nomeAssinaturaCliente}
+            ${esc(r.nomeAssinaturaCliente)}
           </div>` : ''}
       </div>` : ''}
 
@@ -5393,12 +5393,14 @@ if (logoBase64) {
     }
 
     // Se estava editando um relatório existente, remove o original agora (ao salvar)
+    var _eraEdicao = !!window._editandoRelatorioId;
     if (window._editandoRelatorioId) {
       relatorios = relatorios.filter(x => x.id !== window._editandoRelatorioId);
       window._editandoRelatorioId = null;
     }
 
-    try { baixarEstoqueEquipamentoSelecionado(novo); } catch(e){}
+    // Só baixa estoque em novos relatórios, nunca em edições (evita dedução dupla)
+    if (!_eraEdicao) { try { baixarEstoqueEquipamentoSelecionado(novo); } catch(e){} }
 
     if (navigator.onLine){
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
@@ -5718,6 +5720,7 @@ if (logoBase64) {
 
   async function syncPendentes(){
     if (!navigator.onLine) return;
+    if (!window.usuarioLogado) return; // Não sincroniza sem sessão ativa
     let alterou = 0;
     var lista = pendentes.slice();
     for (var p of lista) {
@@ -7819,10 +7822,10 @@ window.AppStorage = AppStorage;
 // === MÓDULO: Correções de UI (auditoria) ===
 document.addEventListener("DOMContentLoaded", function(){
   // Corrige texto do botão Filtrar
-  var btnFilt = document.getElementById("btnFiltrarAuditoria");
+  var btnFilt = document.getElementById("btnAuditBuscar");
   if(btnFilt){ var txt=(btnFilt.textContent||"").trim().toLowerCase(); if(txt==="filtra"||txt.endsWith(" filtra")) btnFilt.textContent="Filtrar"; }
   // Habilita botão Limpar
-  var btnLimp = document.getElementById("btnLimparAuditoria");
+  var btnLimp = document.getElementById("btnAuditLimpar");
   if(btnLimp){ btnLimp.removeAttribute("disabled"); btnLimp.classList.remove("disabled","is-disabled","btn-muted"); }
 });
 
@@ -8967,7 +8970,7 @@ async function fazerLogin(){
   }
 
 
-  if (!achou || achou.active === false) {
+  if (!achou || achou.active === false || achou.ativo === false) {
     // Se Firebase Auth logou mas perfil não existe: auto-criação (primeiro login)
     if (firebaseUser && (!achou || achou === null)) {
       var novoPerfilRole = 'tecnico'; // Regra obriga role='tecnico' na auto-criação
@@ -9284,7 +9287,12 @@ async function fazerLogin(){
         // NÃO entra no sistema ainda — espera definir senha
         return;
       }
-    } catch(e) { console.warn('Falha ao abrir modal de senha:', e); }
+    } catch(e) {
+      console.warn('Falha ao abrir modal de senha:', e);
+      // Segurança: se modal falhou, bloqueia entrada — não permite bypass
+      msgErro.textContent = 'É necessário definir uma senha antes de continuar. Recarregue a página.';
+      return;
+    }
   }
 
   try {
