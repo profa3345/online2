@@ -1144,7 +1144,12 @@ html[data-role="technician"] nav button {
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;display:block;margin-bottom:4px;">
               Ou enviar imagem da assinatura do cliente
             </label>
-            <input type="file" id="sigClienteUpload" accept="image/png,image/jpeg,image/webp" style="font-size:.75rem;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="file" id="sigClienteUpload" accept="image/png,image/jpeg,image/webp" style="font-size:.75rem;flex:1;min-width:0;">
+              <button type="button" class="btn small camera-btn" id="btnCameraAssinaturaCliente" title="Fotografar assinatura com a câmera">
+                <i class="ri-camera-line"></i> Câmera
+              </button>
+            </div>
             <small style="font-size:.65rem;color:#64748b;display:block;margin-top:2px;">
               Aceita PNG, JPG, WEBP ou foto da assinatura feita em papel.
             </small>
@@ -1198,7 +1203,12 @@ html[data-role="technician"] nav button {
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;display:block;margin-bottom:4px;">
               Ou enviar imagem da assinatura do técnico
             </label>
-            <input type="file" id="sigTecnicoUpload" accept="image/png,image/jpeg,image/webp" style="font-size:.75rem;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="file" id="sigTecnicoUpload" accept="image/png,image/jpeg,image/webp" style="font-size:.75rem;flex:1;min-width:0;">
+              <button type="button" class="btn small camera-btn" id="btnCameraAssinaturaTecnico" title="Fotografar assinatura com a câmera">
+                <i class="ri-camera-line"></i> Câmera
+              </button>
+            </div>
             <small style="font-size:.65rem;color:#64748b;display:block;margin-top:4px;">
               Se nenhuma assinatura for enviada, o PDF exibirá apenas a linha e o nome do técnico.
             </small>
@@ -3551,6 +3561,58 @@ function autoFillCamposAtendimento(){
         setVal('dBatQtd',       r.bateriasQtd);
         setVal('dBatTensao',    r.bateriasTensao);
         setVal('dObs',          r.bateriasObs);
+        // BUG FIX: campos faltantes ao editar RAT
+        setVal('bTensaoEntrada', r.tensaoEntrada);
+        setVal('bTensaoSaida',   r.tensaoSaida);
+        setVal('sigNomeCliente', r.nomeAssinaturaCliente);
+        try { if (r.fornecidoEstoque) { var _fEl = document.getElementById('aFornecidoEstoque'); if (_fEl) _fEl.value = r.fornecidoEstoque; } } catch(e){}
+        try { if (r.docClienteTipo) setTipoDoc(r.docClienteTipo); } catch(e){}
+
+        // Restaura imagens nos previews ao editar
+        try {
+          ['bPreview','cPreview','dPreview'].forEach(function(id){ var el=document.getElementById(id); if(el) el.innerHTML=''; });
+          var _recriarPreviewImg = function(containerId, srcs) {
+            if (!srcs || !srcs.length) return;
+            var cont = document.getElementById(containerId);
+            if (!cont) return;
+            srcs.forEach(function(src) {
+              if (!src || typeof src !== 'string') return;
+              var div = document.createElement('div'); div.className = 'preview-item';
+              if (src.startsWith('data:video') || src.includes('.mp4') || src.includes('.webm') || src.includes('.mov')) {
+                var vid = document.createElement('video'); vid.src = src; vid.controls = true; div.appendChild(vid);
+              } else {
+                var img = document.createElement('img'); img.src = src; div.appendChild(img);
+              }
+              var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;'; btn.onclick = function(){ div.remove(); };
+              div.appendChild(btn);
+              cont.appendChild(div);
+            });
+          }
+          _recriarPreviewImg('bPreview', [].concat(r.imgsEquip||[]).concat(r.vidsEquip||[]));
+          _recriarPreviewImg('cPreview', [].concat(r.imgsServico||[]).concat(r.vidsServico||[]));
+          _recriarPreviewImg('dPreview', [].concat(r.imgsBaterias||[]).concat(r.vidsBaterias||[]));
+        } catch(e) { console.warn('Restaurar previews ao editar:', e); }
+
+        // Restaura assinaturas nas variáveis globais ao editar
+        try {
+          assinaturaClienteAtual = r.assinaturaCliente || null;
+          window.assinaturaClienteAtual = assinaturaClienteAtual;
+          if (assinaturaClienteAtual && sigStatus) sigStatus.textContent = 'Assinatura do cliente carregada.';
+          if (assinaturaClienteAtual && sigNomeWrap) sigNomeWrap.style.display = 'block';
+          assinaturaTecnicoAtual = r.assinaturaTecnicoImg || null;
+          window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
+          if (assinaturaTecnicoAtual && sigStatusTec) sigStatusTec.textContent = 'Assinatura do t\u00e9cnico carregada.';
+        } catch(e) { console.warn('Restaurar assinaturas ao editar:', e); }
+
+        // BUG FIX: para o relógio automático ao editar RAT existente,
+        // pois startRelogioAtendimento() (chamado por mostrarTela) continuaria
+        // sobrescrevendo a data original da RAT após 10 segundos.
+        try {
+          if (typeof relogioAtendimentoTimer !== 'undefined' && relogioAtendimentoTimer) {
+            clearInterval(relogioAtendimentoTimer);
+            relogioAtendimentoTimer = null;
+          }
+        } catch(e) {}
 
         // Guarda o id do relatório em edição — será removido apenas ao salvar
         window._editandoRelatorioId = r.id;
@@ -4756,13 +4818,15 @@ document.getElementById('btnAddCliente').onclick=()=>{
 
   function atualizarDashboard(){
     try {
+      // BUG FIX: filtrar RATs deletadas (soft-delete) dos contadores do dashboard
+      const ativos = relatorios.filter(r => !r._deleted);
       const hojeIso = new Date(); hojeIso.setHours(0,0,0,0);
       const todayStr = hojeIso.toISOString().slice(0,10);
-      const rHoje = relatorios.filter(r=>(r.dataHoraIso||r.dataHora||'').slice(0,10)===todayStr);
+      const rHoje = ativos.filter(r=>(r.dataHoraIso||r.dataHora||'').slice(0,10)===todayStr);
       if (dHoje) dHoje.textContent = rHoje.length;
       if (dConcluidosHoje) dConcluidosHoje.textContent = rHoje.filter(r=>r.status==='Concluído').length;
-      if (dConcluidosGeral) dConcluidosGeral.textContent = relatorios.filter(r=>r.status==='Concluído').length;
-      if (dPendentes) dPendentes.textContent = relatorios.filter(r=>r.status!=='Concluído').length;
+      if (dConcluidosGeral) dConcluidosGeral.textContent = ativos.filter(r=>r.status==='Concluído').length;
+      if (dPendentes) dPendentes.textContent = ativos.filter(r=>r.status!=='Concluído').length;
     } catch(e) { console.warn('atualizarDashboard:', e); }
   }
 
@@ -5346,8 +5410,8 @@ if (logoBase64) {
       visto: false,
       imgsEquip: midEquip.imgs, imgsServico: midServ.imgs, imgsBaterias: midBat.imgs,
       vidsEquip: midEquip.vids, vidsServico: midServ.vids, vidsBaterias: midBat.vids,
-      assinaturaCliente: assinaturaClienteAtual,
-      assinaturaTecnicoImg: assinaturaTecnicoAtual,
+      assinaturaCliente: assinaturaClienteAtual || window.assinaturaClienteAtual || null,
+      assinaturaTecnicoImg: assinaturaTecnicoAtual || window.assinaturaTecnicoAtual || null,
       nomeAssinaturaCliente: (sigNomeCliente && sigNomeCliente.value
         ? sigNomeCliente.value.trim()
         : '')
@@ -5478,6 +5542,18 @@ if (logoBase64) {
       novo.portalToken = _ratOriginal.portalToken;
       novo.portalTokenCriado = _ratOriginal.portalTokenCriado;
     }
+    // BUG FIX: bloco de preservação de imagens/assinaturas estava DENTRO do if de portalToken,
+    // fazendo com que RATs editadas sem portalToken perdessem imagens e assinaturas ao salvar.
+    if (_eraEdicao && _ratOriginal) {
+      if (!novo.assinaturaCliente && _ratOriginal.assinaturaCliente) novo.assinaturaCliente = _ratOriginal.assinaturaCliente;
+      if (!novo.assinaturaTecnicoImg && _ratOriginal.assinaturaTecnicoImg) novo.assinaturaTecnicoImg = _ratOriginal.assinaturaTecnicoImg;
+      if ((!novo.imgsEquip || !novo.imgsEquip.length) && _ratOriginal.imgsEquip && _ratOriginal.imgsEquip.length) novo.imgsEquip = _ratOriginal.imgsEquip;
+      if ((!novo.imgsServico || !novo.imgsServico.length) && _ratOriginal.imgsServico && _ratOriginal.imgsServico.length) novo.imgsServico = _ratOriginal.imgsServico;
+      if ((!novo.imgsBaterias || !novo.imgsBaterias.length) && _ratOriginal.imgsBaterias && _ratOriginal.imgsBaterias.length) novo.imgsBaterias = _ratOriginal.imgsBaterias;
+      if ((!novo.vidsEquip || !novo.vidsEquip.length) && _ratOriginal.vidsEquip && _ratOriginal.vidsEquip.length) novo.vidsEquip = _ratOriginal.vidsEquip;
+      if ((!novo.vidsServico || !novo.vidsServico.length) && _ratOriginal.vidsServico && _ratOriginal.vidsServico.length) novo.vidsServico = _ratOriginal.vidsServico;
+      if ((!novo.vidsBaterias || !novo.vidsBaterias.length) && _ratOriginal.vidsBaterias && _ratOriginal.vidsBaterias.length) novo.vidsBaterias = _ratOriginal.vidsBaterias;
+    }
     // Só baixa estoque em novos relatórios, nunca em edições (evita dedução dupla)
     if (!_eraEdicao) { try { baixarEstoqueEquipamentoSelecionado(novo); } catch(e){} }
 
@@ -5530,7 +5606,9 @@ if (logoBase64) {
         if (_sigTec) { var _ctx = _sigTec.getContext('2d'); _ctx.clearRect(0,0,_sigTec.width,_sigTec.height); }
       } catch(e){}
       assinaturaClienteAtual = null;
+      window.assinaturaClienteAtual = null;
       assinaturaTecnicoAtual = null;
+      window.assinaturaTecnicoAtual = null;
       // Limpa cliente manual
       if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
       if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
@@ -5671,6 +5749,25 @@ if (logoBase64) {
         if (r.bateriasTensao) { var _fxBatTen = document.getElementById('dBatTensao'); if (_fxBatTen) _fxBatTen.value = r.bateriasTensao || ''; }
         if (r.bateriasObs) { var _dObs = document.getElementById('dObs'); if (_dObs) _dObs.value = r.bateriasObs || ''; }
 
+        // BUG FIX: campos faltantes no rascunho
+        if (r.tensaoEntrada) { var _fxTenE = document.getElementById('bTensaoEntrada'); if (_fxTenE) _fxTenE.value = r.tensaoEntrada || ''; }
+        if (r.tensaoSaida)   { var _fxTenS = document.getElementById('bTensaoSaida');   if (_fxTenS) _fxTenS.value = r.tensaoSaida   || ''; }
+        if (r.localizacao)   { var _fxLoc  = document.getElementById('aLocalizacao');   if (_fxLoc)  _fxLoc.value  = r.localizacao   || ''; }
+        if (r.localizacaoCoordenadas) { var _fxCoord = document.getElementById('aCoord');    if (_fxCoord) _fxCoord.value = r.localizacaoCoordenadas || ''; }
+        if (r.localizacaoLink)        { var _fxLink  = document.getElementById('aLinkMaps'); if (_fxLink)  _fxLink.value  = r.localizacaoLink        || ''; }
+        if (r.cepCliente) { var _fxCep2 = document.getElementById('aCep'); if (_fxCep2) _fxCep2.value = r.cepCliente || ''; }
+        if (r.nomeAssinaturaCliente && sigNomeCliente) sigNomeCliente.value = r.nomeAssinaturaCliente;
+        try { if (r.docClienteTipo && typeof setTipoDoc === 'function') setTipoDoc(r.docClienteTipo); } catch(e){}
+
+        // BUG FIX: para o relógio automático pois a data do rascunho foi restaurada
+        // e o timer continuaria sobrescrevendo-a após 10 segundos
+        try {
+          if (typeof relogioAtendimentoTimer !== 'undefined' && relogioAtendimentoTimer) {
+            clearInterval(relogioAtendimentoTimer);
+            relogioAtendimentoTimer = null;
+          }
+        } catch(e) {}
+
         showToast('Rascunho restaurado. Continue preenchendo.');
         try { logInfo('Rascunho restaurado', { numero: r.numero || 'N/A' }); } catch(e){}
       } catch(e) {
@@ -5706,6 +5803,8 @@ if (logoBase64) {
   (function() {
     var _autoSaveTimer = null;
     function _autoSaveRascunho() {
+      // Não salva rascunho durante edição de RAT existente (causaria confusão)
+      if (window._editandoRelatorioId) return;
       // Só salva se o formulário tiver algum dado relevante preenchido
       var _diagEl = document.getElementById('cDiagnostico');
       var _cliSel = document.getElementById('aClienteSelect');
@@ -6298,7 +6397,9 @@ Qualquer dúvida estamos à disposição!`;
         if (sigTec) { var ctx = sigTec.getContext('2d'); ctx.clearRect(0,0,sigTec.width,sigTec.height); }
       } catch(e){}
       assinaturaClienteAtual = null;
+      window.assinaturaClienteAtual = null;
       assinaturaTecnicoAtual = null;
+      window.assinaturaTecnicoAtual = null;
       // Select cliente e manual
       if (aClienteSelect) { aClienteSelect.value = ''; }
       if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
@@ -6530,7 +6631,14 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if (btnVerMaps) { btnVerMaps.href = link; btnVerMaps.style.display = 'inline-flex'; }
       showToast('Localização capturada.');
       try { logInfo('Localização GPS capturada', { coordenadas: coord }); } catch(e){}
-    }, err=>{ alert('Não foi possível obter a localização. Verifique se o GPS está ativo e se o navegador tem permissão.'); }, {enableHighAccuracy:true,timeout:8000});
+    }, err=>{
+      // BUG FIX: mensagem específica por código de erro + timeout aumentado para 15s
+      var msg = 'Não foi possível obter a localização.';
+      if (err.code === 1) msg = 'Permissão de localização negada. Verifique as configurações do navegador.';
+      else if (err.code === 2) msg = 'GPS indisponível. Verifique se a localização está ativada no dispositivo.';
+      else if (err.code === 3) msg = 'Tempo limite excedido. Tente novamente em campo aberto.';
+      alert(msg);
+    }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
   });
 
   // 
@@ -6577,6 +6685,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     sigCtx.fillStyle = '#ffffff';
     sigCtx.fillRect(0,0,width,height);
     assinaturaClienteAtual = null;
+      window.assinaturaClienteAtual = null;
     if (sigStatus) sigStatus.textContent = '';
     if (sigNomeWrap) sigNomeWrap.style.display = 'none';
     if (sigNomeCliente) sigNomeCliente.value = '';
@@ -6780,6 +6889,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       btnLimparAssinaturaTec.onclick = ()=>{
         resizeSigTecnicoCanvas();
         assinaturaTecnicoAtual = null;
+      window.assinaturaTecnicoAtual = null;
         if (sigStatusTec) sigStatusTec.textContent = '';
       };
     }
@@ -6800,6 +6910,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const file = ev.target.files && ev.target.files[0];
       if (!file){
         assinaturaTecnicoAtual = null;
+      window.assinaturaTecnicoAtual = null;
         return;
       }
       if (!file.type || !file.type.startsWith('image/')){
@@ -7319,7 +7430,10 @@ function aplicarPermissoesConfiguracoes(){
     const apiKey    = firebaseConfig.apiKey;
     // Firestore REST: lista documentos da coleção ordenados por generatedAt desc
     const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/onlineEsBackups?key=${apiKey}&pageSize=30`;
-    const resp = await fetch(url);
+    // BUG FIX: incluir Bearer token para respeitar regras de auth no Firestore
+    var _bkHeaders = { 'Content-Type': 'application/json' };
+    try { if (window._firebaseAuth && window._firebaseAuth.currentUser) { var _bkTok = await window._firebaseAuth.currentUser.getIdToken(); _bkHeaders['Authorization'] = 'Bearer ' + _bkTok; } } catch(e) {}
+    const resp = await fetch(url, { headers: _bkHeaders });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(err.error && err.error.message ? err.error.message : `HTTP ${resp.status}`);
@@ -7428,7 +7542,10 @@ function aplicarPermissoesConfiguracoes(){
         const projectId = firebaseConfig.projectId;
         const apiKey    = firebaseConfig.apiKey;
         const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/onlineEsBackups/${docId}?key=${apiKey}`;
-        const resp = await fetch(url);
+        // BUG FIX: incluir Bearer token para respeitar regras de auth no Firestore
+        var _rbHeaders = { 'Content-Type': 'application/json' };
+        try { if (window._firebaseAuth && window._firebaseAuth.currentUser) { var _rbTok = await window._firebaseAuth.currentUser.getIdToken(); _rbHeaders['Authorization'] = 'Bearer ' + _rbTok; } } catch(e) {}
+        const resp = await fetch(url, { headers: _rbHeaders });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const json = await resp.json();
         const fields = (json.fields || {});
@@ -8354,12 +8471,17 @@ document.addEventListener('click', function(ev){
       if (typeof saveUsers === 'function'){
         try{ saveUsers(lista); }catch(e){ console.warn('saveUsers falhou:', e); }
       }
+      // BUG FIX: sincroniza status ativo/inativo no Firestore
+      try {
+        var uAtualizado = lista.find(function(x){ return x.username === username; });
+        if (uAtualizado && typeof salvarUsuarioNoFirestore === 'function') salvarUsuarioNoFirestore(uAtualizado);
+      } catch(e) { console.warn('toggle-ativo sync Firestore:', e); }
       if(typeof renderUsuarios === 'function'){
         renderUsuarios();
       }
       if(typeof showToast === 'function'){
         showToast('Status de usuário atualizado.');
-        try { logInfo('Status de usuário alterado', {}); } catch(e){}
+        try { logInfo('Status de usuário alterado', { usuario: username }); } catch(e){}
       }
     }
   }catch(e){
@@ -9798,7 +9920,9 @@ async function fazerLogin(){
           if (cached) return cached;
           return fetch(e.request).then(function(resp) {
             // Cacheia apenas respostas válidas de assets estáticos
-            if (resp && resp.status === 200 && ASSETS.some(function(a){ return url.startsWith(a.split('?')[0]); })) {
+            // BUG FIX: no-cors responses have status=0, not 200 — cache any ok or opaque response for known assets
+            var isKnownAsset = ASSETS.some(function(a){ return url.startsWith(a.split('?')[0]); });
+            if (resp && (resp.status === 200 || resp.type === 'opaque') && isKnownAsset) {
               var clone = resp.clone();
               caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
             }
@@ -9989,10 +10113,23 @@ async function fazerLogin(){
     strip.innerHTML = '';
     countSpan.textContent = '0';
     sendBtn.disabled = true;
+    _sigCamCallback = null; // limpa callback de assinatura ao fechar
   }
 
   // ── Confirmar e enviar fotos ao preview do formulário ─────────
+  // _sigCamCallback: quando definido, o envio vai para a assinatura em vez do preview normal
+  var _sigCamCallback = null;
+
   sendBtn.addEventListener('click', function() {
+    // Modo assinatura: delega para o callback registrado por _abrirModalCameraAssinatura
+    if (typeof _sigCamCallback === 'function') {
+      var cb = _sigCamCallback;
+      _sigCamCallback = null;
+      cb(capturedPhotos.slice());
+      fechar();
+      return;
+    }
+
     var container = document.getElementById(targetPreview);
     if (!container) { fechar(); return; }
 
@@ -10069,6 +10206,21 @@ async function fazerLogin(){
     if (btnEquip)    btnEquip.onclick    = function(){ window._abrirModalCamera('bPreview'); };
     if (btnServico)  btnServico.onclick  = function(){ window._abrirModalCamera('cPreview'); };
     if (btnBaterias) btnBaterias.onclick = function(){ window._abrirModalCamera('dPreview'); };
+
+    // ── Câmera para assinaturas (modo single-shot: envia 1 foto direto para a variável) ──
+    var btnCamAssCli = document.getElementById('btnCameraAssinaturaCliente');
+    var btnCamAssTec = document.getElementById('btnCameraAssinaturaTecnico');
+
+    if (btnCamAssCli) {
+      btnCamAssCli.onclick = function() {
+        window._abrirModalCameraAssinatura('cliente');
+      };
+    }
+    if (btnCamAssTec) {
+      btnCamAssTec.onclick = function() {
+        window._abrirModalCameraAssinatura('tecnico');
+      };
+    }
   }
   if (/complete|interactive/.test(document.readyState)) {
     _bindCameraButtons();
@@ -10082,6 +10234,92 @@ async function fazerLogin(){
       window._abrirModalCamera(previewContainerId);
     } else {
       _abrirCameraFallback(previewContainerId);
+    }
+  };
+
+  // ── Câmera para assinaturas: captura 1 foto e seta direto na variável global ──
+  window._abrirModalCameraAssinatura = function(alvo) {
+    // alvo: 'cliente' ou 'tecnico'
+    var MAX = 5 * 1024 * 1024;
+
+    // Tenta abrir o modal de câmera em modo assinatura
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      // Reutiliza o modal existente com um container temporário oculto
+      var tmpId = '__sigCamTmp_' + alvo;
+      var tmp = document.getElementById(tmpId);
+      if (!tmp) {
+        tmp = document.createElement('div');
+        tmp.id = tmpId;
+        tmp.style.display = 'none';
+        document.body.appendChild(tmp);
+      }
+      tmp.innerHTML = ''; // limpa fotos anteriores
+
+      // Abre o modal normal apontando para o container temporário
+      abrirModalCamera(tmpId);
+
+      // Registra callback para o sendBtn central usar
+      _sigCamCallback = function(photos) {
+        var MAX2 = 5 * 1024 * 1024;
+        var photo = photos && photos[0];
+        if (!photo) return;
+        if (photo.size > MAX2) {
+          if (typeof showToast === 'function') showToast('⚠️ Foto muito grande. Tente novamente.');
+          return;
+        }
+        var dataUrl = photo.dataUrl;
+        if (alvo === 'cliente') {
+          window.assinaturaClienteAtual = dataUrl;
+          var sigStatus = document.getElementById('sigStatus');
+          if (sigStatus) sigStatus.textContent = 'Foto da assinatura do cliente carregada.';
+          var sigNomeWrap = document.getElementById('sigNomeWrap');
+          if (sigNomeWrap) sigNomeWrap.style.display = 'block';
+          var sigNomeCliente = document.getElementById('sigNomeCliente');
+          if (sigNomeCliente && !sigNomeCliente.value) sigNomeCliente.focus();
+        } else {
+          window.assinaturaTecnicoAtual = dataUrl;
+          var sigStatusTec = document.getElementById('sigStatusTec');
+          if (sigStatusTec) sigStatusTec.textContent = 'Foto da assinatura do técnico carregada.';
+        }
+        if (typeof showToast === 'function') showToast('✅ Foto da assinatura carregada!');
+      };
+
+
+    } else {
+      // Fallback: input nativo com capture
+      var inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.setAttribute('capture', 'environment');
+      inp.style.display = 'none';
+      document.body.appendChild(inp);
+      inp.addEventListener('change', function() {
+        var file = inp.files && inp.files[0];
+        document.body.removeChild(inp);
+        if (!file) return;
+        if (file.size > MAX) {
+          if (typeof showToast === 'function') showToast('⚠️ Foto muito grande. Limite: 5MB.');
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var dataUrl = ev.target.result;
+          if (alvo === 'cliente') {
+            window.assinaturaClienteAtual = dataUrl;
+            var sigStatus = document.getElementById('sigStatus');
+            if (sigStatus) sigStatus.textContent = 'Foto da assinatura do cliente carregada.';
+            var sigNomeWrap = document.getElementById('sigNomeWrap');
+            if (sigNomeWrap) sigNomeWrap.style.display = 'block';
+          } else {
+            window.assinaturaTecnicoAtual = dataUrl;
+            var sigStatusTec = document.getElementById('sigStatusTec');
+            if (sigStatusTec) sigStatusTec.textContent = 'Foto da assinatura do técnico carregada.';
+          }
+          if (typeof showToast === 'function') showToast('✅ Foto da assinatura carregada!');
+        };
+        reader.readAsDataURL(file);
+      });
+      inp.click();
     }
   };
 
@@ -10297,6 +10535,15 @@ async function _renderPortal(token){
   if(!rat){
     el.innerHTML='<div class="portal-not-found"><h2><i class="ri-error-warning-line"></i> Relatório não encontrado</h2><p>O link pode ter expirado ou ser inválido.<br>Entre em contato com a ONLINE-ES.</p></div>';
     return;
+  }
+  // BUG FIX: verificar expiração de 30 dias (a mensagem prometia isso mas nunca era verificado)
+  if(rat.portalTokenCriado){
+    var criado=new Date(rat.portalTokenCriado);
+    var limite=new Date(criado.getTime()+30*24*60*60*1000);
+    if(new Date()>limite){
+      el.innerHTML='<div class="portal-not-found"><h2><i class="ri-time-line"></i> Link expirado</h2><p>Este link de acesso ao relatório expirou após 30 dias.<br>Solicite um novo link à ONLINE-ES.</p></div>';
+      return;
+    }
   }
   _registrarVisto(token);
   var sc=_sc(rat.status);
