@@ -2694,9 +2694,9 @@ html[data-role="technician"] nav button {
     const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
     if(!m) return null;
     const [_,dd,MM,yyyy,hh,mm]=m;
-    // BUG FIX: new Date('YYYY-MM-DDTHH:mm:00') já interpreta como hora LOCAL no browser
-    // não subtrair o offset de novo (causava hora duplicada)
-    const d=new Date(`${yyyy}-${MM}-${dd}T${hh}:${mm}:00`);
+    // BUG FIX: usa construtor de data local new Date(y,m,d,h,min) para garantir
+    // que a hora digitada pelo técnico seja preservada independente do fuso do dispositivo.
+    const d = new Date(+yyyy, +MM - 1, +dd, +hh, +mm, 0);
     if(isNaN(d)) return null;
     return d.toISOString();
   }
@@ -2707,11 +2707,12 @@ html[data-role="technician"] nav button {
     return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
   function brDateOnlyToISOdate(s){
+    if(!s) return null;
     const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if(!m) return null;
     const [_,dd,MM,yyyy]=m;
-    // BUG FIX: mesma correção de brToISO — não subtrair offset duas vezes
-    const d=new Date(`${yyyy}-${MM}-${dd}T00:00:00`);
+    // BUG FIX: usa construtor local (igual a brToISO) para evitar variação de TZ entre browsers
+    const d=new Date(+yyyy, +MM-1, +dd, 0, 0, 0);
     if(isNaN(d)) return null;
     return d.toISOString();
   }
@@ -3948,6 +3949,10 @@ function autoFillCamposAtendimento(){
       if (mNovo) mNovo.classList.add('active');
       if (telaNovo) telaNovo.style.display='block';
       if (tituloEl) tituloEl.textContent='Novo Atendimento';
+      // BUG FIX: limpa _ratPreSalvoId sempre que abre tela novo sem estar em modo edição.
+      // Cobre editarRelatorio, btnDuplicarAnterior e supervisor edit que não limpavam o id.
+      // editarRelatorio redefine _editandoRelatorioId no .then() posterior, então é seguro aqui.
+      if (!window._editandoRelatorioId) window._ratPreSalvoId = null;
       ensureNumeroRat();
       popularSelectClientes();
       startRelogioAtendimento();
@@ -3959,7 +3964,9 @@ function autoFillCamposAtendimento(){
   // BUG FIX: expõe mostrarTela globalmente para que scripts externos usem sempre a versão atual
   window.mostrarTela = function(nome){ return mostrarTela(nome); };
 
-  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e)); };
+  // BUG FIX: limpa _ratPreSalvoId ao abrir novo atendimento para evitar que RAT pré-salva
+  // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
+  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e)); };
   mMeus.onclick = ()=>mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mPainel) mPainel.onclick = ()=>mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mCadastros) 
@@ -5359,7 +5366,9 @@ if (logoBase64) {
     try { midBat   = coletarMidiasPreview(document.getElementById('dPreview')); } catch(e){ console.warn('midBat:', e); }
 
     const br = (aDataHoraBR.value||'').trim();
-    const iso = brToISO(br) || new Date(new Date().getTime()-new Date().getTimezoneOffset()*60000).toISOString();
+    // BUG FIX: fallback usa new Date().toISOString() diretamente — o cálculo anterior com
+    // getTimezoneOffset() somava o offset, adiantando a hora. isoToBR() converte para local.
+    const iso = brToISO(br) || new Date().toISOString();
 
     const clienteManualAtivo = aClienteManual.style.display==='block' && aClienteManual.value.trim();
     const clienteNome = clienteManualAtivo ? aClienteManual.value.trim() : aClienteSelect.value;
@@ -5510,7 +5519,8 @@ if (logoBase64) {
   const STORAGE_RASCUNHO = 'online-es-rascunho-v1';
 
   // Salvar
-  btnSalvarLocal.onclick = ()=>{
+  // BUG FIX: handler async para permitir await no upload de fotos antes de salvar
+  btnSalvarLocal.onclick = async ()=>{
     if (!usuarioLogado){ alert('Faça login novamente.'); return; }
     if (!validarObrigatorios()) return;
     ensureNumeroRat();
@@ -5526,6 +5536,18 @@ if (logoBase64) {
       console.error('montarRelatorioAtual falhou:', e);
       showToast('Erro ao montar relatório: ' + e.message);
       return;
+    }
+
+    // BUG FIX: faz upload das imagens para o Storage ANTES de salvar
+    if (typeof _uploadImagensRelatorio === 'function' && navigator.onLine) {
+      try {
+        showLoader('Enviando fotos...');
+        novo = await _uploadImagensRelatorio(novo);
+        hideLoader();
+      } catch(e) {
+        console.warn('Upload fotos falhou, salvo com base64 local:', e);
+        hideLoader();
+      }
     }
 
     // Se estava editando um relatório existente, remove o original agora (ao salvar)
@@ -5989,9 +6011,9 @@ if (logoBase64) {
   async function _gerarESubirPDF(r) {
     // 1) Gera PDF em memória (sem acionar doc.save)
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
-    // Reutiliza a função completa exportarPDF mas captura o blob antes de salvar
-    // Para isso chamamos exportarPDF e logo em seguida pegamos window._lastPdfBase64
-    await exportarPDF(r);                     // já salva localmente E preenche _lastPdfBase64
+    // BUG FIX: usa _somenteMemoria:true para NÃO acionar doc.save() e evitar download indevido
+    const rSilencioso = Object.assign({}, r, { _somenteMemoria: true });
+    await exportarPDF(rSilencioso);
     const b64  = window._lastPdfBase64;
     const nome = window._lastPdfFilename || `relatorio-${r.numero || 'online'}.pdf`;
     if (!b64) throw new Error('PDF não gerado corretamente.');
@@ -6204,6 +6226,8 @@ if (logoBase64) {
       ensureNumeroRat();
       var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
       if (!r){ showToast('Erro ao montar relatório.'); return; }
+      // BUG FIX: preserva o id para que btnSalvarLocal reuse o mesmo id e não crie duplicata
+      window._ratPreSalvoId = r.id;
 
       const numeroRAT    = r.numero || '';
       const nomeEmpresa  = r.cliente || r.clienteManual || '';
@@ -6225,8 +6249,10 @@ if (logoBase64) {
       showLoader('Gerando PDF e subindo link...');
       var pdfUrl = null;
       try {
-        const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 30000));
+        var _timeoutId;
+        const _timeout = new Promise((_,rej) => { _timeoutId = setTimeout(()=>rej(new Error('timeout')), 30000); });
         const res = await Promise.race([ _gerarPdfSilenciosoESubir(r), _timeout ]);
+        clearTimeout(_timeoutId);
         if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
       } catch(e) {
         if (e.message !== 'timeout') console.warn('[E-mail] PDF/upload falhou:', e);
@@ -6280,6 +6306,8 @@ if (logoBase64) {
     if (tel.length <= 11) tel = '55' + tel;
     ensureNumeroRat();
     var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
+    // BUG FIX: preserva o id para que btnSalvarLocal reuse o mesmo id e não crie duplicata
+    window._ratPreSalvoId = r.id;
 
     // Salva o relatório antes de gerar o PDF (garante ID estável no Storage)
     try {
@@ -6296,8 +6324,10 @@ if (logoBase64) {
     showLoader('Gerando PDF para link...');
     var pdfUrl = null;
     try {
-      const _timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 30000));
+      var _timeoutId;
+      const _timeout = new Promise((_,rej) => { _timeoutId = setTimeout(()=>rej(new Error('timeout')), 30000); });
       const res = await Promise.race([ _gerarPdfSilenciosoESubir(r), _timeout ]);
+      clearTimeout(_timeoutId);
       if (res && res.pdfUrl) pdfUrl = res.pdfUrl;
     } catch(e) {
       if (e.message !== 'timeout') console.warn('[WhatsApp] PDF/upload falhou:', e);
@@ -7019,7 +7049,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
           <div>
             <strong>${esc(r.numero)} · ${esc(r.cliente)} ${r.clienteManual?'<span class="inline-badge">Manual</span>':''}</strong>
-            <div><small>${r.dataHoraBr || isoToBR(r.dataHoraIso)}</small></div>
+            <div><small>${esc(r.dataHoraBr || isoToBR(r.dataHoraIso))}</small></div>
             <div><small>Téc.: ${esc(r.tecnico)}</small></div>
             ${r.clienteManual ? `<div><small class="help"><strong>Aviso:</strong> Cliente inserido manualmente pelo técnico. Verifique o cadastro.</small></div>` : ''}
           </div>
@@ -7487,15 +7517,16 @@ function aplicarPermissoesConfiguracoes(){
       html += '<div style="background:#f8fafc;padding:8px 12px;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">BACKUPS DISPONÍVEIS NO BANCO</div>';
 
       backups.forEach(b => {
-        const dataFmt = b.generatedAt || b.id;
+        const dataFmt = esc(b.generatedAt || b.id);
         const geradoPor = b.geradoPor || 'sistema';
-        const ts = b.timestamp ? new Date(b.timestamp).toLocaleString('pt-BR') : dataFmt;
+        // BUG FIX: ts e b.id escapados para evitar injeção de HTML via dados do Firestore
+        const ts = esc(b.timestamp ? new Date(b.timestamp).toLocaleString('pt-BR') : (b.generatedAt || b.id));
         html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid #f1f5f9;gap:8px;">
           <div>
             <div style="font-weight:600;font-size:.85rem;">${dataFmt}</div>
             <div style="font-size:.75rem;color:#64748b;">${ts} · por ${esc(geradoPor)}</div>
           </div>
-          <button class="btn small" data-restore-id="${b.id}"
+          <button class="btn small" data-restore-id="${esc(b.id)}"
             style="background:#dcfce7;color:#15803d;border-color:#bbf7d0;white-space:nowrap;">
             <i class="ri-arrow-go-back-line"></i> Restaurar
           </button>
@@ -8074,7 +8105,15 @@ window.AppStorage = AppStorage;
     });
   }
 
-  function patchShowScreen(){
+  function patchShowScreen(attempts){
+    attempts = attempts || 0;
+    // BUG FIX: só patcha se showScreen já foi definida; caso contrário adia para evitar orig=undefined
+    // Limite de 50 tentativas (~10s) para evitar loop infinito se módulo falhar
+    if (typeof window.showScreen !== 'function') {
+      if (attempts < 50) setTimeout(function(){ patchShowScreen(attempts + 1); }, 200);
+      else console.warn('[RBAC] patchShowScreen: window.showScreen não encontrada após 10s — patch ignorado.');
+      return;
+    }
     const orig = window.showScreen;
     window.showScreen = function(sec){
       try {
@@ -8289,15 +8328,17 @@ async function renderMeus(){
       var spanStatusClass = 'status-ok';
       if(status === 'Concluído com pendência') spanStatusClass = 'status-warn';
       if(status === 'Não concluído') spanStatusClass = 'status-bad';
-      var numEsc = titulo.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      var cliEsc = cliente.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      // BUG FIX: usa window.esc() para escaping completo (proteção contra &, ", ' além de < >)
+      var _e = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+      var numEsc = _e(titulo);
+      var cliEsc = _e(cliente);
       card.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'+
           '<div><strong>'+ numEsc +'</strong><br>'+
           '<span style="font-size:.75rem;color:#1f2937;">'+ cliEsc +'</span></div>'+
-          '<span class="badge-status '+spanStatusClass+'">'+ status +'</span>'+
+          '<span class="badge-status '+spanStatusClass+'">'+ _e(status) +'</span>'+
         '</div>'+
-        '<div style="font-size:.72rem;color:#4b5563;margin-top:4px;">'+ (dataBr || '') +'</div>'+
+        '<div style="font-size:.72rem;color:#4b5563;margin-top:4px;">'+ _e(dataBr || '') +'</div>'+
         '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
           '<button class="btn small" data-meus-ver="'+ r.id +'"><i class="ri-eye-line"></i> Ver</button>'+
           '<button class="btn small" data-meus-editar="'+ r.id +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
@@ -9797,7 +9838,8 @@ async function fazerLogin(){
       } catch(err){ alert('Erro ao enviar e-mail: ' + err.message); }
     });
 
-    // Enviar via WhatsApp
+    // BUG FIX: btnWhatsLocal já tem handler completo registrado pelo script principal (com PDF+upload).
+    // O safety net abaixo só entra se o script principal tiver falhado completamente (onclick ainda null).
     ensureHandler('btnWhatsLocal', function(){
       if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
       var wEl = document.getElementById('aWhats');
