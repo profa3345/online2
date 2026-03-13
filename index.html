@@ -73,6 +73,10 @@
     *{box-sizing:border-box;font-family:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif} /* [B-03] Poppins única fonte */
     body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0f172a 0%,#020617 65%,#0f172a 100%);background-size:140% 140%;animation:bgMove 20s ease-in-out infinite alternate;color:var(--text);display:flex;font-size:.9rem}
     @keyframes bgMove{0%{background-position:0 0}100%{background-position:90% 90%}}
+    @media (prefers-reduced-motion: reduce) {
+      body { animation: none !important; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
     .login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:linear-gradient(135deg,rgba(15,23,42,.9) 0%,rgba(2,6,23,.85) 60%),url("https://images.unsplash.com/photo-1580974928064-7a6776c73da5?q=80&w=1600&auto=format&fit=crop") center/cover no-repeat;z-index:9000}
     .login-screen.hidden{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;z-index:-1!important}
     .login-box{background:#fff;border:1px solid rgba(148,163,184,.25);border-radius:18px;box-shadow:0 22px 70px rgba(15,23,42,.35);max-width:380px;width:100%;padding:22px 22px 20px;text-align:center}
@@ -169,7 +173,9 @@
       max-width:130px;
     }
     .list-relatorios{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
-    @media(max-width:880px){.list-relatorios{max-height:calc(100svh - 240px)}}
+    /* [FIX-SCR1] No mobile remove o scroll interno — a lista flui na página normalmente,
+       evitando o padrão confuso de scroll-dentro-de-scroll */
+    @media(max-width:880px){.list-relatorios{max-height:none;overflow-y:visible;}}
     .relatorio-card{background:rgba(236,252,203,.5)!important;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:5px;color:#0f172a}
     .relatorio-card.visto{border-color:rgba(148,163,184,.9);background:rgba(236,252,203,.85)!important}
     .badge-status{display:inline-block;padding:2px 10px 3px;border-radius:999px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
@@ -213,10 +219,10 @@
     .report-overlay.active{display:flex}
     .report-box{background:#fff;border-radius:14px;max-width:70vw;width:820px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}
     .report-header{display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;padding:6px 10px}
-    .report-body{padding:16px 16px 6px;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;flex:1;color:#0f172a;font-size:1.55rem;line-height:1.28}
-    .report-body h4{margin:0 0 4px;font-size:1.7rem;text-align:center;letter-spacing:.02em}
+    .report-body{padding:16px 16px 6px;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;flex:1;color:#0f172a;font-size:.9rem;line-height:1.5}
+    .report-body h4{margin:0 0 4px;font-size:1.1rem;text-align:center;letter-spacing:.02em}
     .report-body .linha{border-bottom:2px dashed rgba(148,163,184,.4);margin:10px 0 14px}
-    .report-body .campo{margin-bottom:10px;font-size:1.45rem}
+    .report-body .campo{margin-bottom:10px;font-size:.9rem}
     .report-body .rotulo{font-weight:700;color:#0f172a}
     .report-close{background:transparent;border:none;color:#fff;font-size:1.1rem;cursor:pointer;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px}
     .toast{position:fixed;bottom:16px;right:16px;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(17,79,145,.3);border-radius:10px;padding:6px 12px;font-size:.7rem;display:none;z-index:11000}
@@ -290,7 +296,7 @@
       /* Relatório overlay */
       .report-overlay{padding:0}
       .report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0;display:flex;flex-direction:column}
-      .report-body{font-size:1.15rem}
+      .report-body{font-size:.88rem}
       /* Topbar */
       .sidebar-toggle{display:flex!important}
       .topbar{gap:8px;padding:8px 10px}
@@ -608,6 +614,9 @@ html[data-role="technician"] nav button {
     cursor:crosshair;
     touch-action:none;
     display:block;
+    /* [FIX-SIG1] overscroll-behavior evita que o scroll da página seja ativado
+       enquanto o usuário desenha dentro do canvas */
+    overscroll-behavior:none;
   }
 
   /* Ambos os cards de assinatura com o mesmo layout — usando section-card como base */
@@ -620,17 +629,32 @@ html[data-role="technician"] nav button {
     padding:8px 10px 12px;
     box-sizing:border-box;
     width:100%;
+    /* [FIX-SIG1] Contém o comportamento de scroll dentro do card */
+    overscroll-behavior:contain;
   }
-  /* Fix 4: aviso visual que o canvas bloqueia scroll — aparece só no mobile */
+  /* [FIX-SIG1] Hint mais visível com ícone de dedo e borda de destaque no mobile */
   @media (max-width:880px){
+    #assinaturaClienteBox,
+    #assinaturaTecnicoBox{
+      border:2px solid rgba(249,115,22,.35);
+    }
     #assinaturaClienteBox::before,
     #assinaturaTecnicoBox::before{
-      content: '✍️ Toque aqui para assinar — role a página fora desta área';
+      content: '☝️ Para assinar, toque nesta área. Para rolar a página, toque fora dela.';
       display:block;
-      font-size:11px;
-      color:#64748b;
-      margin-bottom:4px;
-      line-height:1.4;
+      font-size:12px;
+      color:#475569;
+      background:rgba(249,115,22,.07);
+      border-radius:6px;
+      padding:5px 8px;
+      margin-bottom:6px;
+      line-height:1.5;
+    }
+    /* Destaca o canvas quando está em foco (após primeiro toque) */
+    #sigCliente:focus,
+    #sigTecnico:focus{
+      outline:2px solid rgba(249,115,22,.6);
+      border-color:rgba(249,115,22,.6);
     }
   }
 
@@ -884,10 +908,10 @@ html[data-role="technician"] nav button {
     </div>
 
     <label>Usuário</label>
-    <input id="loginUsuario" placeholder="admin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60">
+    <input id="loginUsuario" aria-label="Usuário" placeholder="admin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60">
 
     <label>Senha</label>
-    <input id="loginSenha" type="password" placeholder="admin" autocomplete="off" maxlength="128">
+    <input id="loginSenha" aria-label="Senha" type="password" placeholder="admin" autocomplete="off" maxlength="128">
 
     <button class="btn" id="btnEntrar" style="width:100%;justify-content:center;">
       <i class="ri-login-box-line"></i> Entrar
@@ -903,7 +927,7 @@ html[data-role="technician"] nav button {
     <h3>Definir senha</h3>
     <p>Este é seu primeiro acesso. Defina uma senha para este usuário.</p>
     <label>Nova senha</label>
-    <input type="password" id="novaSenha" oninput="atualizarForcaSenha(this.value)" autocomplete="new-password">
+    <input type="password" id="novaSenha" aria-label="Nova senha" oninput="atualizarForcaSenha(this.value)" autocomplete="new-password">
     <div id="forcaSenhaBar" style="margin-top:6px;height:6px;border-radius:4px;background:#e2e8f0;overflow:hidden;">
       <div id="forcaSenhaFill" style="height:100%;width:0%;transition:width .3s,background .3s;"></div>
     </div>
@@ -916,7 +940,7 @@ html[data-role="technician"] nav button {
       <li>Um caractere especial (@, #, !, $, %...)</li>
     </ul>
     <label style="margin-top:6px;">Confirmar senha</label>
-    <input type="password" id="novaSenha2">
+    <input type="password" id="novaSenha2" aria-label="Confirmar nova senha">
     <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
       <button class="btn secondary" id="btnCancelarSenha">Cancelar</button>
       <button class="btn" id="btnSalvarSenha">Salvar senha</button>
@@ -934,7 +958,7 @@ html[data-role="technician"] nav button {
       <strong id="modalDeletarNumero" style="color:#dc2626;font-size:1rem;"></strong>
       <div id="modalDeletarCliente" style="font-size:.82rem;color:#64748b;margin-top:2px;"></div>
     </div>
-    <input type="text" id="inputConfirmarRAT" placeholder="Digite o número da RAT aqui" autocomplete="off"
+    <input type="text" id="inputConfirmarRAT" aria-label="Número da RAT para confirmar exclusão" placeholder="Digite o número da RAT aqui" autocomplete="off"
       style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.9rem;box-sizing:border-box;">
     <div id="msgErroDeletar" style="color:#dc2626;font-size:.78rem;margin-top:4px;min-height:16px;"></div>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
@@ -1030,15 +1054,15 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col" style="max-width:min(320px,100%);">
               <label>Número do Relatório (RAT)</label>
-              <input id="aNumeroRat" readonly tabindex="-1" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:700;background:#e2e8f0;">
+              <input id="aNumeroRat" aria-label="Número do relatório (RAT)" readonly tabindex="-1" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:700;background:#e2e8f0;">
             </div>
             <div class="col">
               <label>Data e hora do atendimento (BR – 24h)</label>
-              <input id="aDataHoraBR" readonly placeholder="dd/mm/aaaa hh:mm" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:600;background:#f8fafc;cursor:not-allowed;">
+              <input id="aDataHoraBR" aria-label="Data e hora do atendimento" readonly placeholder="dd/mm/aaaa hh:mm" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:600;background:#f8fafc;cursor:not-allowed;">
             </div>
             <div class="col">
               <label>Técnico responsável</label>
-              <input id="aTecnico" readonly style="background:#e2e8f0;width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:600;">
+              <input id="aTecnico" aria-label="Técnico responsável" readonly style="background:#e2e8f0;width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:600;">
             </div>
           </div>
 
@@ -1055,20 +1079,20 @@ html[data-role="technician"] nav button {
                   <button class="btn small" id="btnClienteNaoLista"><i class="ri-edit-2-line"></i> Cliente não está na lista</button>
                 </div>
               </div>
-              <input id="aClienteManual" placeholder="Digite o nome da empresa" style="display:none;margin-top:6px;width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aClienteManual" aria-label="Nome do cliente (manual)" placeholder="Digite o nome da empresa" style="display:none;margin-top:6px;width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
               <small id="avisoClienteManual" class="help" style="display:none;">Será marcado como <strong>inserido manualmente</strong> neste relatório.</small>
             </div>
             <div class="col">
               <label>Contato</label>
-              <input id="aContato" autocomplete="name" autocapitalize="words" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aContato" aria-label="Contato do cliente" autocomplete="name" autocapitalize="words" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Telefone</label>
-              <input id="aTelefone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(27) 99999-9999" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aTelefone" aria-label="Telefone do cliente" type="tel" inputmode="tel" autocomplete="tel" placeholder="(27) 99999-9999" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>WhatsApp do cliente</label>
-              <input id="aWhats" type="tel" inputmode="tel" autocomplete="tel" placeholder="(27) 99999-9999" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aWhats" aria-label="WhatsApp do cliente" type="tel" inputmode="tel" autocomplete="tel" placeholder="(27) 99999-9999" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
 
@@ -1081,9 +1105,9 @@ html[data-role="technician"] nav button {
                   <button type="button" class="pill active" id="docToggleCnpj" onclick="setTipoDoc('CNPJ')">CNPJ</button>
                   <button type="button" class="pill" id="docToggleCpf" onclick="setTipoDoc('CPF')">CPF</button>
                 </div>
-                <input type="checkbox" id="chkPessoaFisica" style="display:none;">
+                <input type="checkbox" id="chkPessoaFisica" aria-label="Pessoa física (marque para usar CPF)" style="display:none;">
               </div>
-              <input id="aCnpj"
+              <input id="aCnpj" aria-label="CNPJ ou CPF do cliente"
                      placeholder="00.000.000/0000-00"
                      inputmode="numeric"
                      autocomplete="off"
@@ -1095,31 +1119,31 @@ html[data-role="technician"] nav button {
 
             <div class="col">
               <label>E-mail do cliente</label>
-              <input id="aEmailCliente" type="email" placeholder="contato@cliente.com.br" autocomplete="email" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aEmailCliente" aria-label="E-mail do cliente" type="email" placeholder="contato@cliente.com.br" autocomplete="email" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
 
           <div class="row" style="margin-top:6px;align-items:flex-start;">
             <div class="col">
               <label>Endereço</label>
-              <input id="aEndereco" autocomplete="street-address" autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aEndereco" aria-label="Endereço do cliente" autocomplete="street-address" autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Bairro</label>
-              <input id="aBairro" autocomplete="address-level3" autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aBairro" aria-label="Bairro" autocomplete="address-level3" autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Cidade</label>
-              <input id="aCidade" autocomplete="address-level2" autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="aCidade" aria-label="Cidade" autocomplete="address-level2" autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col" style="display:flex;gap:8px;align-items:flex-end;">
               <div style="flex:2 1 0;min-width:0;">
                 <label>CEP</label>
-                <input id="aCep" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="29000-000" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+                <input id="aCep" aria-label="CEP" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="29000-000" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
               </div>
               <div style="flex:1 1 0;min-width:0;max-width:80px;">
                 <label>UF</label>
-                <input id="aUF" value="ES" autocomplete="address-level1" autocapitalize="characters" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+                <input id="aUF" aria-label="Estado (UF)" value="ES" autocomplete="address-level1" autocapitalize="characters" autocorrect="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
               </div>
             </div>
           </div>
@@ -1127,12 +1151,12 @@ html[data-role="technician"] nav button {
           <div class="row" style="margin-top:6px;align-items:center;">
             <div class="col" style="max-width:min(240px,100%);">
               <label>Coordenadas (GPS)</label>
-              <input id="aCoord" placeholder="-" readonly style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
+              <input id="aCoord" aria-label="Coordenadas GPS" placeholder="-" readonly style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
             </div>
             <div class="col">
               <label>Link para Google Maps</label>
               <div style="display:flex;gap:6px;align-items:center;">
-                <input id="aLinkMaps" placeholder="-" readonly style="flex:1;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
+                <input id="aLinkMaps" aria-label="Link do Google Maps" placeholder="-" readonly style="flex:1;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
                 <a id="btnVerMaps" href="#" target="_blank" rel="noopener"
                    style="display:none;white-space:nowrap;background:#1a73e8;color:#fff;border-radius:10px;padding:7px 10px;font-size:.72rem;font-weight:600;text-decoration:none;align-items:center;gap:4px;min-height:36px;box-sizing:border-box;">
                   <i class="ri-map-pin-2-line"></i> Ver
@@ -1142,7 +1166,7 @@ html[data-role="technician"] nav button {
             <div class="col" style="max-width:min(170px,100%);display:flex;flex-direction:column;">
               <label style="visibility:hidden;">Pegar localização</label>
               <button class="btn" id="btnPegarGps" style="width:100%;justify-content:center;"><i class="ri-map-pin-line"></i> Pegar localização</button>
-              <input type="hidden" id="aLocalizacao">
+              <input type="hidden" id="aLocalizacao" aria-label="Localização ou referência">
             </div>
           </div>
         </div>
@@ -1150,14 +1174,14 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col">
               <label>Foi fornecido algum equipamento de estoque?</label>
-              <select id="aFornecidoEstoque" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <select id="aFornecidoEstoque" aria-label="Equipamento fornecido pelo estoque" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
                 <option value="nao" selected>Não</option>
                 <option value="sim">Sim</option>
               </select>
             </div>
             <div class="col" id="colEquipEstoque" style="display:none;">
               <label>Selecione o equipamento fornecido</label>
-              <select id="aEquipEstoque" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <select id="aEquipEstoque" aria-label="Equipamento do estoque" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
                 <option value="">Selecione...</option>
               </select>
             </div>
@@ -1172,42 +1196,42 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col">
               <label>Equipamento (modelo / marca)</label>
-              <input id="bEquipamento" autocomplete="off" autocorrect="off" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bEquipamento" aria-label="Equipamento atendido" autocomplete="off" autocorrect="off" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Nº de série</label>
-              <input id="bSerie" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bSerie" aria-label="Número de série do equipamento" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Potência / kVA</label>
-              <input id="bKVA" inputmode="decimal" autocorrect="off" autocomplete="off" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bKVA" aria-label="Potência (KVA)" inputmode="decimal" autocorrect="off" autocomplete="off" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Local de instalação</label>
-              <input id="bLocal" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bLocal" aria-label="Local de instalação" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
           <div class="row" style="margin-top:6px;">
             <div class="col">
               <label>Tensão de entrada</label>
-              <input id="bTensaoEntrada" placeholder="Ex: 220 V" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bTensaoEntrada" aria-label="Tensão de entrada" placeholder="Ex: 220 V" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
             <div class="col">
               <label>Tensão de saída</label>
-              <input id="bTensaoSaida" placeholder="Ex: 220 V" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bTensaoSaida" aria-label="Tensão de saída" placeholder="Ex: 220 V" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
           <div class="row" style="margin-top:6px;">
             <div class="col">
               <label>Condição na chegada</label>
-              <input id="bCondicao" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <input id="bCondicao" aria-label="Condição do equipamento" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
             </div>
           </div>
           <div style="margin-top:8px;">
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos do equipamento</label>
             <div class="upload-field">
               <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
-                <input type="file" id="bUploadFotos" accept="image/*,video/*" multiple style="display:none;">
+                <input type="file" id="bUploadFotos" aria-label="Enviar fotos do equipamento" accept="image/*,video/*" multiple style="display:none;">
                 <button type="button" class="btn small" id="btnUploadEquip" onclick="document.getElementById('bUploadFotos').click()" style="flex:1;justify-content:center;"><i class="ri-attachment-line"></i> Arquivo</button>
                 <button type="button" class="btn small camera-btn" id="btnCameraEquip" title="Tirar foto com a câmera" style="flex:1;justify-content:center;"><i class="ri-camera-line"></i> Câmera</button>
               </div>
@@ -1242,28 +1266,28 @@ html[data-role="technician"] nav button {
           <div class="row" style="margin-top:6px;">
             <div class="col">
               <label>Problema informado</label>
-              <textarea id="cProblema" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"></textarea>
+              <textarea id="cProblema" aria-label="Descrição do problema relatado" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"></textarea>
             </div>
           </div>
           <div class="row" style="margin-top:6px;">
             <div class="col">
               <label>Diagnóstico do técnico <span style="color:#dc2626;">*</span></label>
-              <textarea id="cDiagnostico" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"></textarea>
+              <textarea id="cDiagnostico" aria-label="Diagnóstico técnico" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"></textarea>
             </div>
           </div>
           <div style="margin-top:6px;">
             <label>Ações realizadas <span style="color:#dc2626;">*</span></label>
-            <textarea id="cAcoes" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;" placeholder="Ex.: Limpeza interna, troca de ventoinha, reaperto de terminais, troca de baterias..."></textarea>
+            <textarea id="cAcoes" aria-label="Ações realizadas" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;" placeholder="Ex.: Limpeza interna, troca de ventoinha, reaperto de terminais, troca de baterias..."></textarea>
           </div>
           <div style="margin-top:6px;">
             <label>Peças utilizadas</label>
-            <input id="cPecas" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;" placeholder="Ex.: 4 baterias 12V/7Ah, fusível, cabo...">
+            <input id="cPecas" aria-label="Peças utilizadas" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;" placeholder="Ex.: 4 baterias 12V/7Ah, fusível, cabo...">
           </div>
           <div style="margin-top:8px;">
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos / vídeos do serviço</label>
             <div class="upload-field">
               <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
-                <input type="file" id="cUpload" accept="image/*,video/*" multiple style="display:none;">
+                <input type="file" id="cUpload" aria-label="Enviar fotos do serviço" accept="image/*,video/*" multiple style="display:none;">
                 <button type="button" class="btn small" id="btnUploadServico" onclick="document.getElementById('cUpload').click()" style="flex:1;justify-content:center;"><i class="ri-attachment-line"></i> Arquivo</button>
                 <button type="button" class="btn small camera-btn" id="btnCameraServico" title="Tirar foto com a câmera" style="flex:1;justify-content:center;"><i class="ri-camera-line"></i> Câmera</button>
               </div>
@@ -1278,14 +1302,14 @@ html[data-role="technician"] nav button {
           <div class="row">
   <div class="col">
     <label>Quantidade de baterias</label>
-    <input id="dBatQtd" type="number" min="0" inputmode="numeric" autocomplete="off"
+    <input id="dBatQtd" aria-label="Quantidade de baterias" type="number" min="0" inputmode="numeric" autocomplete="off"
       style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);
       border-radius:12px;color:#0f172a;font-weight:500;">
   </div>
 
   <div class="col">
     <label>Tensão</label>
-    <input id="dBatTensao"
+    <input id="dBatTensao" aria-label="Tensão das baterias"
       placeholder="Ex: 12V"
       inputmode="decimal"
       autocomplete="off"
@@ -1299,7 +1323,7 @@ html[data-role="technician"] nav button {
 <div class="row" style="margin-top:6px;">
   <div class="col">
     <label>Observações</label>
-    <textarea id="dObs" rows="3"
+    <textarea id="dObs" aria-label="Observações sobre baterias" rows="3"
       style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);
       border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"
       placeholder="Ex.: estado geral das baterias, medições, recomendações, pendências, orientações ao cliente..."></textarea>
@@ -1312,7 +1336,7 @@ html[data-role="technician"] nav button {
             <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos / Vídeos das baterias</label>
             <div class="upload-field" style="margin-top:4px;">
               <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
-                <input type="file" id="dUpload" multiple accept="image/*,video/*" style="display:none;">
+                <input type="file" id="dUpload" aria-label="Enviar fotos das baterias" multiple accept="image/*,video/*" style="display:none;">
                 <button type="button" class="btn small" id="btnUploadBaterias" onclick="document.getElementById('dUpload').click()" style="flex:1;justify-content:center;"><i class="ri-attachment-line"></i> Arquivo</button>
                 <button type="button" class="btn small camera-btn" id="btnCamerasBaterias" title="Tirar foto com a câmera" style="flex:1;justify-content:center;"><i class="ri-camera-line"></i> Câmera</button>
               </div>
@@ -1350,7 +1374,7 @@ html[data-role="technician"] nav button {
               Ou enviar imagem da assinatura do cliente
             </label>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <input type="file" id="sigClienteUpload" accept="image/png,image/jpeg,image/webp" style="display:none;">
+              <input type="file" id="sigClienteUpload" aria-label="Enviar imagem de assinatura do cliente" accept="image/png,image/jpeg,image/webp" style="display:none;">
               <button type="button" class="btn small" id="btnUploadLabelCliente" title="Selecionar arquivo" onclick="document.getElementById('sigClienteUpload').click()">
                 <i class="ri-upload-2-line"></i> Upload
               </button>
@@ -1369,7 +1393,7 @@ html[data-role="technician"] nav button {
               Nome completo do cliente
             </label>
             <input
-              id="sigNomeCliente"
+              id="sigNomeCliente" aria-label="Nome do cliente para assinatura"
               type="text"
               placeholder="Digite o nome completo do cliente"
               style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);
@@ -1412,7 +1436,7 @@ html[data-role="technician"] nav button {
               Ou enviar imagem da assinatura do técnico
             </label>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <input type="file" id="sigTecnicoUpload" accept="image/png,image/jpeg,image/webp" style="display:none;">
+              <input type="file" id="sigTecnicoUpload" aria-label="Enviar imagem de assinatura do técnico" accept="image/png,image/jpeg,image/webp" style="display:none;">
               <button type="button" class="btn small" id="btnUploadLabelTecnico" title="Selecionar arquivo" onclick="document.getElementById('sigTecnicoUpload').click()">
                 <i class="ri-upload-2-line"></i> Upload
               </button>
@@ -1456,9 +1480,14 @@ html[data-role="technician"] nav button {
       <!-- MEUS ATENDIMENTOS -->
       <section id="telaMeus" class="panel" style="display:none;">
         <p style="font-size:.82rem;color:#94a3b8;margin:0 0 10px 0;">Relatórios feitos por você neste dispositivo.</p>
+        <!-- [UX-4] Dica para técnico sobre exclusão de RATs -->
+        <p id="dicaExclusaoTecnico" style="font-size:.75rem;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;margin:0 0 10px 0;display:none;">
+          <i class="ri-information-line" style="color:#3b82f6;"></i>
+          Para <strong>excluir</strong> um relatório, solicite ao seu supervisor ou administrador.
+        </p>
         <!-- [V-05] Campo de busca para filtrar RATs por cliente, número ou equipamento -->
         <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
-          <input id="meusBusca" type="search" inputmode="search" placeholder="🔍 Buscar por cliente, Nº RAT, equipamento..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+          <input id="meusBusca" aria-label="Buscar nos meus atendimentos" type="search" inputmode="search" placeholder="🔍 Buscar por cliente, Nº RAT, equipamento..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
             style="flex:1;padding:9px 12px;border:1px solid rgba(148,163,184,.35);border-radius:12px;font-size:.85rem;color:#0f172a;background:#f8fafc;min-height:44px;box-sizing:border-box;">
           <button id="meusBuscaLimpar" title="Limpar busca" style="display:none;padding:9px 13px;border:1px solid rgba(148,163,184,.35);border-radius:12px;background:#f1f5f9;color:#475569;cursor:pointer;font-size:.85rem;min-height:44px;white-space:nowrap;flex-shrink:0;">✕ Limpar</button>
         </div>
@@ -1509,15 +1538,15 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>De (dd/mm/aaaa)</label>
-              <input id="buscaDataIni" placeholder="01/01/2025" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="buscaDataIni" aria-label="Data inicial do filtro" placeholder="01/01/2025" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Até (dd/mm/aaaa)</label>
-              <input id="buscaDataFim" placeholder="31/12/2025" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="buscaDataFim" aria-label="Data final do filtro" placeholder="31/12/2025" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col" id="buscaTecnicoWrap" style="display:none;">
               <label>Técnico</label>
-              <select id="buscaTecnico" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;"></select>
+              <select id="buscaTecnico" aria-label="Filtrar por técnico" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;"></select>
             </div>
             <div class="col" id="buscaEmpresaWrap" style="display:none;">
               <label>Empresa</label>
@@ -1539,16 +1568,16 @@ html[data-role="technician"] nav button {
           </div>
           <div class="row" style="gap:6px;margin-bottom:6px;width:100%;box-sizing:border-box;">
             <div class="col" style="min-width:0;flex:1 1 0;">
-              <input id="filtroTexto" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:1rem;">
+              <input id="filtroTexto" aria-label="Busca livre nos relatórios" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:1rem;">
             </div>
             <div class="col" style="display:flex;gap:6px;min-width:0;flex:0 1 auto;max-width:min(250px,100%);">
-              <select id="filtroStatus" style="width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:9px 12px;color:#0f172a;font-size:1rem;">
+              <select id="filtroStatus" aria-label="Filtrar por status" style="width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:9px 12px;color:#0f172a;font-size:1rem;">
                 <option value="">Status (todos)</option>
                 <option value="Concluído">Concluído</option>
                 <option value="Concluído com pendência">Concluído com pendência</option>
                 <option value="Não concluído">Não concluído</option>
               </select>
-              <button class="btn small" id="btnLimparFiltro"><i class="ri-eraser-line"></i></button>
+              <button class="btn small" id="btnLimparFiltro" aria-label="Limpar filtro"><i class="ri-eraser-line"></i></button>
             </div>
           </div>
           <div class="list-relatorios" id="listaRelatorios">
@@ -1566,38 +1595,38 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col">
               <label>Nome da empresa</label>
-              <input id="novoClienteNome" placeholder="Ex.: CESAN, Loja X..." style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteNome" aria-label="Nome do novo cliente" placeholder="Ex.: CESAN, Loja X..." style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>CNPJ do cliente <span style="color:#dc2626;">*</span></label>
-              <input id="novoClienteCnpj" placeholder="00.000.000/0000-00" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteCnpj" aria-label="CNPJ do novo cliente" placeholder="00.000.000/0000-00" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Telefone</label>
-              <input id="novoClienteTelefone" placeholder="(27) 99999-0000" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteTelefone" aria-label="Telefone do novo cliente" placeholder="(27) 99999-0000" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col" style="max-width:min(140px,100%);">
               <label>CEP</label>
-              <input id="novoClienteCep" placeholder="29000-000" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteCep" aria-label="CEP do novo cliente" placeholder="29000-000" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
           </div>
 
           <div class="row" style="margin-top:6px;">
             <div class="col">
               <label>Endereço</label>
-              <input id="novoClienteEndereco" placeholder="Rua / Avenida" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteEndereco" aria-label="Endereço do novo cliente" placeholder="Rua / Avenida" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Bairro</label>
-              <input id="novoClienteBairro" placeholder="Bairro" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteBairro" aria-label="Bairro do novo cliente" placeholder="Bairro" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Cidade</label>
-              <input id="novoClienteCidade" placeholder="Vitória" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="novoClienteCidade" aria-label="Cidade do novo cliente" placeholder="Vitória" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col" style="max-width:min(90px,100%);">
               <label>UF</label>
-              <input id="novoClienteUF" placeholder="ES" maxlength="2" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;text-transform:uppercase;">
+              <input id="novoClienteUF" aria-label="Estado (UF) do novo cliente" placeholder="ES" maxlength="2" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;text-transform:uppercase;">
             </div>
             <div class="col" style="display:flex;align-items:flex-end;">
               <button class="btn" id="btnAddCliente"><i class="ri-building-line"></i> Adicionar cliente</button>
@@ -1634,41 +1663,41 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col">
               <label>Tipo de equipamento</label>
-              <input id="eqTipo" placeholder="Ex.: Nobreak, Câmera, DVR, Alarme" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqTipo" aria-label="Tipo do equipamento" placeholder="Ex.: Nobreak, Câmera, DVR, Alarme" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Marca</label>
-              <input id="eqMarca" placeholder="Ex.: Intelbras, SMS, APC" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqMarca" aria-label="Marca do equipamento" placeholder="Ex.: Intelbras, SMS, APC" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Modelo</label>
-              <input id="eqModelo" placeholder="Ex.: XNB 2000" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqModelo" aria-label="Modelo do equipamento" placeholder="Ex.: XNB 2000" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
           </div>
 
           <div class="row">
             <div class="col">
               <label>Nº de série</label>
-              <input id="eqSerie" placeholder="SN123456" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqSerie" aria-label="Número de série" placeholder="SN123456" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Potência / kVA (opcional)</label>
-              <input id="eqKva" placeholder="Ex.: 1.5 kVA" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqKva" aria-label="Potência (KVA)" placeholder="Ex.: 1.5 kVA" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Local padrão de instalação (opcional)</label>
-              <input id="eqLocal" placeholder="Ex.: Sala de servidores" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqLocal" aria-label="Local de instalação" placeholder="Ex.: Sala de servidores" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
           </div>
 
           <div class="row">
             <div class="col">
               <label>Observações</label>
-              <input id="eqObs" placeholder="Ex.: Equipamento novo, em garantia" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqObs" aria-label="Observações do equipamento" placeholder="Ex.: Equipamento novo, em garantia" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col">
               <label>Quantidade em estoque (opcional)</label>
-              <input id="eqEstoque" type="number" min="0" step="1" value="1" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="eqEstoque" aria-label="Equipamento em estoque" type="number" min="0" step="1" value="1" style="width:100%;border:1px solid rgba(148,163,184,.6);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
             <div class="col" style="display:flex;align-items:flex-end;">
               <button class="btn" id="btnAddEquipamento"><i class="ri-cpu-line"></i> Adicionar equipamento</button>
@@ -1706,12 +1735,12 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col">
               <label>Nome completo</label>
-              <input id="uNome" placeholder="Ex.: João da Silva" maxlength="100" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="uNome" aria-label="Nome completo do usuário" placeholder="Ex.: João da Silva" maxlength="100" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
 
             <div class="col">
               <label>Usuário (login)</label>
-              <input id="uLogin" placeholder="Ex.: joao.silva" maxlength="60" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="uLogin" aria-label="Login do usuário" placeholder="Ex.: joao.silva" maxlength="60" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
 
             <div class="col">
@@ -1761,7 +1790,7 @@ html[data-role="technician"] nav button {
             <button class="btn small" id="btnListarBackups" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="ri-database-2-line"></i> Restaurar do Banco</button>
             <label class="btn small" id="btnRestaurarWrap" style="display:none;cursor:pointer;">
               <i class="ri-upload-2-line"></i> Restaurar backup
-              <input type="file" id="inputRestore" accept="application/json" style="display:none">
+              <input type="file" id="inputRestore" aria-label="Arquivo de backup para restaurar" accept="application/json" style="display:none">
             </label>
           </div>
           <div id="listaBackupsFirebase" style="display:none;margin-top:12px;"></div>
@@ -1775,7 +1804,7 @@ html[data-role="technician"] nav button {
           <div class="row" style="align-items:flex-start;gap:10px;">
             <div class="col" style="max-width:min(300px,100%);">
               <label>Selecionar imagem (PNG/JPG)</label>
-              <input type="file" id="inputLogoFile" accept="image/*" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;">
+              <input type="file" id="inputLogoFile" aria-label="Arquivo de logo da empresa" accept="image/*" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;">
               <small class="help">A imagem será salva localmente e usada automaticamente na geração do PDF.</small>
             </div>
             <div class="col" style="max-width:min(150px,100%);">
@@ -1826,12 +1855,12 @@ html[data-role="technician"] nav button {
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;margin-bottom:14px;">
             <div>
               <label style="display:block;font-size:.72rem;font-weight:600;color:#334155;margin-bottom:4px;">De (dd/mm/aaaa)</label>
-              <input id="auditDataIni" placeholder="01/01/2025"
+              <input id="auditDataIni" aria-label="Data inicial da auditoria" placeholder="01/01/2025"
                      style="width:100%;border:1px solid rgba(148,163,184,.4);border-radius:10px;padding:7px 10px;color:#0f172a;background:#fff;font-size:.82rem;">
             </div>
             <div>
               <label style="display:block;font-size:.72rem;font-weight:600;color:#334155;margin-bottom:4px;">Até (dd/mm/aaaa)</label>
-              <input id="auditDataFim" placeholder="31/12/2025"
+              <input id="auditDataFim" aria-label="Data final da auditoria" placeholder="31/12/2025"
                      style="width:100%;border:1px solid rgba(148,163,184,.4);border-radius:10px;padding:7px 10px;color:#0f172a;background:#fff;font-size:.82rem;">
             </div>
             <div>
@@ -1843,7 +1872,7 @@ html[data-role="technician"] nav button {
             </div>
             <div>
               <label style="display:block;font-size:.72rem;font-weight:600;color:#334155;margin-bottom:4px;">Busca livre</label>
-              <input id="auditFiltroTexto" placeholder="ação, mensagem, detalhe..."
+              <input id="auditFiltroTexto" aria-label="Busca na auditoria" placeholder="ação, mensagem, detalhe..."
                      style="width:100%;border:1px solid rgba(148,163,184,.4);border-radius:10px;padding:7px 10px;color:#0f172a;background:#fff;font-size:.82rem;">
             </div>
             <div style="display:flex;gap:6px;align-items:end;padding-bottom:1px;">
@@ -1893,7 +1922,7 @@ html[data-role="technician"] nav button {
       <h3 id="reportTitle">Relatório técnico</h3>
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="btn small" id="btnVerPortalModal" title="Abrir visualização do cliente" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;display:none;"><i class="ri-eye-line"></i> Ver portal</button>
-        <button class="report-close" id="btnCloseReport"><i class="ri-close-line"></i></button>
+        <button class="report-close" id="btnCloseReport" aria-label="Fechar relatório"><i class="ri-close-line"></i></button>
       </div>
     </div>
     <div class="report-body" id="reportBody"></div>
@@ -1910,7 +1939,7 @@ html[data-role="technician"] nav button {
   </div>
 </div>
 
-<div class="toast" id="toast" style="display:none;">Mensagem</div>
+<div class="toast" id="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display:none;">Mensagem</div>
 
 <script>
   // SEGURANÇA: Redireciona para HTTPS se acessado via HTTP (exceto localhost/file)
@@ -1946,6 +1975,14 @@ html[data-role="technician"] nav button {
   const AUTH_DOMAIN = 'onlinees.local'; // Domínio usado no Firebase Auth
   window.AUTH_DOMAIN    = AUTH_DOMAIN;
   window.STORAGE_USERS  = STORAGE_USERS;
+  // [SEC-NOTE] A Firebase API Key abaixo é visível no código-fonte (single-file app sem bundler).
+  // Isso é ESPERADO para apps Firebase client-side — a proteção real são as Firestore Security Rules.
+  // AÇÕES OBRIGATÓRIAS para proteger o projeto:
+  //   1. Firebase Console > Authentication > Settings > "Authorized domains" — listar APENAS seu domínio.
+  //   2. Firebase Console > Firestore > Rules — manter RBAC configurado (admin/supervisor/tecnico).
+  //   3. Google Cloud Console > APIs & Services > Credentials — restringir esta API key
+  //      a HTTP referrers (seu domínio) para bloquear uso externo.
+  //   4. Monitorar Firebase Console > Usage and billing para detectar uso anômalo.
   const FIREBASE_API_KEY = 'AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8';
   async function criarUsuarioFirebaseREST(email, senha, _tentativa) {
     _tentativa = _tentativa || 0;
@@ -2094,15 +2131,29 @@ html[data-role="technician"] nav button {
       db = firebase.firestore();
       window._getDb = function() { return db; };
 
+      // Configura cache offline + multi-aba usando a nova API (SDK ≥ 10.x)
+      // com fallback para enablePersistence (SDK < 10) para evitar o warning de deprecação.
       try {
-        db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
-      } catch(eSettings) {}
-
-      db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
-        if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
-          console.warn('Persistência Firestore desativada:', err.code || err.message);
-        }
-      });
+        // Nova API: FirestoreSettings.cache (sem warning)
+        db.settings({
+          experimentalAutoDetectLongPolling: true,
+          merge: true,
+          cache: {
+            kind: 'persistent',          // equivale a enableMultiTabIndexedDbPersistence
+            tabManager: { kind: 'multiTab' }
+          }
+        });
+      } catch(eSettings) {
+        // SDK mais antigo que não suporta cache nas settings — usa enablePersistence legado
+        try {
+          db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+          db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+            if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+              console.warn('Persistência Firestore desativada:', err.code || err.message);
+            }
+          });
+        } catch(eFallback) {}
+      }
 
       // Firebase Storage
       try {
@@ -2483,7 +2534,7 @@ html[data-role="technician"] nav button {
       if (_isTecnico && _uLogin.username) {
         _colQuery = _colQuery.where('tecnicoLogin', '==', _uLogin.username);
       }
-      window._relatoriosListener = _colQuery.limit(200).onSnapshot(function(snap) {
+      window._relatoriosListener = _colQuery.limit(500).onSnapshot(function(snap) {
           if (snap.empty) return;
           var novos = [];
           snap.forEach(function(doc) {
@@ -2496,18 +2547,29 @@ html[data-role="technician"] nav button {
           var locais = (typeof loadRelatorios === 'function' ? loadRelatorios() : window.relatorios) || [];
           var mapa = new Map();
           locais.forEach(function(r){ if(r.id||r.numero) mapa.set(String(r.id||r.numero), r); });
-          // BUG FIX: ao aplicar dados do Firestore, preserva imagens/assinaturas locais quando
-          // o Firestore tem '[local]' (placeholder de upload falho) — evita perder base64 local.
+          // [ARCH-1] Reconciliação determinística: RAT editada offline (editadoEm mais recente) prevalece
+          // sobre versão do Firestore, evitando que edições offline sejam sobrescritas ao reconectar.
           var _camposImg = ['imgsEquip','imgsServico','imgsBaterias','vidsEquip','vidsServico','vidsBaterias','assinaturaCliente','assinaturaTecnicoImg'];
           novos.forEach(function(rNovo){
             var key = String(rNovo.id||rNovo.numero||rNovo._firestoreId);
             var rLocal = mapa.get(key);
             if (rLocal) {
               var merged = Object.assign({}, rNovo);
+              // Se a versão local foi editada mais recentemente (offline), usa os campos de texto locais
+              var tsNovo  = rNovo.editadoEm  || rNovo.criadoEm  || rNovo.dataHoraIso || '';
+              var tsLocal = rLocal.editadoEm || rLocal.criadoEm || rLocal.dataHoraIso || '';
+              if (tsLocal && tsNovo && tsLocal > tsNovo) {
+                // Local é mais recente: usa campos de texto do local, mas mantém metadados do Firestore
+                var _camposTexto = ['cliente','clienteManual','contato','telefone','whatsapp','emailCliente',
+                  'endereco','bairro','cidade','uf','cep','cnpjCliente','equipamento','serie','kva',
+                  'localInstalacao','condicao','tensaoEntrada','tensaoSaida','tipo','status','problema',
+                  'diagnostico','acoes','pecas','bateriasQtd','bateriasTensao','bateriasObs','nomeAssinaturaCliente',
+                  'editadoPor','editadoEm','criadoPor','criadoEm','historicoEdicoes'];
+                _camposTexto.forEach(function(k){ if (rLocal[k] !== undefined) merged[k] = rLocal[k]; });
+              }
               _camposImg.forEach(function(k) {
                 var vNovo = rNovo[k], vLocal = rLocal[k];
                 if (Array.isArray(vNovo) && Array.isArray(vLocal)) {
-                  // Se Firestore só tem '[local]', usa o array local que pode ter base64
                   var tudoLocal = vNovo.every(function(v){ return v === '[local]'; });
                   if (tudoLocal && vLocal.length) merged[k] = vLocal;
                 } else if ((vNovo === '[local]' || !vNovo) && vLocal) {
@@ -2563,9 +2625,21 @@ html[data-role="technician"] nav button {
               }
             });
           }
-          // Re-renderiza se painel estiver visível
-          try { if (typeof renderLista === 'function') renderLista(); } catch(e){}
-          try { if (typeof atualizarDashboard === 'function') atualizarDashboard(); } catch(e){}
+          // Aviso proativo quando próximo do limite de paginação (>=400 de 500)
+          if (novos.length >= 400) {
+            console.warn('[onSnapshot] ' + novos.length + ' RATs carregadas. Considere ativar paginação com startAfter().');
+            if (novos.length >= 490) {
+              try { if (typeof showToast === 'function') showToast('⚠️ Muitos relatórios carregados (' + novos.length + '). Fale com o administrador para arquivar RATs antigas.', 8000); } catch(e){}
+            }
+          }
+          // [ARCH-2] Re-renders debounced: evita jank em dispositivos lentos com muitos snapshots rápidos
+          if (!window._renderDebounceTimer) {
+            window._renderDebounceTimer = setTimeout(function() {
+              window._renderDebounceTimer = null;
+              try { if (typeof renderLista === 'function') renderLista(); } catch(e){}
+              try { if (typeof atualizarDashboard === 'function') atualizarDashboard(); } catch(e){}
+            }, 200);
+          }
         }, function(err) {
           console.warn('onSnapshot relatorios erro:', err.message);
           window._relatoriosListener = null;
@@ -2850,16 +2924,37 @@ html[data-role="technician"] nav button {
   }
 
   // Verifica senha: tenta PBKDF2 se tem salt, senão SHA-256 legado
+  // [FIX-SEC1] Após verificação bem-sucedida com hash legado (sem salt),
+  // faz upgrade automático para PBKDF2 — sem interromper o login do usuário.
   async function verifyPassword(plain, storedHash, userObj) {
     if (!plain || !storedHash) return false;
-    // Com salt (PBKDF2)
+    // Com salt (PBKDF2) — caminho normal
     if (userObj && userObj._salt) {
       const h = await hashPasswordPBKDF2(plain, userObj._salt);
       return _safeEqual(h, storedHash);
     }
     // SHA-256 legado
     const h = await hashPasswordSHA256(plain);
-    if (_safeEqual(h, storedHash)) return true;
+    if (_safeEqual(h, storedHash)) {
+      // [FIX-SEC1] Faz upgrade silencioso: regrava a senha com PBKDF2+salt
+      if (userObj) {
+        try {
+          const { hash: newHash, salt: newSalt } = await createSecureHash(plain);
+          userObj.password = newHash;
+          userObj._salt = newSalt;
+          // Persiste o upgrade na lista de usuários
+          const lista = window.usuarios || [];
+          const idx = lista.findIndex(function(u){ return u.username === userObj.username; });
+          if (idx !== -1) lista[idx] = Object.assign({}, lista[idx], { password: newHash, _salt: newSalt });
+          if (typeof saveUsers === 'function') saveUsers(lista);
+          if (typeof salvarUsuarioNoFirestore === 'function') salvarUsuarioNoFirestore(Object.assign({}, userObj, { password: newHash, _salt: newSalt }));
+          console.log('[SEC] Senha de "' + userObj.username + '" migrada de SHA-256 para PBKDF2.');
+        } catch(eUpgrade) {
+          console.warn('[SEC] Falha ao migrar senha para PBKDF2:', eUpgrade);
+        }
+      }
+      return true;
+    }
     // Fallback: tenta PBKDF2 sem salt (caso tenha sido salvo errado)
     return false;
   }
@@ -2929,25 +3024,44 @@ html[data-role="technician"] nav button {
     const d=new Date();
     return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
+
+  // [FIX-TZ1] Armazena a data/hora digitada pelo técnico com offset do fuso local,
+  // não em UTC. Isso garante que dispositivos em fusos diferentes (ex: servidor UTC,
+  // técnico em UTC-3) exibam exatamente a hora que foi digitada.
+  // Formato gerado: "2025-03-15T14:30:00-03:00" (ISO 8601 com offset)
+  function _localOffset(){
+    const off = new Date().getTimezoneOffset(); // minutos, negativo para UTC+
+    const sign = off <= 0 ? '+' : '-';
+    const abs = Math.abs(off);
+    return sign + pad(Math.floor(abs/60)) + ':' + pad(abs%60);
+  }
   function brToISO(s){
     if(!s) return null;
     const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
     if(!m) return null;
     const [_,dd,MM,yyyy,hh,mm]=m;
-    // BUG FIX: usa construtor de data local new Date(y,m,d,h,min) para garantir
-    // que a hora digitada pelo técnico seja preservada independente do fuso do dispositivo.
-    const d = new Date(+yyyy, +MM - 1, +dd, +hh, +mm, 0);
-    if(isNaN(d)) return null;
-    return d.toISOString();
+    // [FIX-TZ1] Gera string ISO com offset local — não converte para UTC
+    // Ex: "2025-03-15T14:30:00-03:00" em vez de "2025-03-15T17:30:00.000Z"
+    return `${yyyy}-${MM}-${dd}T${hh}:${mm}:00${_localOffset()}`;
   }
   function isoToBR(iso){
-    if(!iso) return '';
-    const d = new Date(iso);
-    if(isNaN(d)) return '';
-    // BUG FIX: brToISO grava datas usando construtor local (new Date(y,m,d,h,min)),
-    // portanto isoToBR deve exibir usando getHours/getDate locais para manter consistência
-    // no mesmo fuso — evita +3h ao exibir o que foi digitado.
-    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    // [FIX-BUG5] Trata null/undefined/string vazia — nunca retorna "Invalid Date"
+    if(iso == null || iso === '') return '';
+    const s = String(iso).trim();
+    if(!s) return '';
+    // [FIX-TZ1] Se a string já tem offset (ex: "2025-03-15T14:30:00-03:00"),
+    // extrai componentes diretamente sem converter fuso — preserva hora original.
+    const mOffset = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if(mOffset){
+      const [,yyyy,MM,dd,hh,mm]=mOffset;
+      return `${dd}/${MM}/${yyyy} ${hh}:${mm}`;
+    }
+    // Fallback para strings UTC legadas (sem offset) — usa local para consistência
+    try {
+      const d = new Date(s);
+      if(isNaN(d.getTime())) return '';
+      return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch(e) { return ''; }
   }
   function brDateOnlyToISOdate(s){
     if(!s) return null;
@@ -3024,17 +3138,33 @@ function loadUsers(){
     // Se o campo password é um hash longo (>20 chars) mas NÃO tem _salt,
     // o hash é inválido (veio do Firestore como _passwordHash sem salt correspondente).
     // Reseta para texto plano e força redefinição.
+    // [FIX-SEC2] Também detecta hashes SHA-256 legados (64 chars hex sem salt) e
+    // marca mustChangePassword=true — o upgrade real para PBKDF2 ocorre em verifyPassword()
+    // no próximo login bem-sucedido, sem interromper o acesso do usuário.
     lista.forEach(x => {
       if (!x || !x.password) return;
       var pw = String(x.password);
       // Se tem _salt, é um hash PBKDF2 válido - não mexe
       if (x._salt) return;
-      // Se é curta (<= 20 chars), provavelmente é texto plano - OK
+      // Se é curta (<= 20 chars), provavelmente é texto plano - OK (ex: senha provisória)
       if (pw.length <= 20) return;
-      // Hash longo sem salt = corrompido (veio do Firestore)
-      x.password = '';
-      x._salt = '';
-      x.mustChangePassword = true;
+      // Hash longo sem salt:
+      // - 64 chars hex = SHA-256 legado => mantém senha para login mas agenda upgrade
+      // - Qualquer outro comprimento = corrompido (veio do Firestore) => força reset
+      var isSHA256 = /^[0-9a-f]{64}$/.test(pw);
+      if (isSHA256) {
+        // [FIX-SEC2] Hash SHA-256 sem salt — funciona para login mas é fraco.
+        // verifyPassword() fará o upgrade para PBKDF2 no próximo login.
+        // Não força reset de senha, mas registra para auditoria.
+        if (!x._legacyHash) {
+          x._legacyHash = true; // flag para auditoria — removida após upgrade
+        }
+      } else {
+        // Hash corrompido — força redefinição
+        x.password = '';
+        x._salt = '';
+        x.mustChangePassword = true;
+      }
     });
 
     // SEGURANÇA: Remove o usuário 'teste' (seed inseguro) caso ainda exista no localStorage
@@ -3084,7 +3214,12 @@ function saveUsers(lista){
       var dados = JSON.stringify(list);
       // Verifica tamanho — localStorage tem limite ~5MB
       if (dados.length > 4 * 1024 * 1024) {
-        // Remove base64 das fotos para economizar espaço (URLs do Storage são curtas)
+        // [FIX-ST1] Avisa o usuário ANTES de comprimir — fotos serão perdidas localmente
+        // (ainda ficam no Firebase Storage se foram enviadas online)
+        if(typeof showToast === 'function'){
+          showToast('⚠️ Armazenamento local quase cheio. Fotos removidas do cache local — dados no servidor estão preservados.', 5000);
+        }
+        console.warn('localStorage: relatórios compactados (base64 removido) para economizar espaço.');
         var compacto = list.map(function(r) {
           var rc = Object.assign({}, r);
           ['imgsEquip','imgsServico','imgsBaterias'].forEach(function(k) {
@@ -3097,7 +3232,6 @@ function saveUsers(lista){
           return rc;
         });
         dados = JSON.stringify(compacto);
-        console.warn('localStorage: relatórios compactados (base64 removido) para economizar espaço.');
       }
       localStorage.setItem(STORAGE_REPORTS, dados);
     } catch(e) {
@@ -3531,7 +3665,18 @@ function autoFillCamposAtendimento(){
   const btnExecutarBusca = document.getElementById('btnExecutarBusca');
   const listaBusca = document.getElementById('listaBusca');
 
-  function showToast(msg, duration){ toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=>toast.style.display='none', duration || 2700); }
+  // [FIX-A11Y] Toast com suporte a leitores de tela via aria-live="assertive"
+  // Para que o leitor de tela anuncie novamente a mesma mensagem, o conteúdo
+  // precisa ser limpo primeiro (DOM diff) e depois repopulado.
+  function showToast(msg, duration){
+    toast.textContent = ''; // reset para forçar re-anúncio quando msg é igual à anterior
+    requestAnimationFrame(function(){
+      toast.textContent = msg;
+      toast.style.display = 'block';
+    });
+    clearTimeout(toast._toastTimer);
+    toast._toastTimer = setTimeout(function(){ toast.style.display='none'; }, duration || 2700);
+  }
 
   // [X-03] showConfirm — substitui confirm() nativo (bloqueante, suprimido em PWA standalone iOS/Android).
   // Retorna Promise<boolean>. Uso: if (!await showConfirm('Mensagem?')) return;
@@ -3539,6 +3684,9 @@ function autoFillCamposAtendimento(){
     return new Promise(function(resolve) {
       var overlay = document.createElement('div');
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Confirmação');
       var box = document.createElement('div');
       box.style.cssText = 'background:#1e293b;color:#f1f5f9;border-radius:12px;padding:24px 20px 16px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:inherit;';
       var pre = document.createElement('pre');
@@ -3556,10 +3704,19 @@ function autoFillCamposAtendimento(){
       box.appendChild(pre); box.appendChild(row);
       overlay.appendChild(box);
       document.body.appendChild(overlay);
-      function close(val){ document.body.removeChild(overlay); resolve(val); }
+      var _prevFocus = document.activeElement;
+      function close(val){ document.body.removeChild(overlay); try { if (_prevFocus && _prevFocus.focus) _prevFocus.focus(); } catch(e){} resolve(val); }
       btnOk.onclick = function(){ close(true); };
       btnCancel.onclick = function(){ close(false); };
-      overlay.addEventListener('keydown', function(e){ if(e.key==='Enter') close(true); if(e.key==='Escape') close(false); });
+      // [BUG-1] Focus trap: Tab/Shift+Tab cicla apenas entre os dois botões do modal
+      overlay.addEventListener('keydown', function(e){
+        if(e.key==='Enter'){ close(true); return; }
+        if(e.key==='Escape'){ close(false); return; }
+        if(e.key==='Tab'){
+          e.preventDefault();
+          if(document.activeElement === btnOk){ btnCancel.focus(); } else { btnOk.focus(); }
+        }
+      });
       btnOk.focus();
     });
   }
@@ -3570,6 +3727,9 @@ function autoFillCamposAtendimento(){
     return new Promise(function(resolve) {
       var overlay = document.createElement('div');
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Entrada de dados');
       var box = document.createElement('div');
       box.style.cssText = 'background:#1e293b;color:#f1f5f9;border-radius:12px;padding:24px 20px 16px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:inherit;';
       var lbl = document.createElement('div');
@@ -3591,10 +3751,22 @@ function autoFillCamposAtendimento(){
       box.appendChild(lbl); box.appendChild(input); box.appendChild(row);
       overlay.appendChild(box);
       document.body.appendChild(overlay);
-      function close(val){ document.body.removeChild(overlay); resolve(val); }
+      var _prevFocus = document.activeElement;
+      function close(val){ document.body.removeChild(overlay); try { if (_prevFocus && _prevFocus.focus) _prevFocus.focus(); } catch(e){} resolve(val); }
       btnOk.onclick = function(){ close(input.value); };
       btnCancel.onclick = function(){ close(null); };
-      input.addEventListener('keydown', function(e){ if(e.key==='Enter') close(input.value); if(e.key==='Escape') close(null); });
+      // [BUG-1] Focus trap: Tab cicla entre input → btnCancel → btnOk → input
+      var focusables = [input, btnCancel, btnOk];
+      overlay.addEventListener('keydown', function(e){
+        if(e.key==='Escape'){ close(null); return; }
+        if(e.key==='Tab'){
+          e.preventDefault();
+          var cur = focusables.indexOf(document.activeElement);
+          var next = e.shiftKey ? (cur <= 0 ? focusables.length - 1 : cur - 1) : (cur >= focusables.length - 1 ? 0 : cur + 1);
+          focusables[next].focus();
+        }
+      });
+      input.addEventListener('keydown', function(e){ if(e.key==='Enter') close(input.value); });
       setTimeout(function(){ input.focus(); input.select(); }, 50);
     });
   }
@@ -3653,7 +3825,7 @@ function autoFillCamposAtendimento(){
     // BUG FIX: se a troca de senha é obrigatória, não permite fechar o modal sem definir
     var mustChange = window._userMustSetPassword || (typeof userMustSetPassword !== 'undefined' ? userMustSetPassword : null);
     if (mustChange && mustChange.mustChangePassword) {
-      alert('Você precisa definir uma nova senha antes de continuar. Esta ação é obrigatória.');
+      showToast('⚠️ Você precisa definir uma nova senha antes de continuar. Esta ação é obrigatória.', 4000);
       return;
     }
     modalSenha.classList.add('hidden');
@@ -3688,12 +3860,12 @@ function autoFillCamposAtendimento(){
     const s1 = (novaSenha.value || ''); // [BUG-A] sem .trim() — NIST SP 800-63B proíbe normalizar senhas (consistente com o login)
     const s2 = (novaSenha2.value || '');
     // Validação de senha forte
-    if (!s1 || s1.length < 8) { alert('Senha muito curta. Mínimo 8 caracteres.'); return; }
-    if (!/[A-Z]/.test(s1)) { alert('A senha precisa ter pelo menos uma letra MAIÚSCULA.'); return; }
-    if (!/[a-z]/.test(s1)) { alert('A senha precisa ter pelo menos uma letra minúscula.'); return; }
-    if (!/[0-9]/.test(s1)) { alert('A senha precisa ter pelo menos um número.'); return; }
-    if (!/[^A-Za-z0-9]/.test(s1)) { alert('A senha precisa ter pelo menos um caractere especial (@, #, !, $, %).'); return; }
-    if (s1 !== s2) { alert('As senhas não conferem.'); return; }
+    if (!s1 || s1.length < 8) { showToast('⚠️ Senha muito curta. Mínimo 8 caracteres.', 3500); return; }
+    if (!/[A-Z]/.test(s1)) { showToast('⚠️ A senha precisa ter pelo menos uma letra MAIÚSCULA.', 3500); return; }
+    if (!/[a-z]/.test(s1)) { showToast('⚠️ A senha precisa ter pelo menos uma letra minúscula.', 3500); return; }
+    if (!/[0-9]/.test(s1)) { showToast('⚠️ A senha precisa ter pelo menos um número.', 3500); return; }
+    if (!/[^A-Za-z0-9]/.test(s1)) { showToast('⚠️ A senha precisa ter pelo menos um caractere especial (@, #, !, $, %).', 3500); return; }
+    if (s1 !== s2) { showToast('⚠️ As senhas não conferem.', 3500); return; }
     const secure = await createSecureHash(s1);
     const { lista, usuario: u } = encontrarUsuario(userMustSetPassword.username || userMustSetPassword.usuario);
     if (u) {
@@ -3724,7 +3896,7 @@ function autoFillCamposAtendimento(){
     entrarSistema(usuarioLogado);
     } catch(e) {
       console.warn('Falha ao salvar nova senha:', e);
-      alert('Erro ao salvar a senha. Tente novamente.');
+      showToast('❌ Erro ao salvar a senha. Tente novamente.', 4000);
     }
   };
 
@@ -4082,6 +4254,8 @@ function autoFillCamposAtendimento(){
     var _ehMobile = window.matchMedia('(max-width: 880px)').matches;
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
+      // [UX-4] Mostra dica de exclusão somente para técnicos
+      try { var _dicaEl = document.getElementById('dicaExclusaoTecnico'); if (_dicaEl) _dicaEl.style.display = 'block'; } catch(e){}
       if (!_ehMobile) mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e));
     } else {
       if (mPainel) mPainel.style.display='';
@@ -4096,7 +4270,40 @@ function autoFillCamposAtendimento(){
 
     }
     console.log('🚀 entrarSistema: FIM - sistema carregado.');
-    try { showToast('Login OK: ' + (user.fullName || user.username)); } catch(e){}
+    try { showToast('Bem-vindo, ' + (user.fullName || user.username) + '!'); } catch(e){}
+
+    // [SEC-1] Timeout de inatividade: logout automático após 30 minutos sem interação.
+    // Cobre o caso de técnico deixar celular desbloqueado com o app aberto.
+    (function() {
+      var INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
+      var _inactTimer = null;
+      function _resetInactTimer() {
+        if (_inactTimer) clearTimeout(_inactTimer);
+        _inactTimer = setTimeout(function() {
+          if (!window.usuarioLogado) return; // já deslogado
+          showToast('⏱️ Sessão encerrada por inatividade. Faça login novamente.');
+          setTimeout(function() {
+            try { document.getElementById('btnLogout') && document.getElementById('btnLogout').click(); } catch(e){}
+          }, 1500);
+        }, INACTIVITY_MS);
+      }
+      ['click','touchstart','keydown','mousemove','scroll'].forEach(function(ev) {
+        document.addEventListener(ev, _resetInactTimer, { passive: true, capture: true });
+      });
+      _resetInactTimer(); // inicia o timer
+      // Para o timer ao deslogar
+      var _origLogout = document.getElementById('btnLogout');
+      if (_origLogout) {
+        var _origClick = _origLogout.onclick;
+        _origLogout.onclick = function(e) {
+          if (_inactTimer) clearTimeout(_inactTimer);
+          ['click','touchstart','keydown','mousemove','scroll'].forEach(function(ev) {
+            document.removeEventListener(ev, _resetInactTimer, { passive: true, capture: true });
+          });
+          if (typeof _origClick === 'function') _origClick.call(this, e);
+        };
+      }
+    })();
 
     // ── Mobile Home Screen + Bottom Nav ──────────────────────────────────────
     try { _iniciarMobileHome(user); } catch(e) { console.warn('mobileHome:', e); }
@@ -4177,20 +4384,31 @@ function autoFillCamposAtendimento(){
         }
       }
 
-      // 6. Testar WRITE via REST
+      // 6. Testar WRITE via REST (requer autenticação)
       linha('6. Teste REST escrita (onlineEsDiag)...');
       try {
-        const pid = firebaseConfig.projectId;
-        const key = firebaseConfig.apiKey;
-        const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsDiag/teste?key=${key}`;
-        const r = await fetch(url, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields: { ok: { booleanValue: true }, ts: { stringValue: new Date().toISOString() } } })
-        });
-        const json = await r.json();
-        if (r.ok) linha('   ✅ REST escrita OK');
-        else linha('   ❌ REST escrita ERRO: ' + (json.error && json.error.message || r.status));
+        // [SEC-4] Usa token do Firebase Auth para a escrita de diagnóstico.
+        // Sem token, a escrita seria rejeitada pelas Security Rules (correto).
+        var _authUserDiag = window._firebaseAuth && window._firebaseAuth.currentUser;
+        var _diagToken = null;
+        if (_authUserDiag) {
+          try { _diagToken = await _authUserDiag.getIdToken(); } catch(e) {}
+        }
+        if (!_diagToken) {
+          linha('   ⚠️ Skipped — usuário não autenticado no Firebase Auth (correto por RBAC).');
+          linha('   Faça login para testar escrita autenticada.');
+        } else {
+          const pid = firebaseConfig.projectId;
+          const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsDiag/teste`;
+          const r = await fetch(url, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _diagToken },
+            body: JSON.stringify({ fields: { ok: { booleanValue: true }, ts: { stringValue: new Date().toISOString() } } })
+          });
+          const json = await r.json();
+          if (r.ok) linha('   ✅ REST escrita autenticada OK');
+          else linha('   ❌ REST escrita ERRO: ' + (json.error && json.error.message || r.status));
+        }
       } catch(e) { linha('   ❌ REST escrita EXCEÇÃO: ' + e.message); }
 
       // 7. Resumo
@@ -4627,8 +4845,8 @@ function autoFillCamposAtendimento(){
         if (!r) return;
         relatorioSelecionado = r;
         marcarComoVisto(r.id);
-        if (!(window.jspdf && window.jspdf.jsPDF)){ alert('Gerador de PDF (jsPDF) não carregou. Verifique conexão.'); return; }
-        try { await exportarPDF(r); showToast('PDF do relatório gerado.'); try { logInfo('PDF gerado', { numero: r.numero || r.id || 'N/A' }); } catch(e){} renderLista(); } catch(e){ console.error(e); alert('Não foi possível gerar o PDF deste relatório.'); }
+        if (!(window.jspdf && window.jspdf.jsPDF)){ showToast('⚠️ Gerador de PDF (jsPDF) não carregou. Verifique conexão.', 4000); return; }
+        try { await exportarPDF(r); showToast('PDF do relatório gerado.'); try { logInfo('PDF gerado', { numero: r.numero || r.id || 'N/A' }); } catch(e){} renderLista(); } catch(e){ console.error(e); showToast('❌ Não foi possível gerar o PDF deste relatório.', 4000); }
       };
     });
 
@@ -4783,7 +5001,7 @@ function autoFillCamposAtendimento(){
   
   async function removerUsuarioPorUsername(user){
     if (!isSupervisorOrAdmin()){
-      alert('Permissão negada.');
+      showToast('⚠️ Permissão negada.', 3000);
       return;
     }
     if (!await showConfirm('Você tem certeza que deseja remover este usuário?')) return;
@@ -4802,14 +5020,26 @@ function autoFillCamposAtendimento(){
     saveUsers(usuarios);
 
     // [W-01] Adiciona login à lista negra para impedir auto-recriação no login
-    // mesmo que a deleção no Firebase Auth falhe (requer Admin SDK, não client token)
+    // [SEC-2] Persiste no Firestore (autoritativo) além do localStorage (cache)
     try {
       var _remList = JSON.parse(localStorage.getItem('online-es-removidos') || '[]');
       if (!Array.isArray(_remList)) _remList = [];
       var _uLower = String(user).toLowerCase();
       if (!_remList.includes(_uLower)) { _remList.push(_uLower); }
       localStorage.setItem('online-es-removidos', JSON.stringify(_remList));
-    } catch(e) { console.warn('[W-01] Falha ao registrar usuário removido na lista negra:', e); }
+    } catch(e) { console.warn('[W-01] Falha ao registrar usuário removido na lista negra local:', e); }
+    // Persiste no Firestore para bloquear em qualquer dispositivo
+    try {
+      var _dbNegra = (typeof window._getDb === 'function') ? window._getDb() : null;
+      if (_dbNegra && navigator.onLine) {
+        var _uNegraLower = String(user).toLowerCase();
+        await _dbNegra.collection('onlineEsRemovidosNegra').doc(_uNegraLower).set({
+          username: _uNegraLower,
+          removidoPor: (window.usuarioLogado && window.usuarioLogado.username) || 'admin',
+          removidoEm: new Date().toISOString()
+        });
+      }
+    } catch(e) { console.warn('[SEC-2] Falha ao registrar lista negra no Firestore:', e.message); }
 
     renderUsuarios();
     showToast('Usuário removido com sucesso!');
@@ -4885,7 +5115,7 @@ function renderUsuarios(){
     btn.onclick = async ()=>{
       const user = btn.getAttribute('data-reset');
       if (!isSupervisorOrAdmin()){ 
-        alert('Permissão negada.'); 
+        showToast('⚠️ Permissão negada.', 3000); 
         return; 
       }
       if (!await showConfirm('Confirmar reset de senha para "'+user+'"? O usuário definirá nova senha no próximo login.')) return;
@@ -4905,7 +5135,7 @@ function renderUsuarios(){
     btn.onclick = async () => {
       const user = btn.getAttribute('data-remover');
       if (!isSupervisorOrAdmin()){ 
-        alert('Permissão negada.'); 
+        showToast('⚠️ Permissão negada.', 3000); 
         return; 
       }
       if (!await showConfirm('Você tem certeza que deseja remover este usuário?')) return;
@@ -4934,32 +5164,70 @@ function renderUsuarios(){
   // Editar usuário
   document.querySelectorAll('[data-editar]').forEach(btn=>{
     btn.onclick = async ()=>{
-      if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
+      if (!isSupervisorOrAdmin()){ showToast('⚠️ Permissão negada.', 3000); return; }
       const uname = btn.getAttribute('data-editar');
       const u = (usuarios || []).find(x=>x.username===uname);
       if (!u) return;
       // SEGURANÇA: supervisor não pode editar conta de admin
-      if (u.role === 'admin' && !isAdmin()) { alert('Apenas o Administrador pode editar contas de admin.'); return; }
+      if (u.role === 'admin' && !isAdmin()) { showToast('⚠️ Apenas o Administrador pode editar contas de admin.', 3500); return; }
 
-      const novoNome = await showPrompt('Nome completo:', u.fullName || '');
-      if (novoNome === null) return;
+      // [BUG-2] Modal de edição com todos os campos visíveis ao mesmo tempo — substitui 5 showPrompts encadeados
+      const resultado = await new Promise(function(resolve) {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+        overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', 'Editar usuário');
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#1e293b;color:#f1f5f9;border-radius:12px;padding:24px 20px 16px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:inherit;';
+        var roleOptions = isAdmin()
+          ? '<option value="tecnico">Técnico</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option>'
+          : '<option value="tecnico">Técnico</option><option value="supervisor">Supervisor</option>';
+        box.innerHTML = `
+          <h3 style="margin:0 0 16px;font-size:1rem;">Editar usuário</h3>
+          <label style="font-size:.82rem;display:block;margin-bottom:4px;">Nome completo</label>
+          <input id="_editU_nome" type="text" value="${(u.fullName||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:12px;box-sizing:border-box;">
+          <label style="font-size:.82rem;display:block;margin-bottom:4px;">Login (usuário)</label>
+          <input id="_editU_user" type="text" value="${(u.username||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:12px;box-sizing:border-box;">
+          <label style="font-size:.82rem;display:block;margin-bottom:4px;">Papel</label>
+          <select id="_editU_role" style="width:100%;padding:8px;background:#0f172a;border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:20px;box-sizing:border-box;">${roleOptions}</select>
+          <div id="_editU_err" style="color:#f87171;font-size:.8rem;min-height:18px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button id="_editU_cancel" style="padding:8px 18px;min-height:44px;border-radius:8px;border:1px solid #475569;background:transparent;color:#94a3b8;cursor:pointer;font-size:.9rem;">Cancelar</button>
+            <button id="_editU_ok" style="padding:8px 18px;min-height:44px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-size:.9rem;font-weight:600;">Salvar</button>
+          </div>`;
+        document.body.appendChild(overlay);
+        overlay.appendChild(box);
+        // Set selected role
+        var sel = box.querySelector('#_editU_role'); if (sel) sel.value = u.role || 'tecnico';
+        var prevFocus = document.activeElement;
+        function closeModal(val){ document.body.removeChild(overlay); try { if(prevFocus&&prevFocus.focus) prevFocus.focus(); }catch(e){} resolve(val); }
+        box.querySelector('#_editU_cancel').onclick = function(){ closeModal(null); };
+        box.querySelector('#_editU_ok').onclick = function(){
+          var nome = box.querySelector('#_editU_nome').value.trim();
+          var user = box.querySelector('#_editU_user').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
+          var role = box.querySelector('#_editU_role').value;
+          var errEl = box.querySelector('#_editU_err');
+          if (!nome){ errEl.textContent = 'Nome obrigatório.'; return; }
+          if (!user){ errEl.textContent = 'Login obrigatório.'; return; }
+          if ((usuarios||[]).find(x=> x.username.toLowerCase()===user && x.username!==u.username)){ errEl.textContent = 'Já existe um usuário com esse login.'; return; }
+          if (!isAdmin() && role==='admin'){ errEl.textContent = 'Apenas o Administrador pode atribuir o papel "admin".'; return; }
+          closeModal({ nome, user, role });
+        };
+        // Focus trap
+        var focusEls = [box.querySelector('#_editU_nome'), box.querySelector('#_editU_user'), box.querySelector('#_editU_role'), box.querySelector('#_editU_cancel'), box.querySelector('#_editU_ok')];
+        overlay.addEventListener('keydown', function(e){
+          if(e.key==='Escape'){ closeModal(null); return; }
+          if(e.key==='Tab'){
+            e.preventDefault();
+            var cur = focusEls.indexOf(document.activeElement);
+            var next = e.shiftKey ? (cur<=0?focusEls.length-1:cur-1) : (cur>=focusEls.length-1?0:cur+1);
+            focusEls[next].focus();
+          }
+        });
+        setTimeout(function(){ focusEls[0].focus(); }, 50);
+      });
 
-      const novoUser = await showPrompt('Usuário (login):', u.username);
-      if (novoUser === null) return;
-
-      let novoRole = await showPrompt('Papel (admin/supervisor/tecnico):', u.role);
-      if (novoRole === null) return;
-      novoRole = (['admin','supervisor','tecnico'].includes((novoRole||'').trim().toLowerCase()) ? novoRole.trim().toLowerCase() : u.role);
-
-      // Supervisor não pode promover para admin
-      if (!isAdmin() && novoRole === 'admin'){ alert('Apenas o Administrador pode atribuir o papel "admin".'); return; }
-
-      if (!await showConfirm(`Confirmar edição do usuário?\n\nNome: ${novoNome}\nLogin: ${novoUser}\nPapel: ${roleLabel(novoRole)}`)) return;
-
-      // Validar duplicidade de login (ignora o próprio)
-      if ((usuarios || []).find(x=> x.username.toLowerCase()===novoUser.toLowerCase() && x.username!==u.username)){
-        alert('Já existe um usuário com esse login.'); return;
-      }
+      if (!resultado) return;
+      const { nome: novoNome, user: novoUser, role: novoRole } = resultado;
 
       usuarios = (usuarios || []).map(x=>{
         if (x.username!==u.username) return x;
@@ -5386,7 +5654,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
   async function exportarPDF(r){
     try {
     if (!window.jspdf || !window.jspdf.jsPDF){
-      alert('Não foi possível carregar a biblioteca de PDF (jsPDF). Verifique sua conexão com a internet e tente novamente.');
+      showToast('❌ Não foi possível carregar a biblioteca de PDF (jsPDF). Verifique sua conexão com a internet e tente novamente.', 5000);
       return;
  }
     // Define o nome que será exibido no PDF como "técnico"
@@ -5421,7 +5689,6 @@ const doc = new jsPDF("p","mm","a4");
     doc.setFillColor(15,23,42); doc.rect(0,0,210,22,'F');
 
     // Garante que a logo foi carregada antes de desenhar o cabeçalho (timeout 3s)
-    console.log('[PDF] Carregando logo...');
     if (!logoBase64) {
       try {
         const _logoTimeout = new Promise(_res => setTimeout(_res, 3000));
@@ -5429,7 +5696,6 @@ const doc = new jsPDF("p","mm","a4");
         if (!logoBase64) { await Promise.race([loadLogoBase64().then(b=>{ if(b) logoBase64=b; }), _logoTimeout]); }
       } catch(e) { /* segue sem logo */ }
     }
-    console.log('[PDF] Logo OK, gerando conteúdo...');
 
     if (!logoBase64) {
       try {
@@ -5575,9 +5841,7 @@ if (logoBase64) {
       for(let i=0;i<allImages.length;i++){
         if(y>265){ doc.addPage(); y=15; }
         const x = col===0 ? 10 : 110;
-        console.log('[PDF] Processando imagem', i+1, 'de', allImages.length, '— tamanho:', allImages[i] ? Math.round(allImages[i].length/1024)+'KB' : 'null');
         const imgH = await addImagemReduzidaAoPdf(doc, allImages[i], x, y, 85, 55);
-        console.log('[PDF] Imagem', i+1, 'OK');
         lastImgH = imgH || lastImgH || 40;
         if(col===1){
           // fechou a linha (2 colunas), desce para a próxima linha
@@ -5626,9 +5890,7 @@ if (logoBase64) {
 
     // Normaliza e insere cliente (bloco esquerdo: 20-90mm)
     if (r.assinaturaCliente) {
-      console.log('[PDF] Normalizando assinatura cliente...');
       const sigCliNorm = await normalizarAssinaturaPNG(r.assinaturaCliente, SIG_NORM_W, SIG_NORM_H);
-      console.log('[PDF] Assinatura cliente OK');
       if (sigCliNorm) {
         const cx = 20 + (70 - SIG_W) / 2;
         const cy = topoAssY;
@@ -5638,9 +5900,7 @@ if (logoBase64) {
 
     // Normaliza e insere técnico (bloco direito: 120-190mm)
     if (r.assinaturaTecnicoImg) {
-      console.log('[PDF] Normalizando assinatura técnico...');
       const sigTecNorm = await normalizarAssinaturaPNG(r.assinaturaTecnicoImg, SIG_NORM_W, SIG_NORM_H);
-      console.log('[PDF] Assinatura técnico OK');
       if (sigTecNorm) {
         const cx = 120 + (70 - SIG_W) / 2;
         const cy = topoAssY;
@@ -5717,7 +5977,6 @@ if (logoBase64) {
 
     // Gera PDF em memória e salva referência global
     const _nomePdf = `relatorio-${r.numero || 'online'}.pdf`;
-    console.log('[PDF] Gerando output base64...');
     try {
       const dataUri = doc.output('datauristring');
       if (dataUri && dataUri.startsWith('data:')) {
@@ -5735,7 +5994,7 @@ if (logoBase64) {
     } catch(e) {
       console.error('Erro ao gerar PDF:', e);
       if (typeof logError === 'function') logError('Falha na geração de PDF', { erro: String(e), stack: e && e.stack ? String(e.stack).substring(0, 500) : '' });
-      if (!r._somenteMemoria) alert('Erro ao gerar o PDF. Verifique o console para mais detalhes.');
+      if (!r._somenteMemoria) showToast('❌ Erro ao gerar o PDF. Verifique o console para mais detalhes.', 4000);
       throw e;
     }
   }
@@ -5971,8 +6230,14 @@ if (logoBase64) {
   // Salvar
   // BUG FIX: handler async para permitir await no upload de fotos antes de salvar
   btnSalvarLocal.onclick = async ()=>{
-    if (!usuarioLogado){ alert('Faça login novamente.'); return; }
-    if (!validarObrigatorios()) return;
+    if (!usuarioLogado){ showToast('⚠️ Faça login novamente.', 3000); return; }
+    // [UX-2] Bloqueia o botão durante o save para evitar RATs duplicadas por clique duplo
+    if (btnSalvarLocal.disabled) return;
+    btnSalvarLocal.disabled = true;
+    var _txtOriginal = btnSalvarLocal.innerHTML;
+    btnSalvarLocal.innerHTML = '<i class="ri-loader-4-line"></i> Salvando...';
+    try {
+    if (!validarObrigatorios()) { btnSalvarLocal.disabled = false; btnSalvarLocal.innerHTML = _txtOriginal; return; }
     ensureNumeroRat();
 
     try{ garantirCadastroNovoClienteInline(); }catch(e){ console.warn('Falha ao salvar cliente inline:', e); }
@@ -6169,13 +6434,21 @@ if (logoBase64) {
       // Reinicia relógio
       startRelogioAtendimento();
     } catch(e){ console.warn('Erro ao preparar próximo atendimento:', e); }
+    } catch(e) {
+      console.error('Erro ao salvar relatório:', e);
+      showToast('Erro ao salvar relatório. Tente novamente.');
+    } finally {
+      // [UX-2] Reabilita botão independente de sucesso ou erro
+      btnSalvarLocal.disabled = false;
+      btnSalvarLocal.innerHTML = _txtOriginal;
+    }
   };
 
   // === RASCUNHO: salva RAT incompleta para continuar depois ===
   const btnSalvarRascunho = document.getElementById('btnSalvarRascunho');
   if (btnSalvarRascunho) {
     btnSalvarRascunho.onclick = () => {
-      if (!usuarioLogado) { alert('Faça login novamente.'); return; }
+      if (!usuarioLogado) { showToast('⚠️ Faça login novamente.', 3000); return; }
       try {
         ensureNumeroRat();
         const rascunho = montarRelatorioAtual();
@@ -6289,7 +6562,7 @@ if (logoBase64) {
         if (r.status) { var _fxStatus = document.getElementById('cStatus'); if (_fxStatus) _fxStatus.value = r.status || ''; }
         if (r.problema) { var _fxProb = document.getElementById('cProblema'); if (_fxProb) _fxProb.value = r.problema || ''; }
         if (r.diagnostico) { var _fxDiag = document.getElementById('cDiagnostico'); if (_fxDiag) _fxDiag.value = r.diagnostico || ''; }
-        if (r.acoes && Array.isArray(r.acoes)) { var _fxAcoes = document.getElementById('cAcoes'); if (_fxAcoes) _fxAcoes.value = r.acoes.join('\n'); }
+        if (r.acoes) { var _fxAcoes = document.getElementById('cAcoes'); if (_fxAcoes) _fxAcoes.value = Array.isArray(r.acoes) ? r.acoes.join('\n') : String(r.acoes); }
         if (r.pecas) { var _fxPecas = document.getElementById('cPecas'); if (_fxPecas) _fxPecas.value = r.pecas || ''; }
 
         // Baterias
@@ -6407,6 +6680,19 @@ if (logoBase64) {
     }, 10000);
     // Expõe para limpar ao salvar manualmente
     window._pararAutoSave = function() { if (_autoSaveTimer) { clearInterval(_autoSaveTimer); _autoSaveTimer = null; } };
+
+    // [BUG-4] Auto-save imediato quando o app vai para background (visibilitychange).
+    // Cobre: tela desligando, troca de app, aba perdendo foco, bateria acabando.
+    // Dispositivos móveis matam abas sem aviso — este é o único momento garantido para salvar.
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        _autoSaveRascunho();
+      }
+    });
+    // Também cobre fechamento de aba em desktop (pagehide é mais confiável que beforeunload)
+    window.addEventListener('pagehide', function() {
+      _autoSaveRascunho();
+    });
   })();
 
   // ═══ VALIDAÇÃO VISUAL EM CAMPOS OBRIGATÓRIOS (blur) ═══════════════════
@@ -6546,7 +6832,7 @@ if (logoBase64) {
       await exportarPDF(rAtual);
     } catch(e){
       console.error(e);
-      alert('Ocorreu um erro ao gerar o PDF deste atendimento. ' + (e && e.message ? e.message : ''));
+      showToast('❌ Erro ao gerar o PDF deste atendimento. ' + (e && e.message ? e.message : ''), 5000);
     } finally {
       hideLoader();
     }
@@ -6616,7 +6902,6 @@ if (logoBase64) {
       try {
         if (window.firebase && typeof window.firebase.storage === 'function') {
           window._storage = window.firebase.storage();
-          console.log('[PDF] Storage inicializado lazily.');
         }
       } catch(eInit) { console.warn('[PDF] Falha ao inicializar Storage:', eInit.message); }
     }
@@ -6853,7 +7138,7 @@ if (logoBase64) {
           _baixarPdfBlob(blobEmail, nomeEmail);
           await new Promise(res => setTimeout(res, 800));
         } catch(eDl) { console.warn('[E-mail] Falha ao baixar PDF:', eDl); }
-        alert('Não foi possível gerar link automático.\n\nO arquivo foi baixado no seu dispositivo.\n\nAo abrir o e-mail, anexe o PDF manualmente antes de enviar.');
+        showToast('⚠️ Link não gerado. PDF baixado — anexe manualmente ao e-mail antes de enviar.', 6000);
       }
 
       window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
@@ -6951,7 +7236,7 @@ if (logoBase64) {
         _baixarPdfBlob(blobWa2, nomeWa2);
         await new Promise(res => setTimeout(res, 800));
       } catch(eDl2) { console.warn('[WhatsApp] Falha ao baixar PDF:', eDl2); }
-      alert('Não foi possível gerar link automático.\n\nO arquivo foi baixado no seu dispositivo.\n\nApós enviar a mensagem no WhatsApp, anexe o PDF manualmente na conversa.');
+      showToast('⚠️ Link não gerado. PDF baixado — após abrir o WhatsApp, anexe o arquivo manualmente.', 6000);
     }
 
     // Monta o texto da mensagem
@@ -7228,7 +7513,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
   // GPS
   btnPegarGps.addEventListener('click', ()=>{
-    if (!navigator.geolocation){ alert('Este dispositivo/navegador não suporta geolocalização.'); return; }
+    if (!navigator.geolocation){ showToast('⚠️ Este dispositivo/navegador não suporta geolocalização.', 4000); return; }
     navigator.geolocation.getCurrentPosition(pos=>{
       const lat=pos.coords.latitude.toFixed(6); const lon=pos.coords.longitude.toFixed(6);
       const coord = lat+', '+lon; const link=`https://www.google.com/maps?q=${lat},${lon}`;
@@ -7244,7 +7529,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if (err.code === 1) msg = 'Permissão de localização negada. Verifique as configurações do navegador.';
       else if (err.code === 2) msg = 'GPS indisponível. Verifique se a localização está ativada no dispositivo.';
       else if (err.code === 3) msg = 'Tempo limite excedido. Tente novamente em campo aberto.';
-      alert(msg);
+      showToast('⚠️ ' + msg, 5000);
     }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
   });
 
@@ -7284,10 +7569,22 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     sigCtx.fillRect(0,0,width,height);
   }
 
+  // [UX-6] Indicador visual de assinatura: borda verde + badge "✓ Assinado" ao capturar assinatura
+  function _marcarCanvasAssinado(canvas, statusEl, marcado) {
+    if (!canvas) return;
+    if (marcado) {
+      canvas.style.outline = '2.5px solid #16a34a';
+      canvas.style.boxShadow = '0 0 0 3px rgba(22,163,74,.15)';
+      if (statusEl) {
+        statusEl.innerHTML = '<span style="color:#16a34a;font-weight:600;">✓ Assinado</span>';
+      }
+    } else {
+      canvas.style.outline = '';
+      canvas.style.boxShadow = '';
+    }
+  }
+
   function clearSignature(){
-    // [V-01] Usa canvas.width/canvas.height (pixels físicos) após resetar a transformação.
-    // clientWidth/clientHeight são CSS pixels — em telas HiDPI (DPR≥2) o clearRect anterior
-    // cobria apenas 1/DPR² da área, deixando rastros da assinatura anterior visíveis.
     sigCtx.setTransform(1,0,0,1,0,0);
     sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
     sigCtx.fillStyle = '#ffffff';
@@ -7300,6 +7597,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     if (typeof sigClienteUpload !== 'undefined' && sigClienteUpload) {
       sigClienteUpload.value = '';
     }
+    _marcarCanvasAssinado(sigCanvas, sigStatus, false);
   }
 
   function getPosCanvas(e){
@@ -7364,9 +7662,24 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
   if (btnUsarAssinatura){
     btnUsarAssinatura.onclick = ()=>{
+      // [UX-6] Verifica se o canvas está em branco antes de capturar
+      try {
+        var _imgData = sigCtx.getImageData(0, 0, sigCanvas.width, sigCanvas.height).data;
+        var _hasStroke = false;
+        for (var _i = 0; _i < _imgData.length; _i += 4) {
+          if (_imgData[_i] < 200 || _imgData[_i+1] < 200 || _imgData[_i+2] < 200) { _hasStroke = true; break; }
+        }
+        if (!_hasStroke) {
+          if (sigStatus) sigStatus.textContent = 'Canvas vazio. Assine antes de confirmar.';
+          sigCanvas.style.outline = '2px solid #dc2626';
+          setTimeout(function(){ sigCanvas.style.outline = ''; if(sigStatus && sigStatus.textContent.includes('vazio')) sigStatus.textContent=''; }, 2000);
+          return;
+        }
+      } catch(e) {}
       assinaturaClienteAtual = sigCanvas.toDataURL('image/png');
-      if (sigStatus)
-        sigStatus.textContent = 'Assinatura do cliente armazenada para este relatório. Digite o nome completo abaixo.';
+      window.assinaturaClienteAtual = assinaturaClienteAtual;
+      _marcarCanvasAssinado(sigCanvas, sigStatus, true);
+      if (sigStatus) sigStatus.innerHTML += ' — Digite o nome completo abaixo.';
       if (sigNomeWrap) sigNomeWrap.style.display = 'block';
       if (sigNomeCliente) sigNomeCliente.focus();
       try { logInfo('Assinatura do cliente capturada (digital)', {}); } catch(e){}
@@ -7399,9 +7712,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const reader = new FileReader();
       reader.onload = function(e){
         assinaturaClienteAtual = e.target.result;
-        if (sigStatus){
-          sigStatus.textContent = 'Imagem de assinatura do cliente carregada.';
-        }
+        window.assinaturaClienteAtual = assinaturaClienteAtual;
+        _marcarCanvasAssinado(sigCanvas, sigStatus, true);
         if (sigNomeWrap){
           sigNomeWrap.style.display = 'block';
         }
@@ -7499,14 +7811,29 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         assinaturaTecnicoAtual = null;
       window.assinaturaTecnicoAtual = null;
         if (sigStatusTec) sigStatusTec.textContent = '';
+        _marcarCanvasAssinado(sigTecnicoCanvas, sigStatusTec, false);
       };
     }
     if (btnUsarAssinaturaTec){
       btnUsarAssinaturaTec.onclick = ()=>{
+        // [UX-6] Verifica se o canvas do técnico está em branco
+        try {
+          var _sigTecCtx = sigTecnicoCanvas.getContext('2d');
+          var _imgDataTec = _sigTecCtx.getImageData(0, 0, sigTecnicoCanvas.width, sigTecnicoCanvas.height).data;
+          var _hasStrokeTec = false;
+          for (var _j = 0; _j < _imgDataTec.length; _j += 4) {
+            if (_imgDataTec[_j] < 200 || _imgDataTec[_j+1] < 200 || _imgDataTec[_j+2] < 200) { _hasStrokeTec = true; break; }
+          }
+          if (!_hasStrokeTec) {
+            if (sigStatusTec) sigStatusTec.textContent = 'Canvas vazio. Assine antes de confirmar.';
+            sigTecnicoCanvas.style.outline = '2px solid #dc2626';
+            setTimeout(function(){ sigTecnicoCanvas.style.outline = ''; if(sigStatusTec && sigStatusTec.textContent.includes('vazio')) sigStatusTec.textContent=''; }, 2000);
+            return;
+          }
+        } catch(e) {}
         assinaturaTecnicoAtual = sigTecnicoCanvas.toDataURL('image/png');
-        if (sigStatusTec){
-          sigStatusTec.textContent = 'Assinatura do técnico armazenada para este relatório.';
-        }
+        window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
+        _marcarCanvasAssinado(sigTecnicoCanvas, sigStatusTec, true);
         try { logInfo('Assinatura do técnico capturada (digital)', {}); } catch(e){}
       };
     }
@@ -7529,9 +7856,9 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const reader = new FileReader();
       reader.onload = function(e){
         assinaturaTecnicoAtual = e.target.result;
-        if (sigStatusTec){
-          sigStatusTec.textContent = 'Imagem de assinatura do técnico carregada.';
-        }
+        window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
+        var _sigTecEl = document.getElementById('sigTecnico');
+        _marcarCanvasAssinado(_sigTecEl, sigStatusTec, true);
       };
       reader.readAsDataURL(file);
     });
@@ -7642,7 +7969,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     listaBusca.querySelectorAll('[data-ver]').forEach(b=> b.onclick=()=>visualizarRelatorio(b.getAttribute('data-ver')));
     listaBusca.querySelectorAll('[data-pdf]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-pdf'); const r=relatorios.find(x=>x.id===id); if(!r) return;
-      if (!(window.jspdf && window.jspdf.jsPDF)){ alert('Gerador de PDF (jsPDF) não carregou.'); return; }
+      if (!(window.jspdf && window.jspdf.jsPDF)){ showToast('⚠️ Gerador de PDF (jsPDF) não carregou.', 4000); return; }
       try { await exportarPDF(r); } catch(e){ console.warn('Falha ao gerar PDF:', e); }
     });
   }
@@ -7695,7 +8022,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       try { logInfo('Logo salva', {}); } catch(e){}
     } catch(e){
       console.error(e);
-      alert('Não foi possível salvar a logo.');
+      showToast('❌ Não foi possível salvar a logo.', 4000);
     }
   });
 
@@ -7768,7 +8095,7 @@ function aplicarPermissoesConfiguracoes(){
   }
  document.getElementById('btnBackup')?.addEventListener('click', async ()=>{
   if (!isSupervisorOrAdmin()) {
-    alert('Você não tem permissão para FAZER BACKUP.\nPerfis permitidos: Supervisor e Administrador.');
+    showToast('⚠️ Você não tem permissão para FAZER BACKUP. Perfis permitidos: Supervisor e Administrador.', 4000);
     return;
   }
   showToast('Gerando backup completo...');
@@ -8079,8 +8406,8 @@ function aplicarPermissoesConfiguracoes(){
     const container = document.getElementById('listaBackupsFirebase');
     if (!container) return;
 
-    if (!isAdmin()) { alert('Restaurar backup é exclusivo do Administrador.'); return; }
-    if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
+    if (!isAdmin()) { showToast('⚠️ Restaurar backup é exclusivo do Administrador.', 3500); return; }
+    if (!navigator.onLine) { showToast('⚠️ Sem conexão com a internet.', 3000); return; }
 
     container.style.display = 'block';
     container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Buscando backups no banco...</p>';
@@ -8139,8 +8466,8 @@ function aplicarPermissoesConfiguracoes(){
   }
 
     async function restaurarBackupFirebase(docId, dadosCache) {
-    if (!isAdmin()) { alert('Apenas o Administrador pode restaurar backups.'); return; }
-    if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
+    if (!isAdmin()) { showToast('⚠️ Apenas o Administrador pode restaurar backups.', 3500); return; }
+    if (!navigator.onLine) { showToast('⚠️ Sem conexão com a internet.', 3000); return; }
 
     const ok = await showConfirm(`Restaurar o backup do dia ${docId}?\n\nIsso substituirá TODOS os dados locais (relatórios, clientes, equipamentos).\n\nTem certeza?`);
     if (!ok) return;
@@ -8171,7 +8498,7 @@ function aplicarPermissoesConfiguracoes(){
       }
 
       if (!data || typeof data !== 'object') {
-        alert('Backup corrompido ou formato inválido.');
+        showToast('❌ Backup corrompido ou formato inválido.', 4000);
         return;
       }
 
@@ -8211,7 +8538,7 @@ function aplicarPermissoesConfiguracoes(){
 
     } catch(e) {
       console.error('Erro ao restaurar backup:', e);
-      alert('Falha ao restaurar: ' + (e.message || e));
+      showToast('❌ Falha ao restaurar: ' + (e.message || e), 5000);
     }
   }
 
@@ -8219,7 +8546,7 @@ function aplicarPermissoesConfiguracoes(){
 
   document.getElementById('inputRestore')?.addEventListener('change', async (e)=>{
    if (!isAdmin()) {
-  alert('Você não tem permissão para RESTAURAR BACKUP.\nPerfis permitidos: Administrador.');
+  showToast('⚠️ Você não tem permissão para RESTAURAR BACKUP. Perfil necessário: Administrador.', 4000);
   e.target.value='';
   return;
 }
@@ -8271,7 +8598,7 @@ function aplicarPermissoesConfiguracoes(){
       setTimeout(()=> location.reload(), 800);
     }catch(err){
       console.error(err);
-      alert('Falha ao restaurar: arquivo inválido ou corrompido.');
+      showToast('❌ Falha ao restaurar: arquivo inválido ou corrompido.', 4000);
     }finally{
       e.target.value='';
     }
@@ -8338,9 +8665,9 @@ window.setCustomLogoBase64 = function(b64){
     window.logoBase64 = b64;
     window.logoPromise = Promise.resolve(b64);
     aplicarLogoUI();
-    alert('Logo personalizada salva. Gere um PDF para testar.');
+    showToast('✅ Logo personalizada salva. Gere um PDF para testar.', 4000);
   } catch(e){
-    alert('Falha ao salvar logo personalizada.');
+    showToast('❌ Falha ao salvar logo personalizada.', 4000);
   }
 };
 
@@ -9172,7 +9499,7 @@ async function renderMeus(){
         if(!r2) return;
         var num = r2.whatsapp || r2.telefone || '';
         num = num.replace(/\D/g,'');
-        if(!num){ alert('WhatsApp não informado neste relatório.'); return; }
+        if(!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         var msg = encodeURIComponent('Olá, segue o relatório técnico de atendimento Nº ' + (r2.numero||'') + ' – ' + (r2.cliente||'') + '.');
         window.open('https://wa.me/55'+num+'?text='+msg,'_blank','noopener,noreferrer');
       };
@@ -9182,9 +9509,9 @@ async function renderMeus(){
         var id = btn.getAttribute('data-meus-pdf');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if(!r2) return;
-        if(!(window.jspdf && window.jspdf.jsPDF)){ alert('Gerador de PDF não carregou. Verifique conexão.'); return; }
+        if(!(window.jspdf && window.jspdf.jsPDF)){ showToast('⚠️ Gerador de PDF não carregou. Verifique conexão.', 4000); return; }
         try{ window.relatorioSelecionado = r2; await exportarPDF(r2); if(typeof showToast==='function') showToast('PDF gerado.'); }
-        catch(err){ console.error(err); alert('Não foi possível gerar o PDF.'); }
+        catch(err){ console.error(err); showToast('❌ Não foi possível gerar o PDF.', 4000); }
       };
     });
 
@@ -9343,17 +9670,35 @@ document.addEventListener('click', function(ev){
     try{
       if (typeof proximoNumeroRAT === 'function') return proximoNumeroRAT();
     }catch(e){}
+    // [FIX-RC1] Locking otimista via storage event para evitar race condition
+    // em múltiplas abas. Tenta até 5 vezes com backoff aleatório antes de usar timestamp.
     try{
       var now = new Date();
       var dd = pad2(now.getDate());
       var mm = pad2(now.getMonth()+1);
       var yyyy = now.getFullYear();
-      var key = 'online-es-contador'; // mesmo key do STORAGE_CONTADOR
-      var c = parseInt(localStorage.getItem(key) || '0', 10);
-      if (isNaN(c)) c = 0;
-      c++;
-      localStorage.setItem(key, String(c));
-      return 'RAT-' + dd + mm + yyyy + '-' + String(c).padStart(4,'0');
+      var key = 'online-es-contador';
+      var lockKey = 'online-es-contador-lock';
+      var maxTentativas = 5;
+      for (var t = 0; t < maxTentativas; t++) {
+        // Tenta adquirir lock: grava timestamp+random como "dono"
+        var lockVal = Date.now() + '-' + Math.random().toString(36).slice(2);
+        localStorage.setItem(lockKey, lockVal);
+        // Aguarda 5ms e verifica se ainda é o dono (técnica de Compare-and-Swap)
+        var esperaMs = 5 + Math.floor(Math.random() * 10);
+        var ini = Date.now();
+        while (Date.now() - ini < esperaMs) { /* busy-wait leve */ }
+        if (localStorage.getItem(lockKey) !== lockVal) continue; // outra aba ganhou
+        // Lock adquirido — incrementa e libera
+        var c = parseInt(localStorage.getItem(key) || '0', 10);
+        if (isNaN(c)) c = 0;
+        c++;
+        localStorage.setItem(key, String(c));
+        localStorage.removeItem(lockKey);
+        return 'RAT-' + dd + mm + yyyy + '-' + String(c).padStart(4,'0');
+      }
+      // Fallback de último recurso: timestamp garante unicidade mesmo sem lock
+      return 'RAT-' + dd + mm + yyyy + '-' + Date.now().toString().slice(-6);
     }catch(e){
       return 'RAT-' + Date.now();
     }
@@ -9637,7 +9982,7 @@ document.addEventListener('click', function(ev){
   function exportarCSV(){
     const logs = obterLogs();
     if (!logs.length){
-      alert('Não há registros para exportar.');
+      showToast('⚠️ Não há registros para exportar.', 3000);
       return;
     }
     // Sanitiza campos para prevenir CSV injection (fórmulas =, +, -, @ em planilhas)
@@ -10048,15 +10393,10 @@ async function fazerLogin(){
       firebaseUser = cred.user;
     } catch(authErr) {
       if (authErr.code === 'auth/too-many-requests') {
-        // Bloqueado — aguarda 2s e tenta uma vez mais
-        try {
-          await new Promise(r => setTimeout(r, 2000));
-          var cred2 = await firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
-          firebaseUser = cred2.user;
-          
-        } catch(e2) {
-          console.warn('Firebase Auth: retry falhou:', e2.code);
-        }
+        // [BUG-3] Firebase exige resolução de reCAPTCHA após bloqueio — retry automático nunca resolve.
+        // Exibe mensagem orientando o usuário e para por aqui (a validação local continua abaixo).
+        msgErro.textContent = 'Muitas tentativas. Aguarde alguns minutos e tente novamente, ou continue com sua senha local.';
+        console.warn('Firebase Auth: too-many-requests — continuando para validação local.');
       } else {
         // Qualquer outro erro: continua para validação local
         console.warn('Firebase Auth:', authErr.code, '— continuando para validação local...');
@@ -10091,16 +10431,40 @@ async function fazerLogin(){
     // Se Firebase Auth logou mas perfil não existe: auto-criação (primeiro login)
     if (firebaseUser && (!achou || achou === null)) {
       // [W-01] Bloqueia auto-criação se o login foi explicitamente removido por um admin/supervisor.
-      // Isso impede que um usuário deletado (cujo Firebase Auth não pôde ser removido por falta
-      // de Admin SDK) simplesmente faça login e recrie automaticamente seu perfil como 'tecnico'.
+      // [SEC-2] Consulta lista negra no Firestore (autoritativa) além do localStorage (cache local).
+      // localStorage pode ser limpo pelo usuário; o Firestore não.
+      var _bloqueado = false;
       try {
         var _remBloqueados = JSON.parse(localStorage.getItem('online-es-removidos') || '[]');
         if (Array.isArray(_remBloqueados) && _remBloqueados.includes(u.toLowerCase())) {
-          msgErro.textContent = 'Usuário desativado. Contacte o administrador.';
-          if (firebaseUser && firebaseAuth) { try { await firebaseAuth.signOut(); } catch(e){} }
-          return;
+          _bloqueado = true;
         }
       } catch(e) {}
+      // Consulta Firestore se online (ignora falhas — não bloqueia login em caso de erro de rede)
+      if (!_bloqueado && navigator.onLine) {
+        try {
+          var _dbBlq = (typeof window._getDb === 'function') ? window._getDb() : null;
+          if (_dbBlq) {
+            var _removidoDoc = await _dbBlq.collection('onlineEsRemovidosNegra').doc(u.toLowerCase()).get();
+            if (_removidoDoc && _removidoDoc.exists) {
+              _bloqueado = true;
+              // Sincroniza com localStorage para funcionar offline
+              try {
+                var _remLocal = JSON.parse(localStorage.getItem('online-es-removidos') || '[]');
+                if (!_remLocal.includes(u.toLowerCase())) {
+                  _remLocal.push(u.toLowerCase());
+                  localStorage.setItem('online-es-removidos', JSON.stringify(_remLocal));
+                }
+              } catch(e) {}
+            }
+          }
+        } catch(e) { console.warn('[SEC-2] Falha ao verificar lista negra no Firestore (ignorado):', e.message); }
+      }
+      if (_bloqueado) {
+        msgErro.textContent = 'Usuário desativado. Contacte o administrador.';
+        if (firebaseUser && firebaseAuth) { try { await firebaseAuth.signOut(); } catch(e){} }
+        return;
+      }
       var novoPerfilRole = 'tecnico'; // Regra obriga role='tecnico' na auto-criação
       achou = {
         username: u.toLowerCase(),
@@ -10282,17 +10646,10 @@ async function fazerLogin(){
         // o usuário redefinir a senha pelas configurações de conta.
         showToast('⚠️ Atenção: sua senha precisa ser ressincronizada. Acesse Configurações → Minha Conta.', 6000);
       } else if (loginErr.code === 'auth/too-many-requests') {
-        // Bloqueado temporariamente — tenta novamente após 3 segundos
-        try {
-          await new Promise(r => setTimeout(r, 3000));
-          const _retryLogin = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
-          firebaseUser = _retryLogin.user;
-          achou._firebaseUid = firebaseUser.uid;
-          achou._email = emailAuth;
-          
-        } catch(retryErr) {
-          console.warn('Firebase Auth: retry após too-many-requests falhou:', retryErr.code);
-        }
+        // [BUG-3] Retry automático não funciona — Firebase exige reCAPTCHA após bloqueio.
+        // Usuário está logado localmente; Firebase Auth será ressincronizado após o desbloqueio.
+        showToast('⚠️ Firebase Auth temporariamente bloqueado. Sessão local ativa normalmente.', 5000);
+        console.warn('Firebase Auth 4.5: too-many-requests — sessão local mantida.');
       } else {
         console.warn('Firebase Auth 4.5:', loginErr.code);
       }
@@ -10467,10 +10824,10 @@ async function fazerLogin(){
     // Salvar relatório
     ensureHandler('btnSalvarLocal', async function(){
       var ul = window.usuarioLogado;
-      if (!ul){ alert('Faça login novamente.'); return; }
+      if (!ul){ showToast('⚠️ Faça login novamente.', 3000); return; }
       if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
       if (typeof window.montarRelatorioAtual !== 'function'){
-        alert('Erro interno: módulo de relatórios não carregado. Recarregue a página.');
+        showToast('❌ Erro interno: módulo de relatórios não carregado. Recarregue a página.', 4000);
         return;
       }
       try {
@@ -10500,23 +10857,23 @@ async function fazerLogin(){
           toast.style.display = 'block';
           setTimeout(function(){ toast.style.display = 'none'; }, 3000);
         } else {
-          alert(navigator.onLine ? 'Relatório salvo com sucesso!' : 'Salvo localmente (sem internet).');
+          showToast(navigator.onLine ? '✅ Relatório salvo com sucesso!' : '📶 Sem internet — salvo localmente.', 3000);
         }
         if (typeof window.renderLista === 'function') try { window.renderLista(); } catch(e){}
         if (typeof window.atualizarDashboard === 'function') try { window.atualizarDashboard(); } catch(e){}
       } catch(err){
         console.error('Erro ao salvar relatório:', err);
-        alert('Erro ao salvar: ' + err.message);
+        showToast('❌ Erro ao salvar: ' + err.message, 4000);
       }
     });
 
     // Salvar rascunho
     ensureHandler('btnSalvarRascunho', function(){
-      if (!window.usuarioLogado){ alert('Faça login novamente.'); return; }
+      if (!window.usuarioLogado){ showToast('⚠️ Faça login novamente.', 3000); return; }
       try {
         if (typeof window.ensureNumeroRat === 'function') window.ensureNumeroRat();
         var rascunho = window.montarRelatorioAtual ? window.montarRelatorioAtual() : null;
-        if (!rascunho){ alert('Erro ao montar rascunho.'); return; }
+        if (!rascunho){ showToast('❌ Erro ao montar rascunho.', 3000); return; }
         rascunho._rascunho = true;
         rascunho._rascunhoData = new Date().toISOString();
         // Remove imagens/assinaturas antes de salvar para evitar QuotaExceededError
@@ -10531,22 +10888,22 @@ async function fazerLogin(){
           toast.style.display = 'block';
           setTimeout(function(){ toast.style.display = 'none'; }, 3000);
         } else {
-          alert('Rascunho salvo!');
+          showToast('📝 Rascunho salvo! Continue depois.', 3000);
         }
-      } catch(err){ alert('Erro ao salvar rascunho: ' + err.message); }
+      } catch(err){ showToast('❌ Erro ao salvar rascunho: ' + err.message, 4000); }
     });
 
     // Gerar PDF
     ensureHandler('btnGerarPdfLocal', async function(){
       if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
       if (typeof window.exportarPDF !== 'function'){
-        alert('Módulo de PDF não carregado. Verifique sua conexão.');
+        showToast('❌ Módulo de PDF não carregado. Verifique sua conexão.', 4000);
         return;
       }
       try {
         if (typeof window.ensureNumeroRat === 'function') window.ensureNumeroRat();
         var r = window.montarRelatorioAtual ? window.montarRelatorioAtual() : null;
-        if (!r){ alert('Erro ao montar relatório para PDF.'); return; }
+        if (!r){ showToast('❌ Erro ao montar relatório para PDF.', 3000); return; }
         if (typeof window.showLoader === 'function') window.showLoader('Gerando PDF...');
         await window.exportarPDF(r);
         if (typeof window.hideLoader === 'function') window.hideLoader();
@@ -10558,7 +10915,9 @@ async function fazerLogin(){
         }
       } catch(err){
         if (typeof window.hideLoader === 'function') window.hideLoader();
-        alert('Erro ao gerar PDF: ' + err.message);
+        // [FIX-E1] Mensagem amigável — não expõe detalhes técnicos ao usuário
+        if(typeof showToast==='function') showToast('❌ Não foi possível gerar o PDF. Tente novamente.', 4000);
+        console.error('[PDF] Erro:', err);
       }
     });
 
@@ -10577,7 +10936,7 @@ async function fazerLogin(){
         if (emailEl) { emailEl.focus(); emailEl.style.outline = '2px solid #f97316'; setTimeout(function(){ emailEl.style.outline = ''; }, 2500); }
         return;
       }
-      if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
+      if (typeof window.montarRelatorioAtual !== 'function'){ showToast('❌ Módulo não carregado. Recarregue a página.', 3000); return; }
       try {
         var r = window.montarRelatorioAtual();
         var corpo = encodeURIComponent(
@@ -10592,7 +10951,7 @@ async function fazerLogin(){
           toast.style.display = 'block';
           setTimeout(function(){ toast.style.display = 'none'; }, 3000);
         }
-      } catch(err){ alert('Erro ao enviar e-mail: ' + err.message); }
+      } catch(err){ showToast('❌ Erro ao enviar e-mail: ' + err.message, 4000); }
     });
 
     // BUG FIX: btnWhatsLocal já tem handler completo registrado pelo script principal (com PDF+upload).
@@ -10610,7 +10969,7 @@ async function fazerLogin(){
         return;
       }
       if (tel.length <= 11) tel = '55' + tel;
-      if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
+      if (typeof window.montarRelatorioAtual !== 'function'){ showToast('❌ Módulo não carregado. Recarregue a página.', 3000); return; }
       try {
         var r = window.montarRelatorioAtual();
         var msgBase = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\nQualquer dúvida estamos à disposição!';
@@ -10642,7 +11001,7 @@ async function fazerLogin(){
           window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgBase), '_blank', 'noopener,noreferrer');
           if (toast){ toast.textContent = '💬 WhatsApp aberto.'; toast.style.display = 'block'; setTimeout(function(){ toast.style.display = 'none'; }, 3000); }
         }
-      } catch(err){ alert('Erro ao abrir WhatsApp: ' + err.message); }
+      } catch(err){ showToast('❌ Erro ao abrir WhatsApp: ' + err.message, 4000); }
     });
 
     // Expor funções críticas globalmente para o safety net funcionar
@@ -10774,9 +11133,9 @@ async function fazerLogin(){
   <div id="camPreviewStrip"></div>
 
   <div class="cam-controls">
-    <button class="cam-close-btn" id="camCloseBtn" title="Cancelar"><i class="ri-close-line"></i></button>
-    <button class="cam-capture-btn" id="camCaptureBtn" title="Tirar foto"><i class="ri-camera-line"></i></button>
-    <button class="cam-flip-btn" id="camFlipBtn" title="Virar câmera"><i class="ri-refresh-line"></i></button>
+    <button class="cam-close-btn" id="camCloseBtn" aria-label="Cancelar câmera" title="Cancelar"><i class="ri-close-line"></i></button>
+    <button class="cam-capture-btn" id="camCaptureBtn" aria-label="Tirar foto" title="Tirar foto"><i class="ri-camera-line"></i></button>
+    <button class="cam-flip-btn" id="camFlipBtn" aria-label="Virar câmera" title="Virar câmera"><i class="ri-refresh-line"></i></button>
   </div>
 
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;">
@@ -11134,8 +11493,8 @@ async function fazerLogin(){
 <!-- ══ BARRA DE AÇÕES FIXA (mobile) ══ -->
 <div id="barraAcoesMobile" style="display:none;">
   <button class="btn-save-mobile" id="btnSalvarMobile"><i class="ri-save-3-line"></i> Salvar relatório</button>
-  <button class="btn-whats-mobile" id="btnWhatsMobile" title="Enviar WhatsApp"><i class="ri-whatsapp-line"></i></button>
-  <button class="btn-pdf-mobile" id="btnPdfMobile" title="Gerar PDF"><i class="ri-file-pdf-line"></i></button>
+  <button class="btn-whats-mobile" id="btnWhatsMobile" aria-label="Enviar pelo WhatsApp" title="Enviar WhatsApp"><i class="ri-whatsapp-line"></i></button>
+  <button class="btn-pdf-mobile" id="btnPdfMobile" aria-label="Gerar PDF" title="Gerar PDF"><i class="ri-file-pdf-line"></i></button>
 </div>
 <script>
 // Conecta botões da barra mobile aos handlers principais
@@ -11400,8 +11759,9 @@ async function _renderPortal(token){
 
   var btnPdf=document.getElementById('portalBtnPdf');
   if(btnPdf) btnPdf.onclick=function(){
-    if(!window.jspdf||!window.jspdf.jsPDF){alert('Aguarde o carregamento do PDF.');return;}
-    try{(async function(){try{await window.exportarPDF(Object.assign({},rat));}catch(e){alert('Erro ao gerar PDF: '+e.message);}})();}catch(e){alert('Erro: '+e.message);}
+    var _pt=function(m){if(typeof showToast==='function'){showToast(m,4000);}else{var _t=document.getElementById('toast');if(_t){_t.textContent=m;_t.style.display='block';setTimeout(function(){_t.style.display='none';},4000);}}};
+    if(!window.jspdf||!window.jspdf.jsPDF){_pt('⏳ Aguarde o carregamento do PDF.');return;}
+    try{(async function(){try{await window.exportarPDF(Object.assign({},rat));}catch(e){_pt('❌ Não foi possível gerar o PDF. Verifique se o relatório está completo e tente novamente.');console.error('[PDF]',e);}})();}catch(e){_pt('❌ Não foi possível gerar o PDF. Verifique sua conexão e tente novamente.');console.error('[PDF]',e);}
   };
   el.querySelectorAll('[data-ptoken]').forEach(function(btn){
     btn.onclick=function(){
@@ -11418,24 +11778,45 @@ function _verificarUrl(){
   if(!token) return false;
   var portal=document.getElementById('portalCliente');
   if(portal) portal.classList.add('ativo');
+  // [FIX-P1] Mostrar loading imediato para o usuário não ver tela branca
+  var el=document.getElementById('portalConteudo');
+  if(el) el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório, aguarde...</div>';
   var tries=0;
+  var maxTries=40; // 40×300ms = 12s — tempo razoável para conexões lentas
   (function tentarRender(){
     tries++;
-    if(_db()||tries>25){_renderPortal(token);}
+    if(_db()||tries>=maxTries){
+      // [FIX-P1] Se esgotou tentativas sem Firebase, avisa o usuário
+      if(!_db()&&tries>=maxTries){
+        if(el) el.innerHTML='<div class="portal-not-found"><h2><i class="ri-wifi-off-line"></i> Sem conexão</h2><p>Não foi possível conectar ao servidor.<br>Verifique sua internet e recarregue a página.</p><button onclick="location.reload()" style="margin-top:12px;padding:8px 18px;border-radius:8px;background:#114f91;color:#fff;border:none;cursor:pointer;font-size:.9rem;">Tentar novamente</button></div>';
+        return;
+      }
+      _renderPortal(token);
+    }
     else setTimeout(tentarRender,300);
   })();
   return true;
 }
 
 // ── Injetar botões "Gerar link / Copiar link" no painel ──
+// [FIX-MO1] Observer guardado em variável para poder ser desconectado (evita memory leak)
+var _painelObserver=null;
 function _injetarPainel(){
   var tentativas=0;
   var iv=setInterval(function(){
     tentativas++;
     var tabela=document.querySelector('#listaRelatorios');
-    if(!tabela){if(tentativas>30) clearInterval(iv); return;}
+    if(!tabela){
+      if(tentativas>30){
+        clearInterval(iv);
+        console.warn('[Portal] #listaRelatorios não encontrado após 18s — botões de link não injetados.');
+      }
+      return;
+    }
     clearInterval(iv);
-    new MutationObserver(function(){
+    // [FIX-MO1] Desconecta observer anterior antes de criar um novo (evita duplicatas e leak)
+    if(_painelObserver){_painelObserver.disconnect();_painelObserver=null;}
+    _painelObserver=new MutationObserver(function(){
       tabela.querySelectorAll('[data-ver]').forEach(function(btn){
         var card=btn.closest('.relatorio-card');
         if(!card||card._pb) return;
@@ -11464,14 +11845,19 @@ function _injetarPainel(){
           bd.textContent=r.portalVisto?'👁 Visualizado':'🔗 Não visualizado';
           acoesDiv.appendChild(bd);
         } else {
-          // Botão gerar link
+          // Botão gerar link — [FIX-GL1] confirmação antes de gerar token permanente
           var bg=document.createElement('button');
           bg.className='btn small';
           bg.innerHTML='<i class="ri-share-line"></i> Gerar link';
           bg.style.cssText='background:#f0fdf4;color:#15803d;border-color:#bbf7d0;';
           bg.onclick=async function(e){
             e.stopPropagation();
-            bg.disabled=true; bg.textContent='⏳';
+            // [FIX-GL1] Pede confirmação — o link é público e permanente
+            if(typeof showConfirm==='function'){
+              var ok=await showConfirm('Gerar link público para este relatório?\n\nO link ficará ativo por 30 dias e poderá ser acessado por qualquer pessoa que o receber.');
+              if(!ok) return;
+            }
+            bg.disabled=true; bg.innerHTML='<i class="ri-loader-4-line"></i> Gerando...';
             try{
               var tok=await window._gerarTokenPortal(r);
               var url=window._urlPortal(tok);
@@ -11479,7 +11865,10 @@ function _injetarPainel(){
               if(typeof showToast==='function') showToast('🔗 Link gerado e copiado!');
               if(typeof renderLista==='function') renderLista();
             }catch(err){
-              if(typeof showToast==='function') showToast('Erro: '+err.message);
+              // [FIX-E1] Mensagem de erro amigável
+              var msgErr=err&&err.message?err.message:'falha desconhecida';
+              if(typeof showToast==='function') showToast('Não foi possível gerar o link. Verifique a conexão e tente novamente.');
+              console.error('[Portal] Erro ao gerar token:', msgErr);
               bg.disabled=false;
               bg.innerHTML='<i class="ri-share-line"></i> Gerar link';
             }
@@ -11487,7 +11876,8 @@ function _injetarPainel(){
           acoesDiv.appendChild(bg);
         }
       });
-    }).observe(tabela,{childList:true,subtree:false});
+    });
+    _painelObserver.observe(tabela,{childList:true,subtree:false});
   },600);
 }
 
