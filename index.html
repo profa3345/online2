@@ -3933,7 +3933,13 @@ function autoFillCamposAtendimento(){
             var _colEst = document.getElementById('colEquipEstoque');
             if (_colEst) { _colEst.style.display = 'block'; if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque(); }
             var _selEst = document.getElementById('aEquipEstoque');
-            if (_selEst) { setTimeout(function(){ _selEst.value = r.equipEstoqueId; }, 100); }
+            if (_selEst) {
+              // Tenta imediatamente (função síncrona); retry após 300ms caso o DOM não tenha renderizado ainda
+              _selEst.value = r.equipEstoqueId;
+              if (_selEst.value !== r.equipEstoqueId) {
+                setTimeout(function(){ _selEst.value = r.equipEstoqueId; }, 300);
+              }
+            }
           }
         } catch(e){}
         try { if (r.docClienteTipo) setTipoDoc(r.docClienteTipo); } catch(e){}
@@ -6348,7 +6354,12 @@ if (logoBase64) {
               if (_colEstRasc) { _colEstRasc.style.display = 'block'; if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque(); }
               if (r.equipEstoqueId) {
                 var _selEstRasc = document.getElementById('aEquipEstoque');
-                if (_selEstRasc) setTimeout(function(){ _selEstRasc.value = r.equipEstoqueId; }, 100);
+                if (_selEstRasc) {
+                _selEstRasc.value = r.equipEstoqueId;
+                if (_selEstRasc.value !== r.equipEstoqueId) {
+                  setTimeout(function(){ _selEstRasc.value = r.equipEstoqueId; }, 300);
+                }
+              }
               }
             }
           }
