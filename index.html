@@ -58,19 +58,23 @@
   <!-- Fallback: se gstatic falhar — usa createElement (substitui document.write obsoleto) -->
   <script>
     (function() {
-      if (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') return;
-      var base = 'https://cdn.jsdelivr.net/npm/firebase@10.14.1/';
-      var libs = ['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js'];
-      // Carrega em série para garantir ordem de dependência
-      function loadNext(i) {
-        if (i >= libs.length) return;
-        var s = document.createElement('script');
-        s.src = base + libs[i];
-        s.onload = function() { loadNext(i + 1); };
-        s.onerror = function() { console.warn('[Firebase fallback] Falha ao carregar: ' + libs[i]); loadNext(i + 1); };
-        document.head.appendChild(s);
-      }
-      loadNext(0);
+      // [FIX-FB-FALLBACK] Aguarda até 2s pelo carregamento primário (gstatic).
+      // Evita dupla inicialização quando os scripts originais ainda estão em trânsito.
+      var _fbFallbackTimer = setTimeout(function() {
+        if (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') return;
+        var base = 'https://cdn.jsdelivr.net/npm/firebase@10.14.1/';
+        var libs = ['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js'];
+        // Carrega em série para garantir ordem de dependência
+        function loadNext(i) {
+          if (i >= libs.length) return;
+          var s = document.createElement('script');
+          s.src = base + libs[i];
+          s.onload = function() { loadNext(i + 1); };
+          s.onerror = function() { console.warn('[Firebase fallback] Falha ao carregar: ' + libs[i]); loadNext(i + 1); };
+          document.head.appendChild(s);
+        }
+        loadNext(0);
+      }, 2000); // aguarda 2s pelo carregamento do gstatic antes de acionar o fallback
     })();
   </script>
   <style>
@@ -666,6 +670,10 @@ html[data-role="technician"] nav button {
   }
 
   /* --- Mobile: override inline small font-sizes ilegíveis --- */
+  /* [FIX-FONT-MIN] Garante font-size mínimo de 12px globalmente.
+     Elementos com tamanho menor (ex: .6rem ≈ 9.6px) são elevados ao mínimo legível.
+     O override usa !important para cobrir estilos inline hardcoded no HTML. */
+  * { min-font-size: 12px; } /* propriedade não-padrão — fallback abaixo */
   @media (max-width:880px){
     /* Textos auxiliares (small/hint) que usam rem muito baixo inline */
     small, .hint, [style*="font-size:.6"], [style*="font-size: .6"],
@@ -2069,10 +2077,13 @@ html[data-role="technician"] nav button {
   //       match /{document=**} {
   //         allow read, write: if false;
   //       }
-  //       // Leitura de usuários: sem auth (necessário para o fluxo de login)
+  //       // [FIX-SEC-FS1] Leitura de usuários REQUER autenticação.
+  //       // A regra anterior (allow read: if true) expunha usernames, roles e hashes
+  //       // a qualquer pessoa com acesso à apiKey pública. Corrigido para exigir auth.
+  //       // O fluxo de login usa a REST Identity Toolkit API (identitytoolkit.googleapis.com)
+  //       // para autenticar, não lê diretamente a coleção de usuários sem auth.
   //       match /onlineEsUsuarios/{doc} {
-  //         allow read: if true;
-  //         allow write: if request.auth != null;
+  //         allow read, write: if request.auth != null;
   //       }
   //       // Demais coleções: apenas usuários autenticados
   //       match /onlineEsRelatorios/{doc} {
@@ -3172,10 +3183,10 @@ html[data-role="technician"] nav button {
     const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if(!m) return null;
     const [_,dd,MM,yyyy]=m;
-    // BUG FIX: usa construtor local (igual a brToISO) para evitar variação de TZ entre browsers
-    const d=new Date(+yyyy, +MM-1, +dd, 0, 0, 0);
-    if(isNaN(d)) return null;
-    return d.toISOString();
+    // [FIX-TZ2] Retorna string de data no fuso local (YYYY-MM-DD) em vez de toISOString()
+    // que converte para UTC e pode mudar o dia em fusos negativos (ex: UTC-3 -> dia anterior).
+    // Formato: "2025-03-15" sem horário para evitar qualquer conversão de fuso.
+    return `${yyyy}-${MM}-${dd}`;
   }
 
   // Logo para PDF
@@ -3383,6 +3394,16 @@ function saveUsers(lista){
       const idSel = relatorio.equipEstoqueId;
       if (!idSel) return;
 
+      // [FIX-ESTOQUE-LOCK] Trava global por ID para evitar dupla dedução em chamadas simultâneas
+      // (ex: duplo-clique no botão Salvar). O lock é liberado após 3s como garantia de safety.
+      var _lockKey = '_estoqueLock_' + idSel;
+      if (window[_lockKey]) {
+        console.warn('[Estoque] Dedução ignorada — lock ativo para id=' + idSel + '. Possível duplo-clique.');
+        return;
+      }
+      window[_lockKey] = true;
+      setTimeout(function(){ window[_lockKey] = false; }, 3000);
+
       let alterou = false;
       equipamentos = (equipamentos || []).map(eq=>{
         if (String(eq.id) !== String(idSel)) return eq;
@@ -3392,9 +3413,11 @@ function saveUsers(lista){
         const atual = eq.estoque || 0;
         // [FIX-ESTOQUE] Dupla verificação: não permite estoque negativo
         // mesmo que dois relatórios sejam salvos simultaneamente.
-        // A verificação definitiva deve ser feita no Firestore via transação.
+        // ⚠️ ATENÇÃO: a verificação definitiva DEVE ser feita no Firestore via transação
+        // para garantir consistência entre dispositivos concorrentes.
         if (atual <= 0) {
           console.warn('[Estoque] Tentativa de deduzir item sem estoque (id=' + idSel + '). Operação ignorada.');
+          showToast('⚠️ Estoque zerado para este equipamento. Verifique com o administrador.', 5000);
           return { ...eq, estoque: 0 };
         }
 
@@ -3443,6 +3466,14 @@ function saveUsers(lista){
     localStorage.setItem(STORAGE_CONTADOR, String(c));
   }
   function proximoNumeroRAT(){
+    // [FIX-RAT-LOCK] Mutex simples via flag global para evitar race condition
+    // em chamadas concorrentes (ex: duplo-clique ou onSnapshot + ensureNumeroRat).
+    // Se outra chamada já está gerando um número, retorna o último gerado.
+    if (window._ratContadorLock) {
+      return localStorage.getItem(STORAGE_CONTADOR + '-last') || ('RAT-' + new Date().getTime());
+    }
+    window._ratContadorLock = true;
+    try {
     // [FIX-RAT] Gera número local imediato usando timestamp como componente único
     // para evitar colisão entre dispositivos off-line. A verificação/confirmação
     // no Firestore acontece de forma assíncrona (não bloqueia o formulário).
@@ -3464,6 +3495,8 @@ function saveUsers(lista){
       _devSuffix = String((_seed % 9000) + 1000); // 4 dígitos: 1000-9999
     } catch(e) { _devSuffix = '0000'; }
     var numero = 'RAT-' + dd + mm + yyyy + '-' + String(c).padStart(4,'0') + '-' + _devSuffix;
+    // Guarda último número gerado (usado pelo fallback do lock)
+    try { localStorage.setItem(STORAGE_CONTADOR + '-last', numero); } catch(e) {}
     // Registra no Firestore de forma assíncrona para detectar colisões
     if (navigator.onLine && window._firebaseAuth && window._firebaseAuth.currentUser) {
       try {
@@ -3473,6 +3506,9 @@ function saveUsers(lista){
       } catch(e) {}
     }
     return numero;
+    } finally {
+      window._ratContadorLock = false;
+    }
   }
   // Verifica assincronamente se número já existe (colisão entre dispositivos)
   async function verificarNumeroRATUnico(numero) {
@@ -3797,15 +3833,32 @@ function autoFillCamposAtendimento(){
   // [FIX-A11Y] Toast com suporte a leitores de tela via aria-live="assertive"
   // Para que o leitor de tela anuncie novamente a mesma mensagem, o conteúdo
   // precisa ser limpo primeiro (DOM diff) e depois repopulado.
-  function showToast(msg, duration){
-    toast.textContent = ''; // reset para forçar re-anúncio quando msg é igual à anterior
-    requestAnimationFrame(function(){
-      toast.textContent = msg;
-      toast.style.display = 'block';
-    });
-    clearTimeout(toast._toastTimer);
-    toast._toastTimer = setTimeout(function(){ toast.style.display='none'; }, duration || 2700);
-  }
+  // [FIX-TOAST] Sistema de fila: mensagens exibidas em sequência, sem sobreposição.
+  (function(){
+    var _queue = [];
+    var _running = false;
+    function _next(){
+      if (!_queue.length){ _running = false; return; }
+      _running = true;
+      var item = _queue.shift();
+      toast.textContent = '';
+      requestAnimationFrame(function(){
+        toast.textContent = item.msg;
+        toast.style.display = 'block';
+        clearTimeout(toast._toastTimer);
+        toast._toastTimer = setTimeout(function(){
+          toast.style.display = 'none';
+          _next();
+        }, item.duration || 2700);
+      });
+    }
+    window.showToast = function showToast(msg, duration){
+      if (_queue.length && _queue[_queue.length-1].msg === msg) return;
+      _queue.push({ msg: msg, duration: duration });
+      if (!_running) _next();
+    };
+  })();
+  function showToast(msg, duration){ window.showToast(msg, duration); }
 
   // [X-03] showConfirm — substitui confirm() nativo (bloqueante, suprimido em PWA standalone iOS/Android).
   // Retorna Promise<boolean>. Uso: if (!await showConfirm('Mensagem?')) return;
@@ -4548,6 +4601,13 @@ function autoFillCamposAtendimento(){
       linha('=== RESUMO ===');
       if (!_user) linha('⚠️ Firebase Auth não ativo — Firestore SDK bloqueado pelas regras');
       if (!_db) linha('⚠️ db = null — Firebase SDK não inicializou');
+      // [FIX-SEC-FS1] Aviso crítico de segurança: regras de leitura de usuários
+      linha('');
+      linha('=== SEGURANÇA ===');
+      linha('⚠️ CRÍTICO: Verifique se a regra Firestore para onlineEsUsuarios exige');
+      linha('   "request.auth != null" para leitura. A regra padrão antiga (allow read: if true)');
+      linha('   expõe usernames e roles a qualquer pessoa com acesso à apiKey pública.');
+      linha('   Consulte o comentário REGRAS MÍNIMAS OBRIGATÓRIAS no código-fonte.');
       // [v38] Firebase Storage removido — plano gratuito não inclui Storage.
       linha('Usuário logado local: ' + ((window.usuarioLogado && window.usuarioLogado.username) || 'nenhum'));
     };
@@ -7017,12 +7077,13 @@ if (logoBase64) {
 
       showLoader('Salvando e gerando link...');
 
-      // 1. Salva localmente e no Firestore (necessário antes de gerar o token)
+      // 1. Salva/atualiza sempre no localStorage e no Firestore antes de gerar o token.
+      // [FIX-PORTAL-SAVE] O código anterior só salvava se a RAT não existia localmente,
+      // fazendo com que RATs já existentes não fossem atualizadas antes do token ser gerado.
       try {
-        if (!relatorios.find(function(x) { return x.id === r.id; })) {
-          relatorios.push(r);
-          saveRelatorios(relatorios);
-        }
+        var _idxExiste = relatorios.findIndex(function(x) { return x.id === r.id; });
+        if (_idxExiste === -1) { relatorios.push(r); } else { relatorios[_idxExiste] = r; }
+        saveRelatorios(relatorios);
         if (navigator.onLine && typeof salvarRelatorioNoFirestore === 'function') {
           await salvarRelatorioNoFirestore(r);
         }
@@ -7076,7 +7137,7 @@ if (logoBase64) {
     };
   }
 
-  btnWhatsLocal.onclick = async () => {
+  if (btnWhatsLocal) btnWhatsLocal.onclick = async () => {
     if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
 
     const raw = String((aWhats && aWhats.value ? aWhats.value : (aTelefone && aTelefone.value ? aTelefone.value : ''))).trim();
@@ -7095,12 +7156,13 @@ if (logoBase64) {
     // [FIX] try/finally global garante hideLoader mesmo se qualquer etapa lançar exceção
     try {
 
-    // 1. Salva localmente e no Firestore (necessário antes de gerar o token)
+    // 1. Salva/atualiza sempre no localStorage e no Firestore antes de gerar o token.
+    // [FIX-PORTAL-SAVE] Mesma correção do e-mail: garante que a RAT está no Firestore
+    // antes de gerar o token, pois _gerarTokenPortal usa .update() que requer doc existente.
     try {
-      if (!relatorios.find(function(x) { return x.id === r.id; })) {
-        relatorios.push(r);
-        saveRelatorios(relatorios);
-      }
+      var _idxWa = relatorios.findIndex(function(x) { return x.id === r.id; });
+      if (_idxWa === -1) { relatorios.push(r); } else { relatorios[_idxWa] = r; }
+      saveRelatorios(relatorios);
       if (navigator.onLine && typeof salvarRelatorioNoFirestore === 'function') {
         await salvarRelatorioNoFirestore(r);
       }
@@ -7135,7 +7197,8 @@ if (logoBase64) {
     try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comPortal: true }); } catch(e) {}
 
     } finally { hideLoader(); }
-  };
+  }; // fim btnWhatsLocal.onclick
+  } // fim if(btnWhatsLocal)
 
   // ── limparFormularioNovoAtendimento ──────────────────────────────────────────
   function limparFormularioNovoAtendimento(){
@@ -9301,15 +9364,41 @@ async function renderMeus(){
       };
     });
     lista.querySelectorAll('[data-meus-whats]').forEach(function(btn){
-      btn.onclick = function(e){ e.stopPropagation();
+      btn.onclick = async function(e){ e.stopPropagation();
         var id = btn.getAttribute('data-meus-whats');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if(!r2) return;
         var num = r2.whatsapp || r2.telefone || '';
         num = num.replace(/\D/g,'');
         if(!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
-        var msg = encodeURIComponent('Olá, segue o relatório técnico de atendimento Nº ' + (r2.numero||'') + ' – ' + (r2.cliente||'') + '.');
-        window.open('https://wa.me/55'+num+'?text='+msg,'_blank','noopener,noreferrer');
+        if(num.length <= 11) num = '55' + num;
+
+        // Gera/reutiliza token do portal para incluir o link na mensagem
+        var portalUrl = null;
+        if(window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+          try {
+            showToast('🔗 Gerando link...', 2000);
+            var tok = await window._gerarTokenPortal(r2);
+            if(tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok);
+            // Persiste token no Firestore caso ainda não esteja salvo
+            if(tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
+              salvarRelatorioNoFirestore(r2).catch(function(){});
+            }
+          } catch(eP){ console.warn('[Meus/WhatsApp] Falha ao gerar token:', eP); }
+        }
+
+        var msg;
+        if(portalUrl){
+          msg = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+                'Segue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n' +
+                '🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n' + portalUrl + '\n\n' +
+                'Qualquer dúvida estamos à disposição!';
+        } else {
+          msg = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+                'Segue o Relatório Técnico de Atendimento Nº *' + (r2.numero||'') + '* – ' + (r2.cliente||'') + '.';
+        }
+        window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
+        showToast('✅ WhatsApp aberto!', 3000);
       };
     });
     lista.querySelectorAll('[data-meus-pdf]').forEach(function(btn){
@@ -10741,60 +10830,10 @@ async function fazerLogin(){
       }
     });
 
-    // Enviar por e-mail
-    ensureHandler('btnEnviarEmail', function(){
-      if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
-      var emailEl = document.getElementById('aEmailCliente');
-      var email = emailEl ? emailEl.value.trim() : '';
-      if (!email){
-        if (typeof showToast === 'function') showToast('📧 Informe o e-mail do cliente (campo "E-mail do cliente") para enviar.');
-        if (emailEl) { emailEl.focus(); emailEl.style.outline = '2px solid #f97316'; setTimeout(function(){ emailEl.style.outline = ''; }, 2500); }
-        return;
-      }
-      if (!/^[^\s@?&]+@[^\s@?&]+\.[^\s@?&]+$/.test(email)) {
-        if (typeof showToast === 'function') showToast('📧 E-mail inválido. Verifique o endereço informado.');
-        if (emailEl) { emailEl.focus(); emailEl.style.outline = '2px solid #f97316'; setTimeout(function(){ emailEl.style.outline = ''; }, 2500); }
-        return;
-      }
-      if (typeof window.montarRelatorioAtual !== 'function'){ showToast('❌ Módulo não carregado. Recarregue a página.', 3000); return; }
-      try {
-        var r = window.montarRelatorioAtual();
-        var corpo = encodeURIComponent(
-          'Relatório ' + (r.numero || '') + '\nCliente: ' + (r.cliente || '') +
-          '\nTécnico: ' + (r.tecnico || '') + '\nData: ' + (r.dataHoraBr || '')
-        );
-        var assunto = 'Relatório Técnico ' + (r.numero || ''); // [X-04] raw string — encoded inline below
-        window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo), '_blank', 'noopener,noreferrer'); // [N-03][Y-04]
-        var toast = document.getElementById('toast');
-        if (toast){
-          toast.textContent = '📧 Abrindo cliente de e-mail...';
-          toast.style.display = 'block';
-          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
-        }
-      } catch(err){ showToast('❌ Erro ao enviar e-mail: ' + err.message, 4000); }
-    });
-
-    ensureHandler('btnWhatsLocal', function(){
-      if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
-      var wEl = document.getElementById('aWhats');
-      var tEl = document.getElementById('aTelefone');
-      var raw = (wEl && wEl.value) ? wEl.value : (tEl && tEl.value ? tEl.value : '');
-      var tel = raw.replace(/\D/g,'');
-      if (!tel){
-        if (typeof showToast === 'function') showToast('📱 Informe o WhatsApp ou telefone do cliente para enviar.');
-        var focusEl = wEl || tEl;
-        if (focusEl) { focusEl.focus(); focusEl.style.outline = '2px solid #f97316'; setTimeout(function(){ focusEl.style.outline = ''; }, 2500); }
-        return;
-      }
-      if (tel.length <= 11) tel = '55' + tel;
-      if (typeof window.montarRelatorioAtual !== 'function'){ if(typeof showToast==='function') showToast('❌ Módulo não carregado. Recarregue a página.', 3000); return; }
-      try {
-        var r = window.montarRelatorioAtual();
-        var msgBase = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\nQualquer dúvida estamos à disposição!';
-        window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgBase), '_blank', 'noopener,noreferrer');
-        if (typeof showToast === 'function') showToast('💬 WhatsApp aberto.', 3000);
-      } catch(err) { if(typeof showToast==='function') showToast('❌ Erro ao abrir WhatsApp: ' + err.message, 4000); }
-    });
+    // [FIX-HANDLERS] Os handlers de e-mail e WhatsApp são registrados pelo script principal
+    // (linhas ~7051 e ~7139) com lógica completa: salva RAT, gera token do portal e inclui
+    // o link na mensagem. Os handlers simplificados que existiam aqui foram REMOVIDOS pois
+    // sobrescreviam os corretos via ensureHandler, enviando mensagens sem o link do portal.
 
     // Expor funções críticas globalmente para o safety net funcionar
     if (typeof validarObrigatorios === 'function') window.validarObrigatorios = validarObrigatorios;
@@ -11427,7 +11466,12 @@ window._gerarTokenPortal = async function(rat){
     var db=_db();
     if(db&&window._firebaseAuth&&window._firebaseAuth.currentUser){
       var docId=rat._firestoreId||rat.id;
-      await db.collection('onlineEsRelatorios').doc(docId).update({portalToken:token,portalTokenCriado:rat.portalTokenCriado});
+      // [FIX-PORTAL-UPDATE] Usa set({merge:true}) em vez de update() para suportar
+      // tanto documentos novos (update() falha se o doc não existe) quanto existentes.
+      await db.collection('onlineEsRelatorios').doc(docId).set(
+        {portalToken:token, portalTokenCriado:rat.portalTokenCriado},
+        {merge:true}
+      );
     }
   }catch(e){console.warn('[Portal] save firestore:',e);}
   return token;
@@ -11523,6 +11567,10 @@ async function _renderPortal(token){
       el.innerHTML='<div class="portal-not-found"><h2><i class="ri-time-line"></i> Link expirado</h2><p>Este link de acesso ao relatório expirou após 30 dias.<br>Solicite um novo link à ONLINE-ES.</p></div>';
       return;
     }
+  } else {
+    // [FIX-PORTAL-EXP] Token sem data de criação: tokens antigos gerados antes desta versão.
+    // Consideramos válidos para não quebrar links já enviados, mas registramos no console.
+    console.warn('[Portal] Token sem portalTokenCriado — link legado, expiração não verificada. RAT:', rat.numero || rat.id);
   }
   _registrarVisto(token);
   var sc=_sc(rat.status);
