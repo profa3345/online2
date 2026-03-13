@@ -51,7 +51,7 @@
   <!-- Fallback: se gstatic falhar — usa createElement (substitui document.write obsoleto) -->
   <script>
     (function() {
-      if (typeof firebase !== 'undefined') return;
+      if (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') return;
       var base = 'https://cdn.jsdelivr.net/npm/firebase@10.14.1/';
       var libs = ['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js','firebase-storage-compat.js'];
       // Carrega em série para garantir ordem de dependência
@@ -1937,14 +1937,8 @@ html[data-role="technician"] nav button {
 
   // [SEGURANÇA] Aviso crítico: a proteção dos dados depende das Firestore Security Rules.
   // Acesse: Firebase Console > Firestore Database > Rules
-  // Regra mínima obrigatória: allow read, write: if request.auth != null;
-  // Sem essa regra, qualquer pessoa com a API key pode ler/gravar dados.
-  console.warn(
-    '%c[ONLINE-ES SEGURANÇA] Verifique as Firestore Security Rules no Firebase Console!\n' +
-    'Acesse: https://console.firebase.google.com > Firestore > Rules\n' +
-    'Regra mínima: allow read, write: if request.auth != null;',
-    'color:#f97316;font-weight:bold;'
-  );
+  // Rules configuradas com RBAC completo (admin/supervisor/tecnico + portal público).
+  console.log('[ONLINE-ES] Firestore Security Rules: configuradas com RBAC (admin/supervisor/tecnico).');
 
   const SITE_EMPRESA = "www.onlinees.com.br";
   const WHATSAPP_PADRAO = "552899931598";
@@ -2071,96 +2065,64 @@ html[data-role="technician"] nav button {
     return firebase.firestore.FieldValue.serverTimestamp();
   }
 
-  try {
-    if (typeof firebase === 'undefined') throw new Error('firebase SDK não carregou');
-    if (!firebase.apps.length) {
-      firebaseApp = firebase.initializeApp(firebaseConfig);
-    } else {
-      firebaseApp = firebase.apps[0];
+  // ===== Inicialização Firebase com polling — aguarda SDK carregar (async CDN) =====
+  // Problema: firebase-app-compat carrega antes de firebase-firestore-compat.
+  // Polling de 200ms (máx 5s) garante que todos os módulos estejam prontos.
+  function _tentarInitFirebase(tentativa) {
+    tentativa = tentativa || 0;
+    var maxTentativas = 25; // 25 × 200ms = 5 segundos
+    var intervalo = 200;
+
+    // SDK ainda não carregou — aguarda mais
+    if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') {
+      if (tentativa < maxTentativas) {
+        setTimeout(function() { _tentarInitFirebase(tentativa + 1); }, intervalo);
+      } else {
+        console.warn('⚠️ Firebase SDK não carregou após 5s. Login usará apenas base local.');
+      }
+      return;
     }
 
-    // IMPORTANTE: No SDK compat (firebase-firestore-compat.js) NÃO é possível
-    // eliminar completamente os 2 warnings de inicialização do Firestore 10+:
-    //   1. "overriding original host" — gerado internamente pelo SDK ao chamar settings()
-    //   2. "enableMultiTabIndexedDbPersistence() will be deprecated" — API legada sem
-    //      substituto direto no SDK compat (exigiria migrar para SDK modular v9+)
-    // Ambos são inofensivos e não afetam o funcionamento. Não há ação possível no app.
-
-    db = firebase.firestore();
-    window._getDb = function() { return db; };
-
-    // FIX: Ativa long-polling automático como fallback quando WebSockets falham.
-    // Resolve os warnings "WebChannelConnection RPC 'Write' stream transport errored"
-    // que ocorrem em redes corporativas, iOS Safari e ambientes que bloqueiam WebSockets.
-    // experimentalAutoDetectLongPolling=true: tenta WebSocket primeiro, cai para long-polling.
-    // DEVE ser chamado antes de qualquer operação de leitura/escrita.
+    // SDK pronto — inicializar
     try {
-      db.settings({
-        experimentalAutoDetectLongPolling: true,
-        merge: true  // evita o warning "overriding original host"
-      });
-    } catch(eSettings) { /* ignora se já houve operação — settings não tem efeito, mas não quebra */ }
-
-    // Persistência offline multi-aba. Erros esperados são silenciados:
-    // failed-precondition = múltiplas abas abertas (normal)
-    // unimplemented = browser sem suporte a IndexedDB
-    db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
-      if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
-        console.warn("Persistência Firestore desativada:", err.code || err.message);
+      if (!firebase.apps.length) {
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+      } else {
+        firebaseApp = firebase.apps[0];
       }
-    });
 
-    // Firebase Storage — tenta inicializar, com retry se SDK ainda não carregou
-    var _initStorage = function() {
+      db = firebase.firestore();
+      window._getDb = function() { return db; };
+
+      try {
+        db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+      } catch(eSettings) {}
+
+      db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+        if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+          console.warn('Persistência Firestore desativada:', err.code || err.message);
+        }
+      });
+
+      // Firebase Storage
       try {
         if (typeof firebase.storage === 'function') {
           window._storage = firebase.storage();
-          console.log('✅ Firebase Storage inicializado.');
-        } else {
-          // SDK não carregou ainda — tenta via CDN e aguarda
-          var s = document.createElement('script');
-          s.src = 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js';
-          s.onload = function() {
-            try { window._storage = firebase.storage(); console.log('✅ Firebase Storage inicializado (lazy).'); }
-            catch(e2) { console.warn('⚠️ Firebase Storage não disponível:', e2.message); }
-          };
-          document.head.appendChild(s);
         }
-      } catch(e) {
-        console.warn('⚠️ Firebase Storage não disponível:', e.message || e);
-      }
-    };
-    _initStorage();
+      } catch(eStorage) { console.warn('⚠️ Firebase Storage não disponível:', eStorage.message); }
 
-    // Firebase Authentication
-    var firebaseAuth = null;
-    try {
-      firebaseAuth = firebase.auth();
-      window._firebaseAuth = firebaseAuth;
-      console.log('✅ Firebase Auth inicializado.');
-    } catch(e) {
-      console.warn('⚠️ Firebase Auth não disponível:', e.message || e);
-    }
-
-    console.log('✅ Firebase inicializado com sucesso. Projeto:', firebaseConfig.projectId);
-  } catch (e) {
-    console.warn("⚠️ Firebase não inicializado. Login usará apenas base local.", e.message || e);
-    // Retry: tenta novamente após 2 segundos (script pode estar carregando ainda)
-    setTimeout(function() {
+      // Firebase Authentication
       try {
-        if (typeof firebase !== 'undefined' && !db) {
-          if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-          db = firebase.firestore();
-          window._getDb = function() { return db; };
-          try { window._firebaseAuth = firebase.auth(); } catch(e2){}
-          db.enablePersistence({ synchronizeTabs: true }).catch(function(){});
-          console.log('✅ Firebase inicializado no retry.');
-        }
-      } catch(e2) {
-        console.warn('Firebase retry também falhou. Verifique sua conexão.');
-      }
-    }, 2000);
+        var firebaseAuth = firebase.auth();
+        window._firebaseAuth = firebaseAuth;
+      } catch(eAuth) { console.warn('⚠️ Firebase Auth não disponível:', eAuth.message); }
+
+      console.log('✅ Firebase inicializado. Projeto:', firebaseConfig.projectId);
+    } catch(e) {
+      console.warn('⚠️ Falha ao inicializar Firebase:', e.message || e);
+    }
   }
+  _tentarInitFirebase();
 
   // ===== Helpers de sincronização e salvamento no Firestore =====
   async function salvarUsuarioNoFirestore(u) {
@@ -3272,7 +3234,7 @@ function saveUsers(lista){
     } catch(e) { return numero; }
   }
   window.verificarNumeroRATUnico = verificarNumeroRATUnico;
-let relogioAtendimentoTimer = null;
+var relogioAtendimentoTimer = null; // var: acessível entre blocos script
 
 function ensureNumeroRat(){
   // [B-02] Flag impede que chamadas concorrentes (onSnapshot, entrarSistema, etc.)
