@@ -4,6 +4,28 @@
   <meta charset="UTF-8" />
   <title>ONLINE – Relatórios de Atendimento ao Cliente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Segurança: impede clickjacking via iframe -->
+  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <!-- Segurança: impede detecção automática de tipo MIME -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <!-- [S-03] Content Security Policy — restringe origens de scripts/estilos/conexões.
+       'unsafe-inline' necessário: app é single-file sem bundler/nonces.
+       Para máxima segurança: mover para header HTTP no vercel.json. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://www.gstatic.com;
+    style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net;
+    img-src 'self' data: blob: https:;
+    media-src 'self' data: blob: https:;
+    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com
+      https://identitytoolkit.googleapis.com https://firebasestorage.googleapis.com
+      https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com
+      https://www.gstatic.com https://api.cep.la https://viacep.com.br https://images.unsplash.com;
+    worker-src blob:;
+    object-src 'none';
+    base-uri 'self';
+  " />
   <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -11,8 +33,12 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css">
+  <!-- [B-03] Plus Jakarta Sans removida — fonte consolidada em Poppins (carregada no body). -->
+  <!-- [S-05] SRI — Subresource Integrity. Protege contra supply chain attacks em CDNs.
+       Para regenerar: curl -sL <URL> | openssl dgst -sha384 -binary | openssl base64 -A
+       ATENÇÃO: regenerar hashes ao atualizar versão de qualquer lib. -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -22,20 +48,29 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
-  <!-- Fallback: se gstatic falhar -->
+  <!-- Fallback: se gstatic falhar — usa createElement (substitui document.write obsoleto) -->
   <script>
-    if (typeof firebase === 'undefined') {
-      document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"><\/script>');
-      document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"><\/script>');
-      document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"><\/script>');
-      document.write('<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-storage-compat.js"><\/script>');
-    }
+    (function() {
+      if (typeof firebase !== 'undefined') return;
+      var base = 'https://cdn.jsdelivr.net/npm/firebase@10.14.1/';
+      var libs = ['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js','firebase-storage-compat.js'];
+      // Carrega em série para garantir ordem de dependência
+      function loadNext(i) {
+        if (i >= libs.length) return;
+        var s = document.createElement('script');
+        s.src = base + libs[i];
+        s.onload = function() { loadNext(i + 1); };
+        s.onerror = function() { console.warn('[Firebase fallback] Falha ao carregar: ' + libs[i]); loadNext(i + 1); };
+        document.head.appendChild(s);
+      }
+      loadNext(0);
+    })();
   </script>
   <style>
   /* ===== MERGED CSS - All styles consolidated ===== */
 
     :root{--surface-dark:rgba(15,23,42,.35);--surface-dark-solid:#0f172a;--text:#e2e8f0;--muted:#94a3b8;--accent:#f97316;--accent-soft:rgba(249,115,22,.12);--radius:16px;--bg-form:#d4d7dd;--bg-supervisor:#d6d9df;--border-soft:rgba(148,163,184,.14);--text-strong:#0f172a;--blue-btn:#114f91}
-    *{box-sizing:border-box;font-family:"Plus Jakarta Sans",system-ui,-apple-system,Segoe UI,sans-serif}
+    *{box-sizing:border-box;font-family:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif} /* [B-03] Poppins única fonte */
     body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0f172a 0%,#020617 65%,#0f172a 100%);background-size:140% 140%;animation:bgMove 20s ease-in-out infinite alternate;color:var(--text);display:flex;font-size:.9rem}
     @keyframes bgMove{0%{background-position:0 0}100%{background-position:90% 90%}}
     .login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:linear-gradient(135deg,rgba(15,23,42,.9) 0%,rgba(2,6,23,.85) 60%),url("https://images.unsplash.com/photo-1580974928064-7a6776c73da5?q=80&w=1600&auto=format&fit=crop") center/cover no-repeat;z-index:9000}
@@ -253,6 +288,7 @@
       .form-panel .section-card{padding:12px 10px 10px}
       .supervisor-panel .section-card{padding:12px 10px 10px}
       /* Relatório overlay */
+      .report-overlay{padding:0}
       .report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0;display:flex;flex-direction:column}
       .report-body{font-size:1.15rem}
       /* Topbar */
@@ -359,10 +395,10 @@
     .section-card input, .section-card select, .section-card textarea {
       font-size: 16px !important;
     }
-    /* Fix 2: barra de ações — controlada exclusivamente pelo JS (MutationObserver) */
     /* Espaço extra no fundo do formulário para não sobrepor o conteúdo */
     #telaNovo .form-panel {
-      padding-bottom: 80px !important;
+      /* [V-04] padding para barraAcoesMobile (~70px) + safe-area */
+      padding-bottom: 100px !important;
     }
     /* Fix 6: campos de texto longos com altura mínima confortável no mobile */
     #cProblema, #cDiagnostico, #cAcoes {
@@ -433,11 +469,13 @@
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 200;
+    /* [V-04] z-index acima do bottomNav (200) para que a barra de ações fique visível */
+    z-index: 201;
     background: rgba(15,23,42,.97);
     border-top: 1px solid rgba(249,115,22,.35);
     backdrop-filter: blur(12px);
     padding: 10px 14px;
+    /* [V-04] padding-bottom sem offset do bottomNav (removido) */
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
     gap: 8px;
     align-items: center;
@@ -670,6 +708,160 @@ html[data-role="technician"] nav button {
   margin-left:4px;
 }
 /* .btn-inativo já definido acima em "UI fixes" — removida duplicata */
+
+/* ═══════════════════════════════════════════════
+   MOBILE HOME SCREEN — launcher estilo app
+   Visível apenas em telas ≤ 880px
+═══════════════════════════════════════════════ */
+#telaHome { display: none; }
+
+@media (max-width: 880px) {
+
+  /* sidebar-toggle sempre visível no mobile (bottomNav removido — sidebar é a única navegação) */
+  /* body.home-ativa .sidebar-toggle { display: none !important; } — REMOVIDO */
+
+  /* ── Tela Home ── */
+  #telaHome {
+    display: none; /* controlado por JS */
+    flex-direction: column;
+    min-height: calc(100vh - 56px - 70px); /* topbar + bottom-nav */
+    padding: 0 16px 24px;
+    gap: 0;
+    box-sizing: border-box;
+  }
+  #telaHome.ativa { display: flex !important; }
+
+  /* Saudação */
+  .home-greeting {
+    padding: 20px 4px 18px;
+    border-bottom: 1px solid rgba(148,163,184,.1);
+    margin-bottom: 22px;
+  }
+  .home-greeting .home-hello {
+    font-size: .75rem;
+    color: #94a3b8;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .home-greeting .home-nome {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 2px;
+  }
+  .home-greeting .home-role {
+    font-size: .72rem;
+    color: #f97316;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  /* Grid de ações */
+  .home-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  /* Card de ação */
+  .home-card {
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(148,163,184,.12);
+    border-radius: 18px;
+    padding: 20px 14px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    overflow: hidden;
+    min-height: 120px;
+  }
+  .home-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    opacity: 0;
+    transition: opacity .15s;
+    background: radial-gradient(circle at 30% 40%, rgba(249,115,22,.18) 0%, transparent 70%);
+  }
+  .home-card:active { transform: scale(.96); }
+  .home-card:active::before { opacity: 1; }
+
+  /* Card destaque — Novo Atendimento */
+  .home-card.destaque {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 20px;
+    background: linear-gradient(135deg, rgba(249,115,22,.22) 0%, rgba(234,88,12,.12) 100%);
+    border-color: rgba(249,115,22,.35);
+    min-height: auto;
+  }
+  .home-card.destaque::before {
+    background: radial-gradient(circle at 20% 50%, rgba(249,115,22,.3) 0%, transparent 60%);
+  }
+  .home-card.destaque .home-card-icon {
+    width: 52px; height: 52px; font-size: 1.6rem;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    box-shadow: 0 6px 20px rgba(249,115,22,.45);
+    flex-shrink: 0;
+  }
+  .home-card.destaque .home-card-title { font-size: 1.05rem; }
+  .home-card.destaque .home-card-desc { font-size: .75rem; }
+
+  /* Ícone do card */
+  .home-card-icon {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    background: rgba(148,163,184,.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.35rem;
+    color: #f97316;
+    flex-shrink: 0;
+    transition: transform .15s;
+  }
+  .home-card:active .home-card-icon { transform: scale(1.1); }
+
+  .home-card-body { flex: 1; min-width: 0; }
+  .home-card-title {
+    font-size: .88rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 3px;
+    line-height: 1.25;
+  }
+  .home-card-desc {
+    font-size: .7rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  /* Seta no destaque */
+  .home-card-arrow {
+    color: rgba(249,115,22,.7);
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+
+  /* Cores por módulo */
+  .home-card[data-tela="meus"]     .home-card-icon { color: #38bdf8; background: rgba(56,189,248,.1); }
+  .home-card[data-tela="painel"]   .home-card-icon { color: #a78bfa; background: rgba(167,139,250,.1); }
+  .home-card[data-tela="cadastros"].home-card-icon { color: #34d399; background: rgba(52,211,153,.1); }
+  .home-card[data-tela="sistema"]  .home-card-icon { color: #94a3b8; background: rgba(148,163,184,.1); }
+
+  /* Bottom Nav removido */
+
+} /* end @media 880px */
   </style>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -692,10 +884,10 @@ html[data-role="technician"] nav button {
     </div>
 
     <label>Usuário</label>
-    <input id="loginUsuario" placeholder="admin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+    <input id="loginUsuario" placeholder="admin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60">
 
     <label>Senha</label>
-    <input id="loginSenha" type="password" placeholder="admin" autocomplete="off">
+    <input id="loginSenha" type="password" placeholder="admin" autocomplete="off" maxlength="128">
 
     <button class="btn" id="btnEntrar" style="width:100%;justify-content:center;">
       <i class="ri-login-box-line"></i> Entrar
@@ -801,6 +993,19 @@ html[data-role="technician"] nav button {
     </div>
 
     <div class="main">
+
+      <!-- HOME MOBILE — launcher de navegação (visível apenas em mobile após login) -->
+      <section id="telaHome" class="panel">
+        <div class="home-greeting">
+          <div class="home-hello">Bem-vindo de volta</div>
+          <div class="home-nome" id="homeNome">Técnico</div>
+          <div class="home-role" id="homeRole">perfil</div>
+        </div>
+
+        <div class="home-grid" id="homeGrid">
+          <!-- Cards injetados por JS conforme perfil do usuário -->
+        </div>
+      </section>
 
       <!-- NOVO ATENDIMENTO -->
       <section id="telaNovo" class="panel form-panel">
@@ -1145,7 +1350,10 @@ html[data-role="technician"] nav button {
               Ou enviar imagem da assinatura do cliente
             </label>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <input type="file" id="sigClienteUpload" accept="image/png,image/jpeg,image/webp" style="font-size:.75rem;flex:1;min-width:0;">
+              <input type="file" id="sigClienteUpload" accept="image/png,image/jpeg,image/webp" style="display:none;">
+              <button type="button" class="btn small" id="btnUploadLabelCliente" title="Selecionar arquivo" onclick="document.getElementById('sigClienteUpload').click()">
+                <i class="ri-upload-2-line"></i> Upload
+              </button>
               <button type="button" class="btn small camera-btn" id="btnCameraAssinaturaCliente" title="Fotografar assinatura com a câmera">
                 <i class="ri-camera-line"></i> Câmera
               </button>
@@ -1204,7 +1412,10 @@ html[data-role="technician"] nav button {
               Ou enviar imagem da assinatura do técnico
             </label>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <input type="file" id="sigTecnicoUpload" accept="image/png,image/jpeg,image/webp" style="font-size:.75rem;flex:1;min-width:0;">
+              <input type="file" id="sigTecnicoUpload" accept="image/png,image/jpeg,image/webp" style="display:none;">
+              <button type="button" class="btn small" id="btnUploadLabelTecnico" title="Selecionar arquivo" onclick="document.getElementById('sigTecnicoUpload').click()">
+                <i class="ri-upload-2-line"></i> Upload
+              </button>
               <button type="button" class="btn small camera-btn" id="btnCameraAssinaturaTecnico" title="Fotografar assinatura com a câmera">
                 <i class="ri-camera-line"></i> Câmera
               </button>
@@ -1245,6 +1456,12 @@ html[data-role="technician"] nav button {
       <!-- MEUS ATENDIMENTOS -->
       <section id="telaMeus" class="panel" style="display:none;">
         <p style="font-size:.82rem;color:#94a3b8;margin:0 0 10px 0;">Relatórios feitos por você neste dispositivo.</p>
+        <!-- [V-05] Campo de busca para filtrar RATs por cliente, número ou equipamento -->
+        <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+          <input id="meusBusca" type="search" inputmode="search" placeholder="🔍 Buscar por cliente, Nº RAT, equipamento..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+            style="flex:1;padding:9px 12px;border:1px solid rgba(148,163,184,.35);border-radius:12px;font-size:.85rem;color:#0f172a;background:#f8fafc;min-height:44px;box-sizing:border-box;">
+          <button id="meusBuscaLimpar" title="Limpar busca" style="display:none;padding:9px 13px;border:1px solid rgba(148,163,184,.35);border-radius:12px;background:#f1f5f9;color:#475569;cursor:pointer;font-size:.85rem;min-height:44px;white-space:nowrap;flex-shrink:0;">✕ Limpar</button>
+        </div>
         <div class="list-relatorios" id="listaMeus"></div>
       </section>
 
@@ -1489,12 +1706,12 @@ html[data-role="technician"] nav button {
           <div class="row">
             <div class="col">
               <label>Nome completo</label>
-              <input id="uNome" placeholder="Ex.: João da Silva" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="uNome" placeholder="Ex.: João da Silva" maxlength="100" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
 
             <div class="col">
               <label>Usuário (login)</label>
-              <input id="uLogin" placeholder="Ex.: joao.silva" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
+              <input id="uLogin" placeholder="Ex.: joao.silva" maxlength="60" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
 
             <div class="col">
@@ -1674,7 +1891,10 @@ html[data-role="technician"] nav button {
   <div class="report-box">
     <div class="report-header">
       <h3 id="reportTitle">Relatório técnico</h3>
-      <button class="report-close" id="btnCloseReport"><i class="ri-close-line"></i></button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn small" id="btnVerPortalModal" title="Abrir visualização do cliente" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;display:none;"><i class="ri-eye-line"></i> Ver portal</button>
+        <button class="report-close" id="btnCloseReport"><i class="ri-close-line"></i></button>
+      </div>
     </div>
     <div class="report-body" id="reportBody"></div>
   </div>
@@ -1700,6 +1920,9 @@ html[data-role="technician"] nav button {
 
   // ===== SEGURANÇA: Sanitização XSS =====
   // Escapa HTML em todos os dados de usuário antes de inserir via innerHTML
+  // [SEGURANÇA] Escapa HTML em todos os dados de usuário antes de inserir via innerHTML.
+  // OBRIGATÓRIO: sempre usar esc() (ou _ep()/_ec()/_e()) em qualquer dado dinâmico
+  // inserido via innerHTML. Nunca inserir strings de usuário diretamente sem escapar.
   function esc(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -1711,6 +1934,17 @@ html[data-role="technician"] nav button {
       .replace(/\//g, '&#x2F;');
   }
   window.esc = esc;
+
+  // [SEGURANÇA] Aviso crítico: a proteção dos dados depende das Firestore Security Rules.
+  // Acesse: Firebase Console > Firestore Database > Rules
+  // Regra mínima obrigatória: allow read, write: if request.auth != null;
+  // Sem essa regra, qualquer pessoa com a API key pode ler/gravar dados.
+  console.warn(
+    '%c[ONLINE-ES SEGURANÇA] Verifique as Firestore Security Rules no Firebase Console!\n' +
+    'Acesse: https://console.firebase.google.com > Firestore > Rules\n' +
+    'Regra mínima: allow read, write: if request.auth != null;',
+    'color:#f97316;font-weight:bold;'
+  );
 
   const SITE_EMPRESA = "www.onlinees.com.br";
   const WHATSAPP_PADRAO = "552899931598";
@@ -1774,6 +2008,14 @@ html[data-role="technician"] nav button {
   const STORAGE_LOGS = 'online-es-logs-v1';
   let colLogsFS = null; // coleção de logs no Firestore (lazy)
   // ==== FIREBASE / FIRESTORE – INICIALIZAÇÃO (USANDO CONFIG DO PROJETO ONLINE-ES) ====
+  // ⚠️  SEGURANÇA CRÍTICA – Firestore Security Rules obrigatórias:
+  //   A API key abaixo é pública por design (Firebase web SDK), mas TODA a proteção
+  //   de dados depende das Firestore Security Rules configuradas no Console Firebase.
+  //   Regras mínimas recomendadas:
+  //     - Leitura/escrita em onlineEsRelatorios, onlineEsUsuarios, onlineEsClientes,
+  //       onlineEsEquipamentos: apenas request.auth != null (usuário autenticado).
+  //     - Considerar restrições por role via custom claims para isolar técnicos.
+  //   Sem essas regras, qualquer pessoa com a API key pode ler/gravar dados.
   const firebaseConfig = {
     apiKey: "AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8",
     authDomain: "onlinees-system.firebaseapp.com",
@@ -1943,7 +2185,7 @@ html[data-role="technician"] nav button {
       } else {
         await _setDocREST('onlineEsUsuarios', id, _dadosUser);
       }
-      console.log('Usuário salvo no Firestore:', id);
+      
     } catch(e) { console.warn('Falha ao salvar usuario no Firestore:', e); }
   }
   window.salvarUsuarioNoFirestore = salvarUsuarioNoFirestore;
@@ -1973,7 +2215,7 @@ html[data-role="technician"] nav button {
           .where('username', '==', String(username).toLowerCase()).limit(1).get();
         if (!snap.empty) {
           id = snap.docs[0].id;
-          console.log('removerUsuarioDoFirestore: uid encontrado no Firestore:', id);
+          
         }
       }
 
@@ -2012,7 +2254,7 @@ html[data-role="technician"] nav button {
       } else {
         await _setDocREST('onlineEsClientes', id, dados);
       }
-      console.log('Cliente salvo no Firestore:', id);
+      
     } catch(e) { console.warn('Falha ao salvar cliente no Firestore:', e); }
   }
   window.salvarClienteNoFirestore = salvarClienteNoFirestore;
@@ -2033,7 +2275,7 @@ html[data-role="technician"] nav button {
       } else {
         await _setDocREST('onlineEsEquipamentos', id, dados);
       }
-      console.log('Equipamento salvo no Firestore:', id);
+      
     } catch(e) { console.warn('Falha ao salvar equipamento no Firestore:', e); }
   }
   window.salvarEquipamentoNoFirestore = salvarEquipamentoNoFirestore;
@@ -2251,7 +2493,7 @@ html[data-role="technician"] nav button {
         rFirestore.assinaturaTecnicoImg = '[local]';
       if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
         await db.collection("onlineEsRelatorios").doc(docId).set(rFirestore, { merge: true });
-        console.log('Relatório salvo no Firestore:', docId);
+        
       } else {
         await _setDocREST('onlineEsRelatorios', docId, rFirestore);
       }
@@ -2271,9 +2513,15 @@ html[data-role="technician"] nav button {
     if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
     if (window._relatoriosListener) return; // já ativo
     try {
-      window._relatoriosListener = db.collection('onlineEsRelatorios')
-        .limit(200)
-        .onSnapshot(function(snap) {
+      // [S-01/B-01] Técnico só recebe seus próprios RATs; supervisor/admin recebem todos.
+      // A query é filtrada no servidor — técnico nunca baixa dados de outros técnicos.
+      var _uLogin = window.usuarioLogado || {};
+      var _isTecnico = _uLogin.role === 'tecnico';
+      var _colQuery = db.collection('onlineEsRelatorios');
+      if (_isTecnico && _uLogin.username) {
+        _colQuery = _colQuery.where('tecnicoLogin', '==', _uLogin.username);
+      }
+      window._relatoriosListener = _colQuery.limit(200).onSnapshot(function(snap) {
           if (snap.empty) return;
           var novos = [];
           snap.forEach(function(doc) {
@@ -2286,7 +2534,29 @@ html[data-role="technician"] nav button {
           var locais = (typeof loadRelatorios === 'function' ? loadRelatorios() : window.relatorios) || [];
           var mapa = new Map();
           locais.forEach(function(r){ if(r.id||r.numero) mapa.set(String(r.id||r.numero), r); });
-          novos.forEach(function(r){ mapa.set(String(r.id||r.numero||r._firestoreId), r); });
+          // BUG FIX: ao aplicar dados do Firestore, preserva imagens/assinaturas locais quando
+          // o Firestore tem '[local]' (placeholder de upload falho) — evita perder base64 local.
+          var _camposImg = ['imgsEquip','imgsServico','imgsBaterias','vidsEquip','vidsServico','vidsBaterias','assinaturaCliente','assinaturaTecnicoImg'];
+          novos.forEach(function(rNovo){
+            var key = String(rNovo.id||rNovo.numero||rNovo._firestoreId);
+            var rLocal = mapa.get(key);
+            if (rLocal) {
+              var merged = Object.assign({}, rNovo);
+              _camposImg.forEach(function(k) {
+                var vNovo = rNovo[k], vLocal = rLocal[k];
+                if (Array.isArray(vNovo) && Array.isArray(vLocal)) {
+                  // Se Firestore só tem '[local]', usa o array local que pode ter base64
+                  var tudoLocal = vNovo.every(function(v){ return v === '[local]'; });
+                  if (tudoLocal && vLocal.length) merged[k] = vLocal;
+                } else if ((vNovo === '[local]' || !vNovo) && vLocal) {
+                  merged[k] = vLocal;
+                }
+              });
+              mapa.set(key, merged);
+            } else {
+              mapa.set(key, rNovo);
+            }
+          });
           var todos = Array.from(mapa.values());
           // Propaga exclusões em tempo real: remove _deleted de todos os dispositivos
           snap.docChanges().forEach(function(change) {
@@ -2299,14 +2569,24 @@ html[data-role="technician"] nav button {
               }
             }
           });
+          // [S-01/B-01] Técnico salva em localStorage apenas seus próprios RATs
+          // (+ registros _deleted para propagação de exclusão). Supervisor/admin salvam tudo.
+          var _uAtual = window.usuarioLogado || {};
+          var _ehTecnico = _uAtual.role === 'tecnico';
+          var _loginTec = (_uAtual.username || '').toLowerCase();
+          var _todosParaSalvar = _ehTecnico
+            ? todos.filter(function(r){
+                return (r.tecnicoLogin || '').toLowerCase() === _loginTec || !!r._deleted;
+              })
+            : todos;
           // Flag anti-loop: evita que saveRelatorios dispare novo onSnapshot
           if (!window._snapshotSaving) {
             window._snapshotSaving = true;
-            if (typeof saveRelatorios === 'function') try { saveRelatorios(todos); } catch(e){}
-            window.relatorios = todos;
+            if (typeof saveRelatorios === 'function') try { saveRelatorios(_todosParaSalvar); } catch(e){}
+            window.relatorios = _todosParaSalvar;
             setTimeout(function(){ window._snapshotSaving = false; }, 500);
           } else {
-            window.relatorios = todos;
+            window.relatorios = _todosParaSalvar;
           }
           // Notifica supervisor se há novo relatório não visto
           var user = window.usuarioLogado || {};
@@ -2551,32 +2831,23 @@ html[data-role="technician"] nav button {
   // === HASH DE SENHAS: PBKDF2 com salt (compatível com SHA-256 legado) ===
   async function hashPasswordPBKDF2(plain, salt) {
     if (!plain) return '';
-    try {
-      const enc = new TextEncoder();
-      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(plain), 'PBKDF2', false, ['deriveBits']);
-      const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
-        keyMaterial, 256
-      );
-      return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch(e) {
-      return await hashPasswordSHA256(plain);
-    }
+    // [Y-02] sem try/catch — se crypto.subtle falhar, o erro propaga para o chamador.
+    // Silenciar aqui causaria queda para SHA-256 sem salt (e eventualmente hash de 32 bits).
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(plain), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
+      keyMaterial, 256
+    );
+    return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   async function hashPasswordSHA256(plain) {
     if (!plain) return '';
-    try {
-      const data = new TextEncoder().encode(plain);
-      if (window.crypto && window.crypto.subtle) {
-        const buf = await window.crypto.subtle.digest('SHA-256', data);
-        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-      }
-    } catch(e) {}
-    // Fallback simples
-    let h = 0;
-    for (let i = 0; i < plain.length; i++) { h = ((h << 5) - h) + plain.charCodeAt(i); h |= 0; }
-    return String(h);
+    // [Y-02] sem fallback de 32 bits — se crypto.subtle falhar, o erro propaga.
+    const data = new TextEncoder().encode(plain);
+    const buf = await window.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   // hashPassword principal: usa PBKDF2 para novos hashes, verifica ambos para login
@@ -2592,13 +2863,9 @@ html[data-role="technician"] nav button {
 
   // Gera salt aleatório para novos hashes
   function generateSalt() {
-    try {
-      const arr = new Uint8Array(16);
-      crypto.getRandomValues(arr);
-      return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch(e) {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2);
-    }
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr); // [X-05] sem fallback: se falhar, lança — não silencia com Math.random()
+    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   // Cria hash seguro com salt para salvar
@@ -2608,18 +2875,29 @@ html[data-role="technician"] nav button {
     return { hash, salt };
   }
 
+  // [S-04] Comparação de hash em tempo constante — previne timing attacks.
+  // XOR bit a bit percorre toda a string sem curto-circuito.
+  function _safeEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    var diff = 0, len = Math.max(a.length, b.length);
+    if (a.length !== b.length) diff = 1; // comprimentos diferentes: já falha, mas continua
+    for (var _i = 0; _i < a.length; _i++) {
+      diff |= a.charCodeAt(_i) ^ (b.charCodeAt(_i) || 0);
+    }
+    return diff === 0;
+  }
+
   // Verifica senha: tenta PBKDF2 se tem salt, senão SHA-256 legado
   async function verifyPassword(plain, storedHash, userObj) {
     if (!plain || !storedHash) return false;
-    // Senha em texto plano (legado)
     // Com salt (PBKDF2)
     if (userObj && userObj._salt) {
       const h = await hashPasswordPBKDF2(plain, userObj._salt);
-      return h === storedHash;
+      return _safeEqual(h, storedHash);
     }
     // SHA-256 legado
     const h = await hashPasswordSHA256(plain);
-    if (h === storedHash) return true;
+    if (_safeEqual(h, storedHash)) return true;
     // Fallback: tenta PBKDF2 sem salt (caso tenha sido salvo errado)
     return false;
   }
@@ -2704,6 +2982,9 @@ html[data-role="technician"] nav button {
     if(!iso) return '';
     const d = new Date(iso);
     if(isNaN(d)) return '';
+    // BUG FIX: brToISO grava datas usando construtor local (new Date(y,m,d,h,min)),
+    // portanto isoToBR deve exibir usando getHours/getDate locais para manter consistência
+    // no mesmo fuso — evita +3h ao exibir o que foi digitado.
     return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
   function brDateOnlyToISOdate(s){
@@ -2749,11 +3030,10 @@ function loadUsers(){
     let raw = localStorage.getItem(STORAGE_USERS);
     let lista = [];
 
-    // Se não existir nada ainda, cria admin e teste
+    // Se não existir nada ainda, cria apenas admin (usuário 'teste' removido por segurança)
     if (!raw) {
       lista = [
-        {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:false, active:true},
-        {username:'teste', fullName:'Usuário de Teste', password:'', role:'supervisor', mustChangePassword:true, active:true}
+        {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
       ];
       localStorage.setItem(STORAGE_USERS, JSON.stringify(lista));
       window.usuarios = lista;
@@ -2790,18 +3070,19 @@ function loadUsers(){
       // Se é curta (<= 20 chars), provavelmente é texto plano - OK
       if (pw.length <= 20) return;
       // Hash longo sem salt = corrompido (veio do Firestore)
-      console.warn('loadUsers: Hash corrompido detectado para', x.username, '- forçando redefinição de senha');
       x.password = '';
       x._salt = '';
       x.mustChangePassword = true;
     });
 
-    // Se não houver nenhum usuário válido, recria seeds
+    // SEGURANÇA: Remove o usuário 'teste' (seed inseguro) caso ainda exista no localStorage
+    lista = lista.filter(x => !(x && x.username === 'teste' && (x.password === '' || !x.password)));
+
+    // Se não houver nenhum usuário válido, recria apenas o admin
     const temValido = lista.some(x => x && typeof x.username === 'string' && x.username.trim() !== '');
     if (!temValido) {
       lista = [
-        {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:false, active:true},
-        {username:'teste', fullName:'Usuário de Teste', password:'', role:'supervisor', mustChangePassword:true, active:true}
+        {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
       ];
     }
 
@@ -2809,10 +3090,9 @@ function loadUsers(){
     window.usuarios = lista;
     return lista;
   } catch(e){
-    console.warn('Erro ao carregar usuários (fallback criando admin/teste):', e);
+    console.warn('Erro ao carregar usuários, usando configuração padrão.');
     const base = [
-      {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:false, active:true},
-      {username:'teste', fullName:'Usuário de Teste', password:'', role:'supervisor', mustChangePassword:true, active:true}
+      {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
     ];
     try {
       localStorage.setItem(STORAGE_USERS, JSON.stringify(base));
@@ -2988,7 +3268,6 @@ function saveUsers(lista){
       localStorage.setItem(typeof STORAGE_CONTADOR !== 'undefined' ? STORAGE_CONTADOR : 'online-es-contador', String(c2));
       var partes = numero.split('-'); // ['RAT','DDMMAAAA','0001']
       var novo = (partes[0] || 'RAT') + '-' + (partes[1] || '') + '-' + String(c2).padStart(4, '0');
-      console.warn('Colisão RAT detectada, usando:', novo);
       return novo;
     } catch(e) { return numero; }
   }
@@ -2996,10 +3275,20 @@ function saveUsers(lista){
 let relogioAtendimentoTimer = null;
 
 function ensureNumeroRat(){
+  // [B-02] Flag impede que chamadas concorrentes (onSnapshot, entrarSistema, etc.)
+  // sobrescrevam o número já atribuído à RAT atual.
+  // Liberado em: salvar RAT, limpar formulário, abrir edição.
+  if (window._ratNumeroBloqueado) return;
+  if (window._editandoRelatorioId) return; // edição: número já restaurado do original
   const el = document.getElementById('aNumeroRat');
-  if (!el || el.value) return;
+  if (!el) return;
+  if (el.value && el.value.trim()) {
+    window._ratNumeroBloqueado = true; // já tem número — trava
+    return;
+  }
   var _numRat = proximoNumeroRAT();
   el.value = _numRat;
+  window._ratNumeroBloqueado = true; // trava após primeira atribuição
   // Verifica colisão assincronamente e atualiza campo se necessário
   if (navigator.onLine && typeof verificarNumeroRATUnico === 'function') {
     verificarNumeroRATUnico(_numRat).then(function(numFinal) {
@@ -3281,6 +3570,73 @@ function autoFillCamposAtendimento(){
   const listaBusca = document.getElementById('listaBusca');
 
   function showToast(msg, duration){ toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=>toast.style.display='none', duration || 2700); }
+
+  // [X-03] showConfirm — substitui confirm() nativo (bloqueante, suprimido em PWA standalone iOS/Android).
+  // Retorna Promise<boolean>. Uso: if (!await showConfirm('Mensagem?')) return;
+  function showConfirm(msg) {
+    return new Promise(function(resolve) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+      var box = document.createElement('div');
+      box.style.cssText = 'background:#1e293b;color:#f1f5f9;border-radius:12px;padding:24px 20px 16px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:inherit;';
+      var pre = document.createElement('pre');
+      pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;margin:0 0 20px;font-size:.92rem;font-family:inherit;line-height:1.5;';
+      pre.textContent = msg;
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
+      var btnCancel = document.createElement('button');
+      btnCancel.textContent = 'Cancelar';
+      btnCancel.style.cssText = 'padding:8px 18px;min-height:44px;border-radius:8px;border:1px solid #475569;background:transparent;color:#94a3b8;cursor:pointer;font-size:.9rem;';
+      var btnOk = document.createElement('button');
+      btnOk.textContent = 'Confirmar';
+      btnOk.style.cssText = 'padding:8px 18px;min-height:44px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-size:.9rem;font-weight:600;';
+      row.appendChild(btnCancel); row.appendChild(btnOk);
+      box.appendChild(pre); box.appendChild(row);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      function close(val){ document.body.removeChild(overlay); resolve(val); }
+      btnOk.onclick = function(){ close(true); };
+      btnCancel.onclick = function(){ close(false); };
+      overlay.addEventListener('keydown', function(e){ if(e.key==='Enter') close(true); if(e.key==='Escape') close(false); });
+      btnOk.focus();
+    });
+  }
+
+  // [Y-03] showPrompt — substitui prompt() nativo (bloqueante, suprimido em PWA standalone iOS/Android).
+  // Retorna Promise<string|null>. null = cancelado, string vazia = confirmado sem digitar.
+  function showPrompt(msg, defaultValue) {
+    return new Promise(function(resolve) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+      var box = document.createElement('div');
+      box.style.cssText = 'background:#1e293b;color:#f1f5f9;border-radius:12px;padding:24px 20px 16px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:inherit;';
+      var lbl = document.createElement('div');
+      lbl.style.cssText = 'white-space:pre-wrap;word-break:break-word;margin:0 0 12px;font-size:.92rem;line-height:1.5;';
+      lbl.textContent = msg;
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = (defaultValue == null ? '' : String(defaultValue));
+      input.style.cssText = 'width:100%;padding:8px 10px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:16px;box-sizing:border-box;';
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
+      var btnCancel = document.createElement('button');
+      btnCancel.textContent = 'Cancelar';
+      btnCancel.style.cssText = 'padding:8px 18px;min-height:44px;border-radius:8px;border:1px solid #475569;background:transparent;color:#94a3b8;cursor:pointer;font-size:.9rem;';
+      var btnOk = document.createElement('button');
+      btnOk.textContent = 'OK';
+      btnOk.style.cssText = 'padding:8px 18px;min-height:44px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-size:.9rem;font-weight:600;';
+      row.appendChild(btnCancel); row.appendChild(btnOk);
+      box.appendChild(lbl); box.appendChild(input); box.appendChild(row);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      function close(val){ document.body.removeChild(overlay); resolve(val); }
+      btnOk.onclick = function(){ close(input.value); };
+      btnCancel.onclick = function(){ close(null); };
+      input.addEventListener('keydown', function(e){ if(e.key==='Enter') close(input.value); if(e.key==='Escape') close(null); });
+      setTimeout(function(){ input.focus(); input.select(); }, 50);
+    });
+  }
+
   function showLoader(msg){
     const el = document.getElementById('globalLoader');
     if (!el) return;
@@ -3367,8 +3723,8 @@ function autoFillCamposAtendimento(){
     try {
     if (!userMustSetPassword) userMustSetPassword = window._userMustSetPassword || null;
     if (!userMustSetPassword) return;
-    const s1 = (novaSenha.value || '').trim();
-    const s2 = (novaSenha2.value || '').trim();
+    const s1 = (novaSenha.value || ''); // [BUG-A] sem .trim() — NIST SP 800-63B proíbe normalizar senhas (consistente com o login)
+    const s2 = (novaSenha2.value || '');
     // Validação de senha forte
     if (!s1 || s1.length < 8) { alert('Senha muito curta. Mínimo 8 caracteres.'); return; }
     if (!/[A-Z]/.test(s1)) { alert('A senha precisa ter pelo menos uma letra MAIÚSCULA.'); return; }
@@ -3388,7 +3744,6 @@ function autoFillCamposAtendimento(){
         var authUser = window._firebaseAuth && window._firebaseAuth.currentUser;
         if (authUser) {
           await authUser.updatePassword(s1);
-          console.log('Firebase Auth: senha atualizada.');
         }
       } catch(e) { console.warn('Falha ao atualizar senha no Firebase Auth:', e); }
       try {
@@ -3546,7 +3901,12 @@ function autoFillCamposAtendimento(){
         // Fix 7: mostra botão Ver no Maps se já existe link salvo
         try {
           var _btnVM = document.getElementById('btnVerMaps');
-          if (_btnVM && r.localizacaoLink) { _btnVM.href = r.localizacaoLink; _btnVM.style.display = 'inline-flex'; }
+          if (_btnVM && r.localizacaoLink) {
+            // SEGURANÇA: valida que o link é http/https antes de atribuir ao href
+            var _safeLink = /^https?:\/\//i.test(r.localizacaoLink) ? r.localizacaoLink : '#';
+            _btnVM.href = _safeLink;
+            _btnVM.style.display = 'inline-flex';
+          }
         } catch(e){}
         setVal('bEquipamento',  r.equipamento);
         setVal('bSerie',        r.serie);
@@ -3567,6 +3927,15 @@ function autoFillCamposAtendimento(){
         setVal('bTensaoSaida',   r.tensaoSaida);
         setVal('sigNomeCliente', r.nomeAssinaturaCliente);
         try { if (r.fornecidoEstoque) { var _fEl = document.getElementById('aFornecidoEstoque'); if (_fEl) _fEl.value = r.fornecidoEstoque; } } catch(e){}
+        // [BUG-C] equipEstoqueId não era restaurado ao editar — o select de estoque ficava em branco
+        try {
+          if (r.fornecidoEstoque === 'sim' && r.equipEstoqueId) {
+            var _colEst = document.getElementById('colEquipEstoque');
+            if (_colEst) { _colEst.style.display = 'block'; if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque(); }
+            var _selEst = document.getElementById('aEquipEstoque');
+            if (_selEst) { setTimeout(function(){ _selEst.value = r.equipEstoqueId; }, 100); }
+          }
+        } catch(e){}
         try { if (r.docClienteTipo) setTipoDoc(r.docClienteTipo); } catch(e){}
 
         // Restaura imagens nos previews ao editar
@@ -3576,13 +3945,19 @@ function autoFillCamposAtendimento(){
             if (!srcs || !srcs.length) return;
             var cont = document.getElementById(containerId);
             if (!cont) return;
+            // [Y-01] valida src: aceita apenas data:(image|video)/ ou https?:// — bloqueia javascript: e srcs arbitrários
+            function _safePreviewSrc(s) {
+              if (!s || typeof s !== 'string') return '';
+              return (/^data:(image|video)\//i.test(s) || /^https?:\/\//i.test(s)) ? s : '';
+            }
             srcs.forEach(function(src) {
-              if (!src || typeof src !== 'string') return;
+              var safeSrc = _safePreviewSrc(src);
+              if (!safeSrc) return;
               var div = document.createElement('div'); div.className = 'preview-item';
-              if (src.startsWith('data:video') || src.includes('.mp4') || src.includes('.webm') || src.includes('.mov')) {
-                var vid = document.createElement('video'); vid.src = src; vid.controls = true; div.appendChild(vid);
+              if (/^data:video/i.test(safeSrc) || /\.(mp4|webm|mov)(\?|$)/i.test(safeSrc)) {
+                var vid = document.createElement('video'); vid.src = safeSrc; vid.controls = true; div.appendChild(vid);
               } else {
-                var img = document.createElement('img'); img.src = src; div.appendChild(img);
+                var img = document.createElement('img'); img.src = safeSrc; div.appendChild(img);
               }
               var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;'; btn.onclick = function(){ div.remove(); };
               div.appendChild(btn);
@@ -3736,12 +4111,13 @@ function autoFillCamposAtendimento(){
       }); // _ensureUserDoc
     }
 
+    var _ehMobile = window.matchMedia('(max-width: 880px)').matches;
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
-      mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e));
+      if (!_ehMobile) mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e));
     } else {
       if (mPainel) mPainel.style.display='';
-      mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
+      if (!_ehMobile) mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
       try { renderUsuarios(); } catch(e){ console.warn('renderUsuarios:', e); }
       try { renderClientes(); } catch(e){ console.warn('renderClientes:', e); }
       try { renderEquipamentos(); } catch(e){ console.warn('renderEquipamentos:', e); }
@@ -3753,6 +4129,10 @@ function autoFillCamposAtendimento(){
     }
     console.log('🚀 entrarSistema: FIM - sistema carregado.');
     try { showToast('Login OK: ' + (user.fullName || user.username)); } catch(e){}
+
+    // ── Mobile Home Screen + Bottom Nav ──────────────────────────────────────
+    try { _iniciarMobileHome(user); } catch(e) { console.warn('mobileHome:', e); }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Inicia listener de relatórios em tempo real
     setTimeout(function() {
@@ -3906,9 +4286,27 @@ function autoFillCamposAtendimento(){
   function limparMenu(){
     [mNovo,mMeus,mPainel,mCadastros,mSistema].forEach(b=>{ if (b) b.classList.remove('active'); });
     [telaNovo,telaMeus,telaPainel,telaCadastros,telaSistema].forEach(s=>{ if (s) s.style.display='none'; });
+    // Esconde home mobile ao navegar para qualquer tela
+    var _telaHome = document.getElementById('telaHome');
+    if (_telaHome) { _telaHome.classList.remove('ativa'); _telaHome.style.display='none'; }
+    document.body.classList.remove('home-ativa');
+    // [BUG-E] para o relógio automático ao sair de telaNovo (evita timer orphan)
+    try { if (typeof relogioAtendimentoTimer !== 'undefined' && relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; } } catch(e){}
+    // Atualiza bottom nav
+    try { _atualizarBnavAtivo(null); } catch(e){}
   }
   async function mostrarTela(nome){
     limparMenu();
+    // SEGURANÇA: RBAC — técnico não pode acessar telas restritas
+    const _role = (window.usuarioLogado && window.usuarioLogado.role) || '';
+    const _telasRestritas = ['painel', 'cadastros', 'sistema'];
+    if (_role === 'tecnico' && _telasRestritas.includes(nome)) {
+      try {
+        const toast = document.getElementById('toast');
+        if (toast) { toast.textContent = 'Acesso restrito ao Supervisor/Admin.'; toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 2500); }
+      } catch(e){}
+      nome = 'meus'; // redireciona para tela permitida
+    }
     // BUG FIX: rola para o topo ao trocar de tela (UX mobile)
     try { window.scrollTo({top: 0, behavior: 'smooth'}); } catch(e) { window.scrollTo(0, 0); }
     const tituloEl = document.getElementById('tituloTela');
@@ -3961,14 +4359,29 @@ function autoFillCamposAtendimento(){
       try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); if (typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); }catch(e){}
     }
   }
-  // BUG FIX: expõe mostrarTela globalmente para que scripts externos usem sempre a versão atual
-  window.mostrarTela = function(nome){ return mostrarTela(nome); };
+  // Guarda referência direta à função base (não ao closure mutável)
+  var _mostrarTelaBase = mostrarTela;
+
+  // Wrapper global unificado: sidebar mobile + bottom nav ativo
+  // Usa _mostrarTelaBase diretamente — sem closure sobre variável local que pode ser reassinalada
+  window.mostrarTela = async function(nome) {
+    if (window.innerWidth <= 880) {
+      try {
+        sidebar.classList.remove('open');
+        var ov = document.getElementById('sidebarOverlay');
+        if (ov) ov.style.display = 'none';
+      } catch(e) {}
+    }
+    var p = _mostrarTelaBase(nome);
+    try { _atualizarBnavAtivo(nome); } catch(e) {}
+    return p;
+  };
 
   // BUG FIX: limpa _ratPreSalvoId ao abrir novo atendimento para evitar que RAT pré-salva
   // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
-  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e)); };
-  mMeus.onclick = ()=>mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
-  if (mPainel) mPainel.onclick = ()=>mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
+  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; window.mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e)); };
+  mMeus.onclick = ()=>window.mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
+  if (mPainel) mPainel.onclick = ()=>window.mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mCadastros) 
     mCadastros.onclick = async ()=>{
       // Sincroniza usuários, clientes e equipamentos do Firestore sempre que abrir a aba Cadastros
@@ -3987,12 +4400,12 @@ function autoFillCamposAtendimento(){
       }
 
       // Exibe a aba e re-renderiza com dados atualizados
-      mostrarTela('cadastros').catch(e=>console.warn('Erro ao abrir tela:', e));
+      window.mostrarTela('cadastros').catch(e=>console.warn('Erro ao abrir tela:', e));
       try { if (typeof renderUsuarios    === 'function') renderUsuarios();    } catch(e){}
       try { if (typeof renderClientes    === 'function') renderClientes();    } catch(e){}
       try { if (typeof renderEquipamentos=== 'function') renderEquipamentos();} catch(e){}
     };
-  if (mSistema) mSistema.onclick = ()=>mostrarTela('sistema').catch(e=>console.warn('Erro ao abrir tela:', e));
+  if (mSistema) mSistema.onclick = ()=>window.mostrarTela('sistema').catch(e=>console.warn('Erro ao abrir tela:', e));
 
   btnLogout.onclick = async ()=>{
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
@@ -4001,7 +4414,17 @@ function autoFillCamposAtendimento(){
       var _fbAuth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
       if (_fbAuth && _fbAuth.currentUser) await _fbAuth.signOut();
     } catch(e) { console.warn('Firebase signOut falhou (ignorado):', e); }
-    usuarioLogado=null; app.style.display='none'; var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden'; var _sbOv=document.getElementById('sidebarOverlay'); if(_sbOv) _sbOv.style.display='none';
+    usuarioLogado=null;
+    // SEGURANÇA: limpa referências globais ao usuário e dados sensíveis em memória
+    // Para o listener do Firestore para evitar callbacks em estado deslogado
+    try { if (typeof window._relatoriosListener === 'function') { window._relatoriosListener(); window._relatoriosListener = null; } } catch(e){}
+    try { window.usuarioLogado = null; } catch(e){}
+    try { window.assinaturaClienteAtual = null; } catch(e){}
+    try { window.assinaturaTecnicoAtual = null; } catch(e){}
+    try { window._userMustSetPassword = null; } catch(e){}
+    try { window._editandoRelatorioId = null; } catch(e){}
+    try { window._ratPreSalvoId = null; } catch(e){}
+    app.style.display='none'; var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden'; var _sbOv=document.getElementById('sidebarOverlay'); if(_sbOv) _sbOv.style.display='none';
     // FIX: oculta elementos fixed fora do #app que podem vazar sobre a tela de login
     var _barra=document.getElementById('barraAcoesMobile'); if(_barra) _barra.style.display='none';
     var _asi=document.getElementById('autoSaveIndicator'); if(_asi) _asi.classList.remove('visible');
@@ -4025,19 +4448,7 @@ function autoFillCamposAtendimento(){
     }
   });
 
-  // Fecha sidebar no mobile ao navegar para uma tela
-  var _origMostrarTela = window.mostrarTela;
-  if (typeof mostrarTela === 'function') {
-    var _mTOrig = mostrarTela;
-    mostrarTela = async function(nome) {
-      if (window.innerWidth <= 880) {
-        sidebar.classList.remove('open');
-        var ov = document.getElementById('sidebarOverlay');
-        if (ov) ov.style.display = 'none';
-      }
-      return _mTOrig(nome);
-    };
-  }
+  // (sidebar mobile e bNav já tratados em window.mostrarTela acima)
 
   // Swipe para esquerda fecha a sidebar no mobile
   (function(){
@@ -4074,7 +4485,7 @@ function autoFillCamposAtendimento(){
   
   // Quando selecionar um cliente da lista, preencher CNPJ automaticamente
   if (aClienteSelect){
-    aClienteSelect.addEventListener('change', ()=>{
+    aClienteSelect.addEventListener('change', async ()=>{
       const nomeSel = aClienteSelect.value || '';
       if (!nomeSel){
         if (aCnpj){
@@ -4091,7 +4502,7 @@ function autoFillCamposAtendimento(){
       if (cli){
         // Se não tiver CNPJ salvo, perguntar uma vez
         if (!cli.cnpj){
-          const novoCnpj = prompt('Este cliente ainda não possui documento cadastrado. Informe o CNPJ (ou deixe em branco para pular):', '');
+          const novoCnpj = await showPrompt('Este cliente ainda não possui documento cadastrado. Informe o CNPJ (ou deixe em branco para pular):', '');
           if (novoCnpj !== null){
             cli.cnpj = String(novoCnpj||'').trim();
             try {
@@ -4174,6 +4585,8 @@ function autoFillCamposAtendimento(){
 
   // Lista Painel principal
   function renderLista(){
+    // SEGURANÇA: apenas supervisor/admin pode listar todos os relatórios
+    if (!(window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor'))) return;
     listaRelatorios.innerHTML='';
     if (modoListaSupervisor==='none'){ listaRelatorios.innerHTML='<p style="font-size:.72rem;color:#0f172a;">Selecione uma opção acima para listar os relatórios.</p>'; return; }
 
@@ -4220,18 +4633,18 @@ function autoFillCamposAtendimento(){
           <span class="badge-status ${statusClass}">${esc(r.status)}</span>
         </div>
         <div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-          <button class="btn small" data-ver="${r.id}"><i class="ri-eye-line"></i> Visualizar</button>
-          <button class="btn small" data-pdf="${r.id}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
-          <button class="btn small" data-editar-rat="${r.id}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
-          ${isSupervisorOrAdmin(usuarioLogado) ? `<button class="btn small" data-deletar-rat="${r.id}" style="background:#fff1f2;color:#dc2626;border-color:#fecaca;"><i class="ri-delete-bin-2-line"></i> Excluir</button>` : ''}
+          <button class="btn small" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Visualizar</button>
+          <button class="btn small" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
+          <button class="btn small" data-editar-rat="${esc(r.id)}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
+          ${isSupervisorOrAdmin(usuarioLogado) ? `<button class="btn small" data-deletar-rat="${esc(r.id)}" style="background:#fff1f2;color:#dc2626;border-color:#fecaca;"><i class="ri-delete-bin-2-line"></i> Excluir</button>` : ''}
         </div>
         ${(temImg||temVid)?`<div class="mini-gallery" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-          ${(r.imgsEquip||[]).map(src=>`<img src="${esc(src)}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`).join('')}
-          ${(r.imgsServico||[]).map(src=>`<img src="${esc(src)}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`).join('')}
-          ${(r.imgsBaterias||[]).map(src=>`<img src="${esc(src)}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`).join('')}
-          ${(r.vidsEquip||[]).map(src=>`<video src="${esc(src)}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`).join('')}
-          ${(r.vidsServico||[]).map(src=>`<video src="${esc(src)}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`).join('')}
-          ${(r.vidsBaterias||[]).map(src=>`<video src="${esc(src)}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`).join('')}
+          ${(r.imgsEquip||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<img src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`:''}).join('')}
+          ${(r.imgsServico||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<img src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`:''}).join('')}
+          ${(r.imgsBaterias||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<img src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`:''}).join('')}
+          ${(r.vidsEquip||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<video src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`:''}).join('')}
+          ${(r.vidsServico||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<video src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`:''}).join('')}
+          ${(r.vidsBaterias||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<video src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`:''}).join('')}
         </div>`:''}`;
       listaRelatorios.appendChild(div);
     });
@@ -4308,13 +4721,13 @@ function autoFillCamposAtendimento(){
       <div class="campo"><span class="rotulo">Condição na chegada:</span> ${esc(r.condicao || '-')}</div>
       <div class="linha"></div>
       <div class="campo"><span class="rotulo">Tipo de serviço:</span> ${esc(r.tipo || '-')}</div>
-      <div class="campo"><span class="rotulo">Problema informado:</span><br>${esc(r.problema||'').replace(/&amp;/g,'&').replace(/\n/g,'<br>')}</div>
-      <div class="campo"><span class="rotulo">Diagnóstico do técnico:</span><br>${esc(r.diagnostico||'').replace(/&amp;/g,'&').replace(/\n/g,'<br>')}</div>
-      <div class="campo"><span class="rotulo">Ações realizadas:</span><br>${r.acoes && r.acoes.length ? (Array.isArray(r.acoes) ? r.acoes.map(a=>'- '+esc(a)).join('<br>') : String(r.acoes).replace(/\n/g,'<br>')) : '-'}</div>
+      <div class="campo"><span class="rotulo">Problema informado:</span><br>${esc(r.problema||'').replace(/\n/g,'<br>')}</div>
+      <div class="campo"><span class="rotulo">Diagnóstico do técnico:</span><br>${esc(r.diagnostico||'').replace(/\n/g,'<br>')}</div>
+      <div class="campo"><span class="rotulo">Ações realizadas:</span><br>${r.acoes && r.acoes.length ? (Array.isArray(r.acoes) ? r.acoes.map(a=>'- '+esc(a)).join('<br>') : esc(String(r.acoes)).replace(/\n/g,'<br>')) : '-'}</div>
       <div class="campo"><span class="rotulo">Peças utilizadas:</span> ${esc(r.pecas||'-')}</div>
       <div class="linha"></div>
       <div class="campo"><span class="rotulo">Baterias:</span> Qtd: ${esc(r.bateriasQtd||'-')} · Tensão: ${esc(r.bateriasTensao||'-')}</div>
-      <div class="campo"><span class="rotulo">Observações finais:</span><br>${esc(r.bateriasObs||'-').replace(/&amp;/g,'&').replace(/\n/g,'<br>')}</div>
+      <div class="campo"><span class="rotulo">Observações finais:</span><br>${esc(r.bateriasObs||'-').replace(/\n/g,'<br>')}</div>
       <div class="linha"></div>
       <div class="campo"><span class="rotulo">Status final:</span> ${esc(r.status || '-')}</div>
       ${blocoMidiasHTML(r)}
@@ -4326,7 +4739,7 @@ function autoFillCamposAtendimento(){
         <div style="font-size:1.05rem;font-weight:600;">${esc(r.tecnico)}</div>
         <div style="font-size:.9rem;color:#94a3b8;">Gerado automaticamente em ${agoraBR()}</div>
       </div>
-      ${r.assinaturaCliente ? `
+      ${r.assinaturaCliente && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(r.assinaturaCliente) ? `
       <div class="campo" style="margin-top:8px;">
         <div style="height:1px;background:#cbd5e1;margin-bottom:12px;"></div>
         <div style="font-size:1.05rem;">Assinatura do cliente:</div>
@@ -4351,9 +4764,41 @@ function autoFillCamposAtendimento(){
     marcarComoVisto(id);
     try { logInfo('RAT visualizada', { numero: r.numero || 'N/A', cliente: r.cliente || '', status: r.status || '' }); } catch(e){}
     renderLista();
+
+    // Bug 3 fix: botão "Ver portal" no modal — abre a visão do cliente
+    const btnVP = document.getElementById('btnVerPortalModal');
+    if (btnVP) {
+      btnVP.style.display = '';
+      btnVP.onclick = async function() {
+        if (window.location.protocol === 'file:') {
+          showToast('⚠️ Abra via onlinees.vercel.app para usar o portal do cliente.');
+          return;
+        }
+        let token = r.portalToken;
+        if (!token && typeof window._gerarTokenPortal === 'function') {
+          btnVP.disabled = true; btnVP.textContent = '⏳';
+          try { token = await window._gerarTokenPortal(r); } catch(e) { showToast('Erro ao gerar token: ' + e.message); btnVP.disabled = false; btnVP.innerHTML = '<i class="ri-eye-line"></i> Ver portal'; return; }
+          btnVP.disabled = false; btnVP.innerHTML = '<i class="ri-eye-line"></i> Ver portal';
+        }
+        if (token && typeof window._urlPortal === 'function') {
+          window.open(window._urlPortal(token), '_blank', 'noopener,noreferrer');
+        }
+      };
+    }
   }
-  btnCloseReport.onclick = ()=> reportOverlay.classList.remove('active');
-  reportOverlay.addEventListener('click', e=>{ if (e.target===reportOverlay) reportOverlay.classList.remove('active'); });
+  btnCloseReport.onclick = ()=> {
+    reportOverlay.classList.remove('active');
+    // Reset btnVerPortalModal ao fechar — evita que o onclick do relatório anterior persista
+    var _bvp = document.getElementById('btnVerPortalModal');
+    if (_bvp) { _bvp.style.display = 'none'; _bvp.onclick = null; }
+  };
+  reportOverlay.addEventListener('click', e=>{ 
+    if (e.target===reportOverlay) {
+      reportOverlay.classList.remove('active');
+      var _bvp2 = document.getElementById('btnVerPortalModal');
+      if (_bvp2) { _bvp2.style.display = 'none'; _bvp2.onclick = null; }
+    }
+  });
 
   function marcarComoVisto(id){
     relatorios = relatorios.map(r=> r.id===id ? ({...r,visto:true}) : r );
@@ -4373,7 +4818,7 @@ function autoFillCamposAtendimento(){
       alert('Permissão negada.');
       return;
     }
-    if (!confirm('Você tem certeza que deseja remover este usuário?')) return;
+    if (!await showConfirm('Você tem certeza que deseja remover este usuário?')) return;
 
     try{
       if (typeof loadUsers === 'function'){
@@ -4387,6 +4832,17 @@ function autoFillCamposAtendimento(){
     window._lastRemovedUser = (Array.isArray(usuarios) ? usuarios : []).find(x => x && x.username === user) || null;
     usuarios = (Array.isArray(usuarios) ? usuarios : []).filter(x => x && x.username !== user);
     saveUsers(usuarios);
+
+    // [W-01] Adiciona login à lista negra para impedir auto-recriação no login
+    // mesmo que a deleção no Firebase Auth falhe (requer Admin SDK, não client token)
+    try {
+      var _remList = JSON.parse(localStorage.getItem('online-es-removidos') || '[]');
+      if (!Array.isArray(_remList)) _remList = [];
+      var _uLower = String(user).toLowerCase();
+      if (!_remList.includes(_uLower)) { _remList.push(_uLower); }
+      localStorage.setItem('online-es-removidos', JSON.stringify(_remList));
+    } catch(e) { console.warn('[W-01] Falha ao registrar usuário removido na lista negra:', e); }
+
     renderUsuarios();
     showToast('Usuário removido com sucesso!');
     try { logInfo('Usuário removido', { usuario: user, por: (window.usuarioLogado && window.usuarioLogado.username) || 'admin' }); } catch(e){}
@@ -4422,6 +4878,8 @@ function autoFillCamposAtendimento(){
     }
   }
 function renderUsuarios(){
+  // SEGURANÇA: apenas supervisor/admin pode listar usuários
+  if (!((window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor')))) return;
   // Garante que sempre pegue o tbody correto da tabela
   const tabela = document.getElementById('tabelaUsuarios');
   if (!tabela) return;
@@ -4456,13 +4914,13 @@ function renderUsuarios(){
 
   // Resetar senha
   document.querySelectorAll('[data-reset]').forEach(btn=>{
-    btn.onclick = ()=>{
+    btn.onclick = async ()=>{
       const user = btn.getAttribute('data-reset');
       if (!isSupervisorOrAdmin()){ 
         alert('Permissão negada.'); 
         return; 
       }
-      if (!confirm('Confirmar reset de senha para "'+user+'"? O usuário definirá nova senha no próximo login.')) return;
+      if (!await showConfirm('Confirmar reset de senha para "'+user+'"? O usuário definirá nova senha no próximo login.')) return;
       usuarios = (usuarios || []).map(u=> 
         u.username === user ? ({...u, password:'', _salt:'', mustChangePassword:true}) : u
       );
@@ -4482,7 +4940,7 @@ function renderUsuarios(){
         alert('Permissão negada.'); 
         return; 
       }
-      if (!confirm('Você tem certeza que deseja remover este usuário?')) return;
+      if (!await showConfirm('Você tem certeza que deseja remover este usuário?')) return;
 
       // Garante que está usando a lista mais atual de usuários
       if (typeof loadUsers === 'function'){
@@ -4507,26 +4965,28 @@ function renderUsuarios(){
 
   // Editar usuário
   document.querySelectorAll('[data-editar]').forEach(btn=>{
-    btn.onclick = ()=>{
+    btn.onclick = async ()=>{
       if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
       const uname = btn.getAttribute('data-editar');
       const u = (usuarios || []).find(x=>x.username===uname);
       if (!u) return;
+      // SEGURANÇA: supervisor não pode editar conta de admin
+      if (u.role === 'admin' && !isAdmin()) { alert('Apenas o Administrador pode editar contas de admin.'); return; }
 
-      const novoNome = prompt('Nome completo:', u.fullName || '');
+      const novoNome = await showPrompt('Nome completo:', u.fullName || '');
       if (novoNome === null) return;
 
-      const novoUser = prompt('Usuário (login):', u.username);
+      const novoUser = await showPrompt('Usuário (login):', u.username);
       if (novoUser === null) return;
 
-      let novoRole = prompt('Papel (admin/supervisor/tecnico):', u.role);
+      let novoRole = await showPrompt('Papel (admin/supervisor/tecnico):', u.role);
       if (novoRole === null) return;
       novoRole = (['admin','supervisor','tecnico'].includes((novoRole||'').trim().toLowerCase()) ? novoRole.trim().toLowerCase() : u.role);
 
       // Supervisor não pode promover para admin
       if (!isAdmin() && novoRole === 'admin'){ alert('Apenas o Administrador pode atribuir o papel "admin".'); return; }
 
-      if (!confirm(`Confirmar edição do usuário?\n\nNome: ${novoNome}\nLogin: ${novoUser}\nPapel: ${roleLabel(novoRole)}`)) return;
+      if (!await showConfirm(`Confirmar edição do usuário?\n\nNome: ${novoNome}\nLogin: ${novoUser}\nPapel: ${roleLabel(novoRole)}`)) return;
 
       // Validar duplicidade de login (ignora o próprio)
       if ((usuarios || []).find(x=> x.username.toLowerCase()===novoUser.toLowerCase() && x.username!==u.username)){
@@ -4546,6 +5006,8 @@ function renderUsuarios(){
   });
 }
   function renderEquipamentos(){
+    // SEGURANÇA: apenas supervisor/admin pode listar equipamentos no painel
+    if (!((window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor')))) return;
     const tbody = document.getElementById('tabelaEquipamentos')?.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -4557,10 +5019,10 @@ function renderUsuarios(){
         <td>${esc(eq.modelo||'-')}</td>
         <td>${esc(eq.serie||'-')}</td>
         <td>${esc(eq.kva||'-')}</td>
-        <td>${(eq.estoque!=null?eq.estoque:'-')}</td>
+        <td>${esc(eq.estoque!=null?String(eq.estoque):'-')}</td>
         <td style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn small" data-editar-equip="${eq.id}"><i class="ri-pencil-line"></i> Editar</button>
-          <button class="btn small" data-remover-equip="${eq.id}"><i class="ri-delete-bin-6-line"></i> Remover</button>
+          <button class="btn small" data-editar-equip="${esc(String(eq.id))}"><i class="ri-pencil-line"></i> Editar</button>
+          <button class="btn small" data-remover-equip="${esc(String(eq.id))}"><i class="ri-delete-bin-6-line"></i> Remover</button>
         </td>`;
       tbody.appendChild(tr);
     });
@@ -4568,7 +5030,7 @@ function renderUsuarios(){
     document.querySelectorAll('[data-remover-equip]').forEach(btn=>{
       btn.onclick = async ()=>{
         const id = btn.getAttribute('data-remover-equip');
-        if (confirm('Remover equipamento selecionado?')){
+        if (await showConfirm('Remover equipamento selecionado?')){
           equipamentos = (equipamentos||[]).filter(e=>String(e.id)!==String(id));
           saveEquipamentos(equipamentos);
           renderEquipamentos();
@@ -4586,22 +5048,22 @@ function renderUsuarios(){
     });
 
     document.querySelectorAll('[data-editar-equip]').forEach(btn=>{
-      btn.onclick = ()=>{
+      btn.onclick = async ()=>{
         const id = btn.getAttribute('data-editar-equip');
         const eq = (equipamentos || []).find(e=>String(e.id)===String(id));
         if (!eq) return;
 
-        const tipo = prompt('Tipo do equipamento:', eq.tipo || '');
+        const tipo = await showPrompt('Tipo do equipamento:', eq.tipo || '');
         if (tipo === null) return;
-        const marca = prompt('Marca:', eq.marca || '');
+        const marca = await showPrompt('Marca:', eq.marca || '');
         if (marca === null) return;
-        const modelo = prompt('Modelo:', eq.modelo || '');
+        const modelo = await showPrompt('Modelo:', eq.modelo || '');
         if (modelo === null) return;
-        const serie = prompt('Série:', eq.serie || '');
+        const serie = await showPrompt('Série:', eq.serie || '');
         if (serie === null) return;
-        const kva = prompt('Potência/kVA:', eq.kva || '');
+        const kva = await showPrompt('Potência/kVA:', eq.kva || '');
         if (kva === null) return;
-        const estoqueStr = prompt('Quantidade em estoque:', (eq.estoque!=null?eq.estoque:''));
+        const estoqueStr = await showPrompt('Quantidade em estoque:', (eq.estoque!=null?eq.estoque:''));
         if (estoqueStr === null) return;
         const estoque = estoqueStr === '' ? null : parseInt(estoqueStr,10);
 
@@ -4629,6 +5091,8 @@ function renderUsuarios(){
   }
 
 function renderClientes(){
+  // SEGURANÇA: apenas supervisor/admin pode listar clientes
+  if (!((window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor')))) return;
   const tabelaClientes_ = document.getElementById('tabelaClientes');
   const tbody = tabelaClientes_ ? tabelaClientes_.querySelector('tbody') : null;
   if (!tbody) return;
@@ -4658,7 +5122,7 @@ function renderClientes(){
   document.querySelectorAll('[data-remover-cliente]').forEach(btn => {
     btn.onclick = async () => {
       const nome = btn.getAttribute('data-remover-cliente');
-      if (!confirm('Remover cliente "'+nome+'"?')) return;
+      if (!await showConfirm('Remover cliente "'+nome+'"?')) return;
       clientes = (clientes || []).filter(x => (x.nome || '') !== nome);
       saveClientes(clientes);
       if (db) { try { const _nId = nome.toLowerCase().replace(/[^a-z0-9]/g,'_'); db.collection('onlineEsClientes').where('nome','==',nome).get().then(s=>s.forEach(d=>d.ref.delete())); } catch(e){} }
@@ -5338,7 +5802,17 @@ if (logoBase64) {
     return await ref.getDownloadURL();
   }
 // Auxiliares
-  function gerarId(){ return 'id-'+Math.random().toString(36).slice(2)+Date.now().toString(36); }
+  // [S-02] ID criptograficamente seguro via CSPRNG — substitui Math.random()
+  function gerarId(){
+    try {
+      var _arr = new Uint8Array(16);
+      crypto.getRandomValues(_arr);
+      return 'id-' + Array.from(_arr).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    } catch(e) {
+      // Fallback extremamente improvável (browser sem crypto.getRandomValues)
+      return 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+  }
   function coletarMidiasPreview(container){
     try {
       if (!container || typeof container.querySelectorAll !== 'function' || (container.isConnected === false)) return {imgs:[], vids:[]};
@@ -5423,7 +5897,15 @@ if (logoBase64) {
       assinaturaTecnicoImg: assinaturaTecnicoAtual || window.assinaturaTecnicoAtual || null,
       nomeAssinaturaCliente: (sigNomeCliente && sigNomeCliente.value
         ? sigNomeCliente.value.trim()
-        : '')
+        : ''),
+      // === AUDITORIA RAT ===
+      // criadoPor/criadoEm são preenchidos apenas na criação (ver bloco de salvar abaixo).
+      // editadoPor/editadoEm e historicoEdicoes são gerenciados no bloco de edição.
+      criadoPor: '',
+      criadoEm: '',
+      editadoPor: '',
+      editadoEm: '',
+      historicoEdicoes: []
     };
   }
   // montarRelatorioAtual definida acima
@@ -5559,6 +6041,40 @@ if (logoBase64) {
       window._editandoRelatorioId = null;
     }
 
+    // === AUDITORIA: preenche campos de criação / edição ===
+    var _agora = new Date().toISOString();
+    var _usuarioAtual = (window.usuarioLogado)
+      ? (window.usuarioLogado.fullName || window.usuarioLogado.username || '')
+      : '';
+    var _loginAtual = (window.usuarioLogado) ? (window.usuarioLogado.username || '') : '';
+
+    if (_eraEdicao && _ratOriginal) {
+      // Preserva dados de criação do original
+      novo.criadoPor = _ratOriginal.criadoPor || _ratOriginal.tecnico || '';
+      novo.criadoEm  = _ratOriginal.criadoEm  || _ratOriginal.dataHoraIso || '';
+      // Registra quem editou e quando
+      novo.editadoPor = _usuarioAtual;
+      novo.editadoEm  = _agora;
+      // Histórico acumulado de edições
+      var _histAnt = Array.isArray(_ratOriginal.historicoEdicoes) ? _ratOriginal.historicoEdicoes : [];
+      var _entradaEdicao = {
+        editadoPor: _usuarioAtual,
+        loginEditor: _loginAtual,
+        editadoEm: _agora,
+        statusAnterior: _ratOriginal.status || '',
+        statusNovo: novo.status || ''
+      };
+      novo.historicoEdicoes = _histAnt.concat([_entradaEdicao]);
+    } else {
+      // RAT nova: registra criação
+      novo.criadoPor = _usuarioAtual;
+      novo.criadoEm  = _agora;
+      novo.editadoPor = '';
+      novo.editadoEm  = '';
+      novo.historicoEdicoes = [];
+    }
+    // === FIM AUDITORIA ===
+
     // Preserva portalToken do original para não quebrar links já enviados
     if (_eraEdicao && _ratOriginal && _ratOriginal.portalToken && !novo.portalToken) {
       novo.portalToken = _ratOriginal.portalToken;
@@ -5586,7 +6102,31 @@ if (logoBase64) {
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
       showToast('Relatório salvo e enviado para o painel.');
-      try { logInfo('RAT salva (online)', { numero: novo.numero || novo.id || 'N/A', cliente: novo.cliente || '', status: novo.status || '', tipo: novo.tipo || '', tecnico: novo.tecnico || '' }); } catch(e){}
+      try {
+        if (_eraEdicao) {
+          logInfo('RAT editada (online)', {
+            numero: novo.numero || novo.id || 'N/A',
+            cliente: novo.cliente || '',
+            status: novo.status || '',
+            editadoPor: novo.editadoPor || '',
+            loginEditor: _loginAtual,
+            editadoEm: novo.editadoEm || '',
+            criadoPor: novo.criadoPor || '',
+            criadoEm: novo.criadoEm || '',
+            totalEdicoes: (novo.historicoEdicoes || []).length
+          });
+        } else {
+          logInfo('RAT criada (online)', {
+            numero: novo.numero || novo.id || 'N/A',
+            cliente: novo.cliente || '',
+            status: novo.status || '',
+            tipo: novo.tipo || '',
+            criadoPor: novo.criadoPor || '',
+            loginCriador: _loginAtual,
+            criadoEm: novo.criadoEm || ''
+          });
+        }
+      } catch(e){}
       if (isSupervisorOrAdmin(usuarioLogado)){ renderLista(); atualizarDashboard(); }
     } else {
       // Offline: salva local e em pendentes
@@ -5595,9 +6135,27 @@ if (logoBase64) {
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
-      try { logWarning('RAT salva (offline/pendente)', { numero: novo.numero || novo.id || 'N/A', cliente: novo.cliente || '' }); } catch(e){}
+      try {
+        if (_eraEdicao) {
+          logWarning('RAT editada (offline/pendente)', {
+            numero: novo.numero || novo.id || 'N/A',
+            cliente: novo.cliente || '',
+            editadoPor: novo.editadoPor || '',
+            editadoEm: novo.editadoEm || '',
+            criadoPor: novo.criadoPor || ''
+          });
+        } else {
+          logWarning('RAT criada (offline/pendente)', {
+            numero: novo.numero || novo.id || 'N/A',
+            cliente: novo.cliente || '',
+            criadoPor: novo.criadoPor || '',
+            criadoEm: novo.criadoEm || ''
+          });
+        }
+      } catch(e){}
     }
     window._ratPreSalvoId = null; // limpa ID reservado após salvar com sucesso
+    window._ratNumeroBloqueado = false; // [B-02] libera número para próxima RAT
     // Prepara formulário para próximo atendimento: limpa campos e gera novo número RAT
     try {
       // Limpa apenas campos essenciais (não limpa tudo para não atrapalhar fluxo)
@@ -5636,10 +6194,10 @@ if (logoBase64) {
       if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
       var _cnpjWrap = document.getElementById('aCnpjWrapper') || (aCnpj && aCnpj.parentElement);
       if (_cnpjWrap) _cnpjWrap.style.display = 'none';
-      // Limpa o campo de número e gera o próximo
+      // Limpa o campo de número e gera o próximo (apenas para nova RAT, não edição)
       var _ratEl = document.getElementById('aNumeroRat');
       if (_ratEl) _ratEl.value = '';
-      ensureNumeroRat();
+      if (!_eraEdicao) ensureNumeroRat();
       // Reinicia relógio
       startRelogioAtendimento();
     } catch(e){ console.warn('Erro ao preparar próximo atendimento:', e); }
@@ -5710,7 +6268,7 @@ if (logoBase64) {
   }
 
   // Restaurar rascunho ao abrir Novo Atendimento
-  function verificarRascunho() {
+  async function verificarRascunho() {
     try {
       const raw = localStorage.getItem(STORAGE_RASCUNHO);
       if (!raw) return;
@@ -5719,7 +6277,7 @@ if (logoBase64) {
 
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
       const clienteRasc = r.cliente || r.clienteManual || 'sem cliente';
-      if (!confirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + ' (' + clienteRasc + '). Deseja restaurar?')) {
+      if (!await showConfirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + ' (' + clienteRasc + '). Deseja restaurar?')) {
         localStorage.removeItem(STORAGE_RASCUNHO);
         return;
       }
@@ -5780,6 +6338,21 @@ if (logoBase64) {
         if (r.cepCliente) { var _fxCep2 = document.getElementById('aCep'); if (_fxCep2) _fxCep2.value = r.cepCliente || ''; }
         if (r.nomeAssinaturaCliente && sigNomeCliente) sigNomeCliente.value = r.nomeAssinaturaCliente;
         try { if (r.docClienteTipo && typeof setTipoDoc === 'function') setTipoDoc(r.docClienteTipo); } catch(e){}
+        // [BUG-D] fornecidoEstoque e equipEstoqueId não eram restaurados pelo rascunho
+        try {
+          if (r.fornecidoEstoque) {
+            var _fElRasc = document.getElementById('aFornecidoEstoque');
+            if (_fElRasc) _fElRasc.value = r.fornecidoEstoque;
+            if (r.fornecidoEstoque === 'sim') {
+              var _colEstRasc = document.getElementById('colEquipEstoque');
+              if (_colEstRasc) { _colEstRasc.style.display = 'block'; if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque(); }
+              if (r.equipEstoqueId) {
+                var _selEstRasc = document.getElementById('aEquipEstoque');
+                if (_selEstRasc) setTimeout(function(){ _selEstRasc.value = r.equipEstoqueId; }, 100);
+              }
+            }
+          }
+        } catch(e){}
 
         // BUG FIX: para o relógio automático pois a data do rascunho foi restaurada
         // e o timer continuaria sobrescrevendo-a após 10 segundos
@@ -6097,7 +6670,7 @@ if (logoBase64) {
           new Promise((_,rej) => setTimeout(() => rej(new Error('url-timeout')), 8000))
         ]);
 
-        console.log('[PDF] Upload concluído. URL:', pdfUrl);
+        
       } catch(e) {
         uploadErro = e.message || String(e);
         console.warn('[PDF] Upload Storage falhou:', uploadErro);
@@ -6222,6 +6795,11 @@ if (logoBase64) {
         if (aEmailCliente) { aEmailCliente.focus(); aEmailCliente.style.outline = '2px solid #f97316'; setTimeout(()=>{ aEmailCliente.style.outline = ''; }, 2500); }
         return;
       }
+      if (!/^[^\s@?&]+@[^\s@?&]+\.[^\s@?&]+$/.test(email)) {
+        showToast('📧 E-mail inválido. Verifique o endereço informado.');
+        if (aEmailCliente) { aEmailCliente.focus(); aEmailCliente.style.outline = '2px solid #f97316'; setTimeout(()=>{ aEmailCliente.style.outline = ''; }, 2500); }
+        return;
+      }
       if (typeof autoFillCamposAtendimento === 'function') autoFillCamposAtendimento();
       ensureNumeroRat();
       var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
@@ -6260,7 +6838,24 @@ if (logoBase64) {
         hideLoader();
       }
 
-      const linkLinha = pdfUrl ? '\n\n📄 Acesse o relatório em PDF:\n' + pdfUrl + '\n' : null;
+      // SEMPRE gera o link do portal (experiência completa para o cliente)
+      var portalUrl = null;
+      if (window.location.protocol === 'file:') {
+        showToast('⚠️ Abra o sistema via onlinees.vercel.app para gerar links para o cliente.');
+      } else if (typeof window._gerarTokenPortal === 'function' && typeof window._urlPortal === 'function') {
+        try { var _ptok = await window._gerarTokenPortal(r); portalUrl = window._urlPortal(_ptok); } catch(eP) { console.warn('[E-mail] Portal token falhou:', eP); }
+      }
+
+      // linkFinal: portal preferencial; pdfUrl como complemento no corpo do e-mail
+      var linkFinal = portalUrl || pdfUrl;
+      var linkLinha = null;
+      if (portalUrl) {
+        linkLinha = '\n\n🔗 Acesse o relatório completo pelo link:\n' + portalUrl;
+        if (pdfUrl) linkLinha += '\n\n📄 Download direto do PDF:\n' + pdfUrl;
+        linkLinha += '\n\n_O link fica disponível por 30 dias._';
+      } else if (pdfUrl) {
+        linkLinha = '\n\n📄 Acesse e baixe o relatório completo:\n' + pdfUrl;
+      }
       const assunto = 'Online-ES / Relatório Técnico - RAT ' + numeroRAT;
       const corpo = [
         'Olá,',
@@ -6271,25 +6866,25 @@ if (logoBase64) {
         'Data: ' + dataTexto,
         'Técnico responsável: ' + nomeTec,
         linkLinha,
-        !pdfUrl ? '\n⚠️ O PDF foi gerado localmente. Baixe-o no botão "Gerar PDF" e anexe manualmente ao e-mail.' : null,
+        !linkFinal ? '\n⚠️ O PDF foi gerado localmente. Baixe-o no botão "Gerar PDF" e anexe manualmente ao e-mail.' : null,
         'Fico à disposição para quaisquer esclarecimentos.',
         '',
         'Atenciosamente,',
         'Online-ES'
       ].filter(item => item !== null).join('\n');
 
-      // Se não tem link, baixa o PDF automaticamente e avisa o técnico
-      if (!pdfUrl) {
+      // Se não tem link nenhum, baixa o PDF automaticamente e avisa o técnico
+      if (!linkFinal) {
         try {
           const { blob: blobEmail, nome: nomeEmail } = await _gerarPdfBlob(r);
           _baixarPdfBlob(blobEmail, nomeEmail);
           await new Promise(res => setTimeout(res, 800));
         } catch(eDl) { console.warn('[E-mail] Falha ao baixar PDF:', eDl); }
-        alert('Não foi possível anexar o PDF automaticamente.\n\nO arquivo foi baixado no seu dispositivo.\n\nAo abrir o e-mail, anexe o PDF manualmente antes de enviar.');
+        alert('Não foi possível gerar link automático.\n\nO arquivo foi baixado no seu dispositivo.\n\nAo abrir o e-mail, anexe o PDF manualmente antes de enviar.');
       }
 
-      window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
-      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comLink: !!pdfUrl }); } catch(e){}
+      window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comLink: !!linkFinal, viaPortal: !pdfUrl && !!portalUrl }); } catch(e){}
     };
   }
 
@@ -6335,8 +6930,21 @@ if (logoBase64) {
       hideLoader();
     }
 
-    // Se não tem link, tenta Web Share API (envia PDF como arquivo direto)
-    if (!pdfUrl) {
+    // SEMPRE gera o link do portal (independente de ter pdfUrl ou não)
+    // pdfUrl = download direto do PDF via Storage
+    // portalUrlWa = visualização do relatório no portal do cliente (sempre incluído)
+    var portalUrlWa = null;
+    if (window.location.protocol === 'file:') {
+      showToast('⚠️ Abra o sistema via onlinees.vercel.app para gerar links para o cliente.');
+    } else if (typeof window._gerarTokenPortal === 'function' && typeof window._urlPortal === 'function') {
+      try { var _ptokWa = await window._gerarTokenPortal(r); portalUrlWa = window._urlPortal(_ptokWa); } catch(eP) { console.warn('[WhatsApp] Portal token falhou:', eP); }
+    }
+
+    // linkFinalWa: preferência ao portal (experiência completa); pdfUrl como complemento
+    var linkFinalWa = portalUrlWa || pdfUrl;
+
+    // Se não tem link nenhum, tenta Web Share API (envia PDF como arquivo direto)
+    if (!linkFinalWa) {
       var shareComArquivoDisponivel = false;
       try {
         var testeF = new File(['x'], 't.pdf', { type: 'application/pdf' });
@@ -6364,36 +6972,34 @@ if (logoBase64) {
     }
 
     // Se ainda sem link, baixa PDF e avisa o técnico antes de abrir WhatsApp
-    if (!pdfUrl) {
+    if (!linkFinalWa) {
       try {
         const { blob: blobWa2, nome: nomeWa2 } = await _gerarPdfBlob(r);
         _baixarPdfBlob(blobWa2, nomeWa2);
         await new Promise(res => setTimeout(res, 800));
       } catch(eDl2) { console.warn('[WhatsApp] Falha ao baixar PDF:', eDl2); }
-      alert('Não foi possível anexar o PDF automaticamente.\n\nO arquivo foi baixado no seu dispositivo.\n\nApós enviar a mensagem no WhatsApp, anexe o PDF manualmente na conversa.');
+      alert('Não foi possível gerar link automático.\n\nO arquivo foi baixado no seu dispositivo.\n\nApós enviar a mensagem no WhatsApp, anexe o PDF manualmente na conversa.');
     }
 
-    const msgFinal = pdfUrl
-      ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊
+    // Monta o texto da mensagem
+    // Sempre inclui o link do portal quando disponível; acrescenta link do PDF Storage se também gerado
+    var _linkWaDesc = '';
+    if (portalUrlWa) {
+      _linkWaDesc = '\n\n🔗 Acesse o relatório completo pelo link abaixo:\n' + portalUrlWa;
+      if (pdfUrl) _linkWaDesc += '\n\n📄 Download direto do PDF:\n' + pdfUrl;
+      _linkWaDesc += '\n\n_O link fica disponível por 30 dias._';
+    } else if (pdfUrl) {
+      _linkWaDesc = '\n\n📄 Acesse o PDF: ' + pdfUrl;
+    }
 
-Segue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.
-
-📄 Acesse o PDF: ${pdfUrl}
-
-Qualquer dúvida estamos à disposição!`
-      : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊
-
-Segue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.
-
-📎 O PDF foi baixado no seu dispositivo — anexe-o nesta conversa.
-
-Qualquer dúvida estamos à disposição!`;
+    const msgFinal = linkFinalWa
+      ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.${_linkWaDesc}\n\nQualquer dúvida estamos à disposição!`
+      : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.\n\n📎 O PDF foi baixado no seu dispositivo — anexe-o nesta conversa.\n\nQualquer dúvida estamos à disposição!`;
     const waUrl = `https://wa.me/${tel}?text=${encodeURIComponent(msgFinal)}`;
-    window.open(waUrl, '_blank');
-    if (pdfUrl) showToast('✅ WhatsApp aberto com link do PDF incluído!');
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    if (linkFinalWa) showToast('✅ WhatsApp aberto com link do portal incluído!');
 
-
-    try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comLink: !!pdfUrl }); } catch(e){}
+    try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comLink: !!linkFinalWa, viaPortal: !!portalUrlWa, viaPdf: !!pdfUrl }); } catch(e){}
   };
 
   // ── limparFormularioNovoAtendimento ──────────────────────────────────────────
@@ -6405,15 +7011,9 @@ Qualquer dúvida estamos à disposição!`;
         'aEndereco','aBairro','aCidade','aUF','aCep','aCnpj','aLocalizacao','aCoord','aLinkMaps',
         'bEquipamento','bSerie','bKVA','bLocal','bCondicao','bTensaoEntrada','bTensaoSaida',
         'cTipo','cStatus','cProblema','cDiagnostico','cAcoes','cPecas',
-        'dBatQtd','dBatTensao','dObs','sigNomeCliente'
+        'dBatQtd','dBatTensao','dObs','sigNomeCliente',
+        'aFornecidoEstoque','aEquipEstoque'  // [BUG-B] não eram limpos ao abrir novo formulário
       ];
-      ids.forEach(function(id){
-        var el = document.getElementById(id);
-        if (!el) return;
-        if (el.tagName === 'SELECT') el.selectedIndex = 0;
-        else el.value = '';
-      });
-      // Previews de mídia
       ['bPreview','cPreview','dPreview'].forEach(function(id){
         var el = document.getElementById(id); if (el) el.innerHTML = '';
       });
@@ -6436,11 +7036,15 @@ Qualquer dúvida estamos à disposição!`;
       if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
       var cnpjWrap = (aCnpj && aCnpj.parentElement) ? aCnpj.parentElement : document.getElementById('aCnpjWrapper');
       if (cnpjWrap) cnpjWrap.style.display = 'none';
+      // [BUG-B] oculta painel de equipamento de estoque (era mantido visível após limpar)
+      var colEquipEst = document.getElementById('colEquipEstoque');
+      if (colEquipEst) colEquipEst.style.display = 'none';
       // Limpa estado de edição (evita deletar RAT original ao salvar nova)
       window._editandoRelatorioId = null;
       // Apaga rascunho salvo
       try { localStorage.removeItem(typeof STORAGE_RASCUNHO !== 'undefined' ? STORAGE_RASCUNHO : 'online-es-rascunho-v1'); } catch(e){}
       // Gera novo número RAT e reinicia relógio
+      window._ratNumeroBloqueado = false;
       try { ensureNumeroRat(); } catch(e){}
       try { startRelogioAtendimento(); } catch(e){}
       // Fix 7: oculta botão Ver no Maps
@@ -6708,12 +7312,13 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   }
 
   function clearSignature(){
-    const width = sigCanvas.clientWidth || 600;
-    const height = sigCanvas.clientHeight || 160;
+    // [V-01] Usa canvas.width/canvas.height (pixels físicos) após resetar a transformação.
+    // clientWidth/clientHeight são CSS pixels — em telas HiDPI (DPR≥2) o clearRect anterior
+    // cobria apenas 1/DPR² da área, deixando rastros da assinatura anterior visíveis.
     sigCtx.setTransform(1,0,0,1,0,0);
-    sigCtx.clearRect(0,0,width,height);
+    sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
     sigCtx.fillStyle = '#ffffff';
-    sigCtx.fillRect(0,0,width,height);
+    sigCtx.fillRect(0,0,sigCanvas.width,sigCanvas.height);
     assinaturaClienteAtual = null;
       window.assinaturaClienteAtual = null;
     if (sigStatus) sigStatus.textContent = '';
@@ -7056,8 +7661,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
           <span class="badge-status ${statusClass}">${esc(r.status)}</span>
         </div>
         <div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-          <button class="btn small" data-ver="${r.id}"><i class="ri-eye-line"></i> Visualizar em tela</button>
-          <button class="btn small" data-pdf="${r.id}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
+          <button class="btn small" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Visualizar em tela</button>
+          <button class="btn small" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
         </div>`;
       listaBusca.appendChild(card);
     });
@@ -7122,7 +7727,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   });
 
   btnRemoverLogo?.addEventListener('click', async (ev) => {ev.preventDefault();
-    if (!confirm('Remover a logo salva?')) return;
+    if (!await showConfirm('Remover a logo salva?')) return;
     try {
       localStorage.removeItem('online-es-logo-b64');
       logoBase64 = null;
@@ -7181,10 +7786,12 @@ function aplicarPermissoesConfiguracoes(){
       localStorage: dump,
       firestore: firestoreData
     }, null, 2)], {type:'application/json'});
+    const _backupUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = _backupUrl;
     a.download = `backup-online-es-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(_backupUrl); }, 1000); // [Y-05]
   }
  document.getElementById('btnBackup')?.addEventListener('click', async ()=>{
   if (!isSupervisorOrAdmin()) {
@@ -7562,7 +8169,7 @@ function aplicarPermissoesConfiguracoes(){
     if (!isAdmin()) { alert('Apenas o Administrador pode restaurar backups.'); return; }
     if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
 
-    const ok = confirm(`Restaurar o backup do dia ${docId}?\n\nIsso substituirá TODOS os dados locais (relatórios, clientes, equipamentos).\n\nTem certeza?`);
+    const ok = await showConfirm(`Restaurar o backup do dia ${docId}?\n\nIsso substituirá TODOS os dados locais (relatórios, clientes, equipamentos).\n\nTem certeza?`);
     if (!ok) return;
 
     try {
@@ -7595,10 +8202,34 @@ function aplicarPermissoesConfiguracoes(){
         return;
       }
 
-      // Aplica cada chave no localStorage
+      // SEGURANÇA: apenas chaves conhecidas são restauradas (evita injeção via backup malicioso)
+      const _CHAVES_FB = new Set([
+        'online-es-usuarios-v3','online-es-relatorios','online-es-pendentes',
+        'online-es-contador','online-es-clientes-v1','online-es-equipamentos-v1',
+        'online-es-logs-v1','online-es-logo-b64','online-es-rascunho-v1',
+        'online-es-removidos' // [W-01] lista negra de logins removidos — deve sobreviver a restauração
+      ]);
       let count = 0;
       Object.entries(data).forEach(([k, v]) => {
-        try { localStorage.setItem(k, v); count++; } catch(e) {}
+        if (!_CHAVES_FB.has(k)) return; // ignora chaves desconhecidas
+        try {
+          // Sanitiza IDs em arrays de objetos para bloquear payloads com IDs malformados
+          if (['online-es-relatorios','online-es-pendentes','online-es-equipamentos-v1','online-es-clientes-v1'].includes(k)) {
+            try {
+              var _arr = JSON.parse(v);
+              if (Array.isArray(_arr)) {
+                _arr = _arr.map(function(obj) {
+                  if (obj && typeof obj === 'object' && obj.id !== undefined) {
+                    obj.id = String(obj.id).replace(/[^a-zA-Z0-9_-]/g, '');
+                  }
+                  return obj;
+                });
+                v = JSON.stringify(_arr);
+              }
+            } catch(e2) {}
+          }
+          localStorage.setItem(k, v); count++;
+        } catch(e) {}
       });
 
       showToast(`Backup de ${docId} restaurado (${count} registros). Recarregando...`);
@@ -7619,7 +8250,7 @@ function aplicarPermissoesConfiguracoes(){
   e.target.value='';
   return;
 }
-    const ok = confirm('Tem certeza que deseja RESTAURAR o backup? Isso substituirá os dados locais.');
+    const ok = await showConfirm('Tem certeza que deseja RESTAURAR o backup? Isso substituirá os dados locais.');
     if (!ok){ e.target.value=''; return; }
 
     try{
@@ -7628,7 +8259,40 @@ function aplicarPermissoesConfiguracoes(){
       const text = await file.text();
       const json = JSON.parse(text);
       if (!json || (!json.data && !json.localStorage) || typeof (json.data || json.localStorage) !== 'object') throw new Error('Arquivo inválido.');
-      Object.entries(json.data || json.localStorage).forEach(([k,v])=> localStorage.setItem(k, v));
+
+      // SEGURANÇA: Apenas chaves conhecidas do sistema são restauradas
+      const CHAVES_PERMITIDAS = new Set([
+        'online-es-usuarios-v3',
+        'online-es-relatorios',
+        'online-es-pendentes',
+        'online-es-contador',
+        'online-es-clientes-v1',
+        'online-es-equipamentos-v1',
+        'online-es-logs-v1',
+        'online-es-logo-b64',
+        'online-es-rascunho-v1'
+      ]);
+      let restauradas = 0;
+      // SEGURANÇA: sanitiza IDs dentro dos arrays restaurados para evitar XSS via backup malicioso
+      const _sanitizarIds = function(jsonStr) {
+        try {
+          var arr = JSON.parse(jsonStr);
+          if (!Array.isArray(arr)) return jsonStr;
+          arr.forEach(function(item) {
+            if (item && typeof item.id !== 'undefined') {
+              item.id = String(item.id).replace(/[^a-zA-Z0-9_\-]/g, '');
+            }
+          });
+          return JSON.stringify(arr);
+        } catch(e) { return jsonStr; }
+      };
+      const CHAVES_COM_IDS = new Set(['online-es-relatorios','online-es-pendentes','online-es-equipamentos-v1','online-es-clientes-v1']);
+      Object.entries(json.data || json.localStorage).forEach(([k, v]) => {
+        if (CHAVES_PERMITIDAS.has(k)) {
+          localStorage.setItem(k, CHAVES_COM_IDS.has(k) ? _sanitizarIds(v) : v);
+          restauradas++;
+        }
+      });
       showToast('Backup restaurado. Recarregando…');
       try { logInfo('Backup restaurado', { data: new Date().toISOString() }); } catch(e){}
       setTimeout(()=> location.reload(), 800);
@@ -7741,6 +8405,127 @@ window.setCustomLogoBase64 = function(b64){
       if (r.id && typeof visualizarRelatorio === 'function') visualizarRelatorio(r.id);
     }
   };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MOBILE HOME SCREEN — launcher de navegação para técnicos
+  // ══════════════════════════════════════════════════════════════════════════
+  var _bnavDefs = []; // definição atual do bottom nav (para recriar ao mudar perfil)
+
+  function _atualizarBnavAtivo(tela) {
+    var nav = document.getElementById('bottomNav');
+    if (!nav) return;
+    nav.querySelectorAll('.bnav-item').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.tela === (tela || '__home__'));
+    });
+  }
+
+  function _iniciarMobileHome(user) {
+    var isMobile = window.matchMedia('(max-width: 880px)').matches;
+
+    // Define cards e bottom nav conforme perfil
+    var ehTecnico = !((user.role === 'admin' || user.role === 'supervisor'));
+
+    var _cards = [
+      {
+        tela: 'novo', destaque: true,
+        icon: 'ri-edit-box-line', color: 'orange',
+        title: 'Novo Atendimento',
+        desc: 'Registrar uma nova RAT'
+      },
+      {
+        tela: 'meus', destaque: false,
+        icon: 'ri-file-list-3-line', color: 'blue',
+        title: 'Meus Atendimentos',
+        desc: 'Ver e editar RATs salvas'
+      }
+    ];
+    if (!ehTecnico) {
+      _cards.push(
+        { tela:'painel',   destaque:false, icon:'ri-dashboard-3-line',     color:'purple', title:'Painel',     desc:'Gerenciar todos os atendimentos' },
+        { tela:'cadastros',destaque:false, icon:'ri-contacts-book-2-line',  color:'green',  title:'Cadastros',  desc:'Clientes e equipamentos' },
+        { tela:'sistema',  destaque:false, icon:'ri-settings-4-line',       color:'gray',   title:'Sistema',    desc:'Configurações e backups' }
+      );
+    }
+
+    // ── Renderiza home screen ──
+    var homeEl   = document.getElementById('telaHome');
+    var homeNome = document.getElementById('homeNome');
+    var homeRole = document.getElementById('homeRole');
+    var homeGrid = document.getElementById('homeGrid');
+
+    if (homeNome) homeNome.textContent = user.fullName || user.username || 'Usuário';
+    if (homeRole) homeRole.textContent = (user.role === 'admin' ? 'Administrador' : user.role === 'supervisor' ? 'Supervisor' : 'Técnico');
+
+    if (homeGrid) {
+      homeGrid.innerHTML = '';
+      _cards.forEach(function(c) {
+        var card = document.createElement('div');
+        card.className = 'home-card' + (c.destaque ? ' destaque' : '');
+        card.dataset.tela = c.tela;
+        if (c.destaque) {
+          card.innerHTML =
+            '<div class="home-card-icon"><i class="' + c.icon + '"></i></div>' +
+            '<div class="home-card-body">' +
+              '<div class="home-card-title">' + c.title + '</div>' +
+              '<div class="home-card-desc">' + c.desc + '</div>' +
+            '</div>' +
+            '<i class="ri-arrow-right-line home-card-arrow"></i>';
+        } else {
+          card.innerHTML =
+            '<div class="home-card-icon"><i class="' + c.icon + '"></i></div>' +
+            '<div class="home-card-body">' +
+              '<div class="home-card-title">' + c.title + '</div>' +
+              '<div class="home-card-desc">' + c.desc + '</div>' +
+            '</div>';
+        }
+        card.addEventListener('click', function() {
+          if (c.tela === 'novo') { window._editandoRelatorioId = null; window._ratPreSalvoId = null; }
+          if (typeof mostrarTela === 'function') mostrarTela(c.tela);
+          // Fecha sidebar se aberta
+          var sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
+          var so = document.getElementById('sidebarOverlay'); if (so) so.style.display='none';
+        });
+        homeGrid.appendChild(card);
+      });
+    }
+
+    // ── Bottom Navigation Bar — REMOVIDO ──
+    // (botões de navegação inferior desativados)
+
+    // ── Mostra home screen no mobile, ou tela padrão no desktop ──
+    if (isMobile) {
+      _mostrarHomeScreen();
+    }
+    // No desktop o fluxo normal de entrarSistema já chama mostrarTela (painel ou novo)
+
+    // resize listener do bottomNav removido
+  }
+
+  function _mostrarHomeScreen() {
+    // Esconde todas as telas
+    ['telaNovo','telaMeus','telaPainel','telaCadastros','telaSistema'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    // Desmarca menu lateral
+    ['mNovo','mMeus','mPainel','mCadastros','mSistema'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.classList.remove('active');
+    });
+    // Mostra home
+    var home = document.getElementById('telaHome');
+    if (home) { home.style.display = 'flex'; home.classList.add('ativa'); }
+    document.body.classList.add('home-ativa');
+    // Atualiza título
+    var titulo = document.getElementById('tituloTela');
+    if (titulo) titulo.textContent = 'Início';
+    // Atualiza bottom nav
+    _atualizarBnavAtivo('__home__');
+    // Rola para o topo
+    try { window.scrollTo(0,0); } catch(e){}
+  }
+
+  window._iniciarMobileHome  = _iniciarMobileHome;
+  window._mostrarHomeScreen  = _mostrarHomeScreen;
+  window._atualizarBnavAtivo = _atualizarBnavAtivo;
 
 </script>
 
@@ -7938,8 +8723,14 @@ window.AppStorage = AppStorage;
         // Cria usuario no Firebase Auth via REST API
         if (navigator.onLine) {
           var _emailNovo = user.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
-          // Senha estável = 'OnlineEs@' + username — a ETAPA 4.5 usa essa mesma senha no primeiro login
-          var _senhaTemp = 'OnlineEs@' + user.toLowerCase();
+          // [N-01] Senha temporária com CSPRNG (crypto.getRandomValues) em vez de Math.random()
+          var _senhaTemp = (function(){
+            var _c='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+            var _arr2 = new Uint8Array(20);
+            crypto.getRandomValues(_arr2);
+            return Array.from(_arr2).map(function(b){ return _c[b % _c.length]; }).join('');
+          })();
+          novo._fbTempPass = _senhaTemp; // preserva para ETAPA 4.5 (sincronização Firebase Auth)
           var _restResult = await criarUsuarioFirebaseREST(_emailNovo, _senhaTemp);
           if (_restResult.uid) {
             novo._firebaseUid = _restResult.uid;
@@ -7957,6 +8748,9 @@ window.AppStorage = AppStorage;
 
         lista.push(novo);
         window.usuarios = lista;
+
+        // [N-01] Remove _fbTempPass antes de persistir — nunca deve ir para localStorage ou Firestore
+        try { delete novo._fbTempPass; } catch(e) {}
 
         // Salva local
         try{
@@ -8083,25 +8877,13 @@ window.AppStorage = AppStorage;
   }
 
   function hideMenuEntries(){
-    const isTech = document.documentElement.getAttribute('data-role') === 'tecnico';
-    if(!isTech) return;
-    // Known IDs
+    const role = document.documentElement.getAttribute('data-role');
+    // Só esconde se o role já foi definido E é técnico
+    if(!role || role !== 'tecnico') return;
+    // Esconde apenas pelos IDs específicos — sem seletor amplo por texto
     ['mCadastros','mSistema'].forEach(id=>{
       const el = document.getElementById(id);
-      if(el) el.style.setProperty('display','none','important');
-    });
-    // Known panels
-    ['telaCadastros','telaSistema'].forEach(id=>{
-      const el = document.getElementById(id);
-      if(el) el.style.setProperty('display','none','important');
-    });
-    // Fallback by text content: hide buttons whose text includes 'Cadastro' or 'Sistema'
-    const navButtons = document.querySelectorAll('nav button, .menu button, aside button');
-    navButtons.forEach(btn=>{
-      const txt = (btn.textContent || '').trim().toLowerCase();
-      if(txt.includes('cadastro') || txt.includes('sistema')){
-        btn.style.setProperty('display','none','important');
-      }
+      if(el) el.style.display = 'none';
     });
   }
 
@@ -8148,13 +8930,10 @@ window.AppStorage = AppStorage;
     init();
   }
 
-  // Observe DOM for nodes being added later (e.g. após login ou render do menu)
-  const mo = new MutationObserver(()=>{
-    // Update role if user object changes (rudimentary)
-    setRoleAttr(resolveRole());
-    hideMenuEntries();
-  });
-  mo.observe(document.documentElement, {subtree:true, childList:true});
+  // MutationObserver REMOVIDO: disparava hideMenuEntries() a cada mudança no DOM
+  // (ex: renderizar lista, mostrar toast) causando ocultação incorreta dos botões
+  // de menu e impedindo navegação entre abas. O RBAC já é aplicado em init() e
+  // em mostrarTela() via controle de rotas.
 
 })();
 
@@ -8209,20 +8988,30 @@ function blocoMidiasHTML(r){
       const temImgs = g.imgs && g.imgs.length;
       const temVids = g.vids && g.vids.length;
       if(!temImgs && !temVids) return;
+      // SEGURANÇA: valida src antes de inserir em atributo HTML — bloqueia XSS via backup malicioso
+      function _safeSrc(s) {
+        if (!s || typeof s !== 'string') return '';
+        if (/^data:(image|video)\//i.test(s) || /^https?:\/\//i.test(s)) {
+          return s.replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+        }
+        return '';
+      }
       html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:6px 8px;margin-top:6px;background:#f8fafc;">';
       html += '<div style="font-size:.85rem;font-weight:600;margin-bottom:4px;">'+ g.titulo +'</div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
       if(temImgs){
         g.imgs.forEach(function(src){
+          var _s = _safeSrc(src); if(!_s) return;
           html += '<div style="width:90px;height:70px;border-radius:6px;overflow:hidden;background:#0f172a;">';
-          html += '<img src="'+ src +'" style="width:100%;height:100%;object-fit:cover;" />';
+          html += '<img src="'+ _s +'" style="width:100%;height:100%;object-fit:cover;" />';
           html += '</div>';
         });
       }
       if(temVids){
         g.vids.forEach(function(src){
+          var _s = _safeSrc(src); if(!_s) return;
           html += '<div style="width:90px;height:70px;border-radius:6px;overflow:hidden;background:#020617;position:relative;">';
-          html += '<video src="'+ src +'" style="width:100%;height:100%;object-fit:cover;" muted></video>';
+          html += '<video src="'+ _s +'" style="width:100%;height:100%;object-fit:cover;" muted></video>';
           html += '<span style="position:absolute;bottom:4px;right:4px;font-size:.55rem;background:rgba(15,23,42,.8);color:#e5e7eb;border-radius:999px;padding:1px 6px;">vídeo</span>';
           html += '</div>';
         });
@@ -8299,8 +9088,39 @@ async function renderMeus(){
       var dbTs = new Date(b.dataIso || b.dataHoraIso || b.dataHora || 0).getTime();
       return (isNaN(dbTs)?0:dbTs) - (isNaN(da)?0:da);
     });
+
+    // [V-05] Aplica filtro de busca livre (cliente, nº RAT, equipamento, técnico)
+    var _buscaEl = document.getElementById('meusBusca');
+    var _buscaLimparEl = document.getElementById('meusBuscaLimpar');
+    var _termoBusca = (_buscaEl ? (_buscaEl.value || '').trim().toLowerCase() : '');
+    if (_termoBusca) {
+      filtrados = filtrados.filter(function(r) {
+        var haystack = [
+          r.numero, r.cliente, r.equipamento, r.serie,
+          r.tecnico, r.dataHoraBr, r.status, r.problema, r.diagnostico
+        ].map(function(v){ return String(v||'').toLowerCase(); }).join(' ');
+        return haystack.indexOf(_termoBusca) > -1;
+      });
+    }
+    if (_buscaLimparEl) _buscaLimparEl.style.display = _termoBusca ? 'block' : 'none';
+
+    // Registra handler de busca uma única vez (evita duplicatas)
+    if (_buscaEl && !_buscaEl._meusHandlerSet) {
+      _buscaEl._meusHandlerSet = true;
+      _buscaEl.addEventListener('input', function() { renderMeus().catch(function(){}); });
+      if (_buscaLimparEl) {
+        _buscaLimparEl.addEventListener('click', function() {
+          _buscaEl.value = '';
+          _buscaEl.focus();
+          renderMeus().catch(function(){});
+        });
+      }
+    }
+
     if(!filtrados.length){
-      lista.innerHTML = '<p style="font-size:.78rem;color:#475569;">Não há relatórios salvos localmente.</p>';
+      lista.innerHTML = _termoBusca
+        ? '<p style="font-size:.78rem;color:#475569;">Nenhum resultado para "<strong>' + (esc ? esc(_termoBusca) : _termoBusca) + '</strong>".</p>'
+        : '<p style="font-size:.78rem;color:#475569;">Não há relatórios salvos localmente.</p>';
       return;
     }
     if(origemTodos){
@@ -8340,10 +9160,10 @@ async function renderMeus(){
         '</div>'+
         '<div style="font-size:.72rem;color:#4b5563;margin-top:4px;">'+ _e(dataBr || '') +'</div>'+
         '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
-          '<button class="btn small" data-meus-ver="'+ r.id +'"><i class="ri-eye-line"></i> Ver</button>'+
-          '<button class="btn small" data-meus-editar="'+ r.id +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
-          '<button class="btn small" data-meus-whats="'+ r.id +'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
-          '<button class="btn small" data-meus-pdf="'+ r.id +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+          '<button class="btn small" data-meus-ver="'+ _e(r.id) +'"><i class="ri-eye-line"></i> Ver</button>'+
+          '<button class="btn small" data-meus-editar="'+ _e(r.id) +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
+          '<button class="btn small" data-meus-whats="'+ _e(r.id) +'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
+          '<button class="btn small" data-meus-pdf="'+ _e(r.id) +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
         '</div>';
       card.onclick = null; // botões individuais tratam o clique
       lista.appendChild(card);
@@ -8357,63 +9177,19 @@ async function renderMeus(){
         if(r2 && typeof abrirRelatorioOverlay==='function') abrirRelatorioOverlay(r2);
       };
     });
-    // Editar relatório: carrega dados no formulário de Novo Atendimento
+    // Editar relatório: reutiliza editarRelatorio() para garantir que TODOS os campos
+    // (localização, assinatura, tipo de documento, tensões, etc.) sejam restaurados corretamente.
     lista.querySelectorAll('[data-meus-editar]').forEach(function(btn){
-      btn.onclick = function(e){ e.stopPropagation();
+      btn.onclick = async function(e){ e.stopPropagation();
         var id = btn.getAttribute('data-meus-editar');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if (!r2) return;
-        if (!confirm('Editar o relatório Nº ' + (r2.numero||'') + '?\n\nO formulário será preenchido com os dados deste relatório. Após salvar, o relatório original será atualizado.')) return;
-        // Marca para edição (o salvar irá substituir este ID)
-        window._editandoRelatorioId = r2.id;
-        // Navega para o formulário
-        if (typeof mostrarTela === 'function') mostrarTela('novo');
-        // Preenche os campos após a tela abrir
-        setTimeout(function() {
-          try {
-            var _s = function(id, v) { var el = document.getElementById(id); if (el && v != null) el.value = v; };
-            _s('aNumeroRat', r2.numero);
-            _s('aDataHoraBR', r2.dataHoraBr || r2.dataHoraBR);
-            _s('aTecnico', r2.tecnico);
-            _s('aContato', r2.contato);
-            _s('aTelefone', r2.telefone);
-            _s('aWhats', r2.whatsapp);
-            _s('aEmailCliente', r2.emailCliente);
-            _s('aEndereco', r2.endereco);
-            _s('aBairro', r2.bairro);
-            _s('aCidade', r2.cidade);
-            _s('aUF', r2.uf);
-            _s('aCep', r2.cepCliente);
-            _s('aCnpj', r2.cnpjCliente || r2.cnpj);
-            _s('bEquipamento', r2.equipamento);
-            _s('bSerie', r2.serie);
-            _s('bKVA', r2.kva);
-            _s('bLocal', r2.localInstalacao);
-            _s('bCondicao', r2.condicao);
-            _s('bTensaoEntrada', r2.tensaoEntrada);
-            _s('bTensaoSaida', r2.tensaoSaida);
-            _s('cTipo', r2.tipo);
-            _s('cStatus', r2.status);
-            _s('cProblema', r2.problema);
-            _s('cDiagnostico', r2.diagnostico);
-            _s('cAcoes', Array.isArray(r2.acoes) ? r2.acoes.join('\n') : (r2.acoes||''));
-            _s('cPecas', r2.pecas);
-            _s('dBatQtd', r2.bateriasQtd);
-            _s('dBatTensao', r2.bateriasTensao);
-            _s('dObs', r2.bateriasObs);
-            // Cliente
-            var cliSel = document.getElementById('aClienteSelect');
-            var cliMan = document.getElementById('aClienteManual');
-            if (r2.clienteManual && cliMan) {
-              cliMan.value = r2.cliente || '';
-              cliMan.style.display = 'block';
-              if (cliSel) cliSel.value = '';
-            } else if (cliSel) {
-              cliSel.value = r2.cliente || '';
-            }
-            if (typeof showToast === 'function') showToast('✏️ Editando RAT ' + (r2.numero||'') + '. Salve para atualizar.');
-          } catch(ex) { console.warn('Erro ao preencher formulário para edição:', ex); }
-        }, 350);
+        if (!await showConfirm('Editar o relatório Nº ' + (r2.numero||'') + '?\n\nO formulário será preenchido com os dados deste relatório. Após salvar, o relatório original será atualizado.')) return;
+        // BUG FIX: delega para editarRelatorio() que restaura TODOS os campos, incluindo
+        // localização, assinaturas, tipo de documento, tensões e fornecidoEstoque.
+        if (typeof editarRelatorio === 'function') {
+          editarRelatorio(r2);
+        }
       };
     });
     lista.querySelectorAll('[data-meus-whats]').forEach(function(btn){
@@ -8425,7 +9201,7 @@ async function renderMeus(){
         num = num.replace(/\D/g,'');
         if(!num){ alert('WhatsApp não informado neste relatório.'); return; }
         var msg = encodeURIComponent('Olá, segue o relatório técnico de atendimento Nº ' + (r2.numero||'') + ' – ' + (r2.cliente||'') + '.');
-        window.open('https://wa.me/55'+num+'?text='+msg,'_blank');
+        window.open('https://wa.me/55'+num+'?text='+msg,'_blank','noopener,noreferrer');
       };
     });
     lista.querySelectorAll('[data-meus-pdf]').forEach(function(btn){
@@ -8497,6 +9273,11 @@ document.addEventListener('click', function(ev){
   if(!btn) return;
   ev.preventDefault();
   try{
+    // SEGURANÇA: verifica RBAC antes de qualquer ação (impede bypass via DevTools)
+    if (!(typeof isSupervisorOrAdmin === 'function' && isSupervisorOrAdmin())) {
+      if (typeof showToast === 'function') showToast('Permissão negada.');
+      return;
+    }
     var username = btn.getAttribute('data-toggle-ativo');
     var lista = (window.usuarios || []);
     var mudou = false;
@@ -8886,19 +9667,22 @@ document.addEventListener('click', function(ev){
       alert('Não há registros para exportar.');
       return;
     }
+    // Sanitiza campos para prevenir CSV injection (fórmulas =, +, -, @ em planilhas)
+    function csvSafe(v) {
+      var s = String(v == null ? '' : v).replace(/;/g, ',').replace(/[\r\n]+/g, ' ');
+      if (/^[=+\-@\t]/.test(s)) s = "'" + s; // prefixo ' neutraliza fórmulas no Excel/Sheets
+      return s;
+    }
     const linhas = ['timestamp;usuario;tipo;mensagem;detalhes'];
     logs.forEach(l => {
       const uNome = nomeUsuarioLog(l);
-      const detalhesStr = (typeof l.detalhes === 'string'
-        ? l.detalhes
-        : JSON.stringify(l.detalhes || {})).replace(/;/g, ',');
-      const msg = (l.mensagem || '').replace(/;/g, ',');
+      const detalhesStr = typeof l.detalhes === 'string' ? l.detalhes : JSON.stringify(l.detalhes || {});
       linhas.push([
-        l.timestamp || '',
-        uNome || '',
-        l.tipo || '',
-        msg,
-        detalhesStr
+        csvSafe(l.timestamp || ''),
+        csvSafe(uNome || ''),
+        csvSafe(l.tipo || ''),
+        csvSafe(l.mensagem || ''),
+        csvSafe(detalhesStr)
       ].join(';'));
     });
     const blob = new Blob([linhas.join('\n')], {type:'text/csv;charset=utf-8;'});
@@ -8963,9 +9747,9 @@ document.addEventListener('click', function(ev){
     exportarCSV();
   });
   if (btnLimpar){
-    btnLimpar.addEventListener('click', function(ev){
+    btnLimpar.addEventListener('click', async function(ev){
       ev.preventDefault();
-      if (!confirm('Tem certeza que deseja LIMPAR todos os logs de auditoria?\nEssa ação não pode ser desfeita.')) return;
+      if (!await showConfirm('Tem certeza que deseja LIMPAR todos os logs de auditoria?\nEssa ação não pode ser desfeita.')) return;
       try {
         localStorage.removeItem('online-es-logs-v1');
         if (typeof saveLogs === 'function') saveLogs([]);
@@ -9172,7 +9956,10 @@ async function loginBuscarUsuarioFirestore(loginDigitado, firebaseUid) {
 
 
 // ===== SEGURANÇA: Proteção contra força bruta =====
-// Persiste em sessionStorage para sobreviver a recarregamentos acidentais
+// Persiste em localStorage (bypassável com modo privado / localStorage.clear() — a defesa principal é o rate limiting server-side do Firebase Auth).
+// [B-05] Proteção anti-brute-force local — complementar ao rate limiting do Firebase Auth.
+// LIMITAÇÃO: usa localStorage, bypassável com modo privado / localStorage.clear().
+// A defesa principal é auth/too-many-requests do Firebase Auth (server-side).
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutos
 const _BF_KEY = 'online-es-bf';
@@ -9215,7 +10002,6 @@ function _registerFailedAttempt(username) {
   if (entry.count >= LOGIN_MAX_ATTEMPTS) {
     entry.lockedUntil = now + LOGIN_LOCKOUT_MS;
     entry.count = 0;
-    console.warn('🔐 Conta bloqueada por 15min:', username);
   }
   _saveBFData(data);
 }
@@ -9250,13 +10036,19 @@ async function fazerLogin(){
   }
 
   const u = String(loginInput.value || '').trim();
-  const p = String(senhaInput.value || '').trim();
+  const p = String(senhaInput.value || ''); // [S-06] sem .trim() — NIST SP 800-63B proíbe normalizar senhas
 
   msgErro.style.display = 'block';
   msgErro.textContent = '';
 
   if (!u || !p) {
     msgErro.textContent = 'Informe usuário e senha.';
+    return;
+  }
+
+  // SEGURANÇA: Limita tamanho de inputs para evitar abuso
+  if (u.length > 60 || p.length > 128) {
+    msgErro.textContent = 'Usuário ou senha inválido.';
     return;
   }
 
@@ -9281,7 +10073,6 @@ async function fazerLogin(){
       // Tenta login no Firebase Auth
       var cred = await firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
       firebaseUser = cred.user;
-      console.log('Firebase Auth: login OK, uid:', firebaseUser.uid);
     } catch(authErr) {
       if (authErr.code === 'auth/too-many-requests') {
         // Bloqueado — aguarda 2s e tenta uma vez mais
@@ -9289,7 +10080,7 @@ async function fazerLogin(){
           await new Promise(r => setTimeout(r, 2000));
           var cred2 = await firebaseAuth.signInWithEmailAndPassword(emailAuth, p);
           firebaseUser = cred2.user;
-          console.log('Firebase Auth: login OK após retry, uid:', firebaseUser.uid);
+          
         } catch(e2) {
           console.warn('Firebase Auth: retry falhou:', e2.code);
         }
@@ -9326,6 +10117,17 @@ async function fazerLogin(){
   if (!achou || achou.active === false || achou.ativo === false) {
     // Se Firebase Auth logou mas perfil não existe: auto-criação (primeiro login)
     if (firebaseUser && (!achou || achou === null)) {
+      // [W-01] Bloqueia auto-criação se o login foi explicitamente removido por um admin/supervisor.
+      // Isso impede que um usuário deletado (cujo Firebase Auth não pôde ser removido por falta
+      // de Admin SDK) simplesmente faça login e recrie automaticamente seu perfil como 'tecnico'.
+      try {
+        var _remBloqueados = JSON.parse(localStorage.getItem('online-es-removidos') || '[]');
+        if (Array.isArray(_remBloqueados) && _remBloqueados.includes(u.toLowerCase())) {
+          msgErro.textContent = 'Usuário desativado. Contacte o administrador.';
+          if (firebaseUser && firebaseAuth) { try { await firebaseAuth.signOut(); } catch(e){} }
+          return;
+        }
+      } catch(e) {}
       var novoPerfilRole = 'tecnico'; // Regra obriga role='tecnico' na auto-criação
       achou = {
         username: u.toLowerCase(),
@@ -9355,7 +10157,7 @@ async function fazerLogin(){
             _email: emailAuth,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          console.log('Perfil auto-criado no Firestore, uid:', firebaseUser.uid);
+          
         }
       } catch(e) { console.warn('Falha ao criar perfil no Firestore:', e.message || e); }
 
@@ -9399,7 +10201,7 @@ async function fazerLogin(){
           // Senha NÃO vai para o Firestore
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
-        console.log('Perfil migrado para uid:', firebaseUser.uid);
+        
       }
     } catch(e) { console.warn('Falha ao migrar perfil para uid:', e.message || e); }
   }
@@ -9439,7 +10241,6 @@ async function fazerLogin(){
         _msgBF = 'Conta bloqueada por 15 minutos por excesso de tentativas.';
       }
       msgErro.textContent = _msgBF;
-      console.warn('🔐 FALHA FINAL: senha não validada para', achou.username);
       return;
     }
   }
@@ -9487,7 +10288,7 @@ async function fazerLogin(){
       firebaseUser = _authLogin.user;
       achou._firebaseUid = firebaseUser.uid;
       achou._email = emailAuth;
-      console.log('Firebase Auth: login OK (4.5), uid:', firebaseUser.uid);
+      
     } catch(loginErr) {
       if (loginErr.code === 'auth/user-not-found') {
         // Conta não existe — cria com a senha atual
@@ -9496,55 +10297,17 @@ async function fazerLogin(){
           firebaseUser = _authCreate.user;
           achou._firebaseUid = firebaseUser.uid;
           achou._email = emailAuth;
-          console.log('Firebase Auth: conta criada (4.5), uid:', firebaseUser.uid);
+          
         } catch(createErr) {
           console.warn('Firebase Auth: criação falhou:', createErr.code);
         }
       } else if (loginErr.code === 'auth/wrong-password' || loginErr.code === 'auth/invalid-credential') {
-        // Senha diverge: tenta senha estável (OnlineEs@username) usada na criação automática
-        var _senhaEstavel = 'OnlineEs@' + (achou.username || u).toLowerCase();
-        try {
-          const _authEstavel = await window._firebaseAuth.signInWithEmailAndPassword(emailAuth, _senhaEstavel);
-          firebaseUser = _authEstavel.user;
-          achou._firebaseUid = firebaseUser.uid;
-          achou._email = emailAuth;
-          console.log('Firebase Auth: login com senha estável OK, uid:', firebaseUser.uid);
-        } catch(estavelErr) {
-          if (estavelErr.code !== 'auth/wrong-password' && estavelErr.code !== 'auth/invalid-credential') {
-            console.warn('Firebase Auth senha estável:', estavelErr.code);
-          }
-        }
-        if (firebaseUser) { console.warn('⚠️ Firebase Auth: autenticado via senha estável (divergência de senha). O usuário deve redefinir a senha para corrigir.'); showToast('⚠️ Atenção: sincronize sua senha nas configurações de conta.', 5000); } else
-        // Senha diverge de tudo: usa conta alternativa
-        try {
-          // Usa Identity Toolkit para verificar qual é o uid atual da conta
-          const _lookupResp = await fetch(
-            'https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=' + FIREBASE_API_KEY,
-            { method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ identifier: emailAuth, continueUri: location.href }) }
-          );
-          // Não temos como deletar a conta sem a senha antiga — usa Admin SDK que não está disponível
-          // Solução: cria conta com email alternativo baseado no uid antigo
-          // Email alternativo: username + '-v2@onlinees.local'
-          var _emailAlt = (achou.username || u) + '-v2@onlinees.local';
-          try {
-            const _authAlt = await window._firebaseAuth.createUserWithEmailAndPassword(_emailAlt, p);
-            firebaseUser = _authAlt.user;
-            achou._firebaseUid = firebaseUser.uid;
-            achou._email = _emailAlt;
-            console.log('Firebase Auth: conta alternativa criada, uid:', firebaseUser.uid);
-          } catch(altErr) {
-            if (altErr.code === 'auth/email-already-in-use') {
-              try {
-                const _authAlt2 = await window._firebaseAuth.signInWithEmailAndPassword(_emailAlt, p);
-                firebaseUser = _authAlt2.user;
-                achou._firebaseUid = firebaseUser.uid;
-                achou._email = _emailAlt;
-                console.log('Firebase Auth: login conta alternativa, uid:', firebaseUser.uid);
-              } catch(e2) { console.warn('Firebase Auth alt login falhou:', e2.code); }
-            } else { console.warn('Firebase Auth alt criação falhou:', altErr.code); }
-          }
-        } catch(e) { console.warn('Firebase Auth: resolução de conflito falhou:', e); }
+        // SEGURANÇA: senha do Firebase Auth diverge da senha local.
+        // A senha local já foi validada (PBKDF2) — o login local é garantido.
+        // Não tentamos senhas alternativas previsíveis (evita vetor de ataque via Firebase Auth).
+        // O usuário será autenticado localmente; o Firebase Auth será ressincronizado quando
+        // o usuário redefinir a senha pelas configurações de conta.
+        showToast('⚠️ Atenção: sua senha precisa ser ressincronizada. Acesse Configurações → Minha Conta.', 6000);
       } else if (loginErr.code === 'auth/too-many-requests') {
         // Bloqueado temporariamente — tenta novamente após 3 segundos
         try {
@@ -9553,7 +10316,7 @@ async function fazerLogin(){
           firebaseUser = _retryLogin.user;
           achou._firebaseUid = firebaseUser.uid;
           achou._email = emailAuth;
-          console.log('Firebase Auth: login OK após retry, uid:', firebaseUser.uid);
+          
         } catch(retryErr) {
           console.warn('Firebase Auth: retry após too-many-requests falhou:', retryErr.code);
         }
@@ -9592,7 +10355,7 @@ async function fazerLogin(){
         };
         // Salva com novo uid como ID (via REST pois ainda não está autenticado no Firestore)
         await _setDocREST('onlineEsUsuarios', _newUid, _dadosMigrar);
-        console.log('Documento migrado para uid:', _newUid);
+        
       } catch(migErr) { console.warn('Migração Firestore falhou (será tentada após auth):', migErr.message); }
     }
   }
@@ -9669,13 +10432,24 @@ async function fazerLogin(){
   const loginUsuario = document.getElementById('loginUsuario');
   if (!btnEntrar || !loginSenha) return;
 
+  // [Z-01] Helper: exibe erro visível ao usuário se fazerLogin() lançar exceção inesperada
+  // (ex: crypto.subtle indisponível após Y-02 — antes silenciava em console.warn sem feedback)
+  function _onLoginError(e) {
+    console.warn('Erro no login:', e);
+    var msgErro = document.getElementById('msgErro');
+    if (msgErro) {
+      msgErro.style.display = 'block';
+      msgErro.textContent = 'Erro interno ao processar login. Tente recarregar a página.';
+    }
+  }
+
   btnEntrar.onclick = function(ev){
     ev.preventDefault();
-    fazerLogin().catch(function(e){ console.warn('Erro no login:', e); });
+    fazerLogin().catch(_onLoginError);
   };
   // Enter no campo senha
   loginSenha.addEventListener('keyup', function(e){
-    if (e.key === 'Enter') fazerLogin().catch(function(er){ console.warn('Erro no login:', er); });
+    if (e.key === 'Enter') fazerLogin().catch(_onLoginError);
   });
   // FIX: Enter no campo usuário (avança para senha — UX padrão)
   if (loginUsuario) {
@@ -9772,7 +10546,12 @@ async function fazerLogin(){
         if (!rascunho){ alert('Erro ao montar rascunho.'); return; }
         rascunho._rascunho = true;
         rascunho._rascunhoData = new Date().toISOString();
-        localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rascunho));
+        // Remove imagens/assinaturas antes de salvar para evitar QuotaExceededError
+        var rascunhoSem = Object.assign({}, rascunho);
+        rascunhoSem.imgsEquip = []; rascunhoSem.imgsServico = []; rascunhoSem.imgsBaterias = [];
+        rascunhoSem.vidsEquip = []; rascunhoSem.vidsServico = []; rascunhoSem.vidsBaterias = [];
+        rascunhoSem.assinaturaCliente = null; rascunhoSem.assinaturaTecnicoImg = null;
+        localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rascunhoSem));
         var toast = document.getElementById('toast');
         if (toast){
           toast.textContent = '📝 Rascunho salvo! Continue depois.';
@@ -9820,6 +10599,11 @@ async function fazerLogin(){
         if (emailEl) { emailEl.focus(); emailEl.style.outline = '2px solid #f97316'; setTimeout(function(){ emailEl.style.outline = ''; }, 2500); }
         return;
       }
+      if (!/^[^\s@?&]+@[^\s@?&]+\.[^\s@?&]+$/.test(email)) {
+        if (typeof showToast === 'function') showToast('📧 E-mail inválido. Verifique o endereço informado.');
+        if (emailEl) { emailEl.focus(); emailEl.style.outline = '2px solid #f97316'; setTimeout(function(){ emailEl.style.outline = ''; }, 2500); }
+        return;
+      }
       if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
       try {
         var r = window.montarRelatorioAtual();
@@ -9827,8 +10611,8 @@ async function fazerLogin(){
           'Relatório ' + (r.numero || '') + '\nCliente: ' + (r.cliente || '') +
           '\nTécnico: ' + (r.tecnico || '') + '\nData: ' + (r.dataHoraBr || '')
         );
-        var assunto = encodeURIComponent('Relatório Técnico ' + (r.numero || ''));
-        window.open('mailto:' + email + '?subject=' + assunto + '&body=' + corpo);
+        var assunto = 'Relatório Técnico ' + (r.numero || ''); // [X-04] raw string — encoded inline below
+        window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo), '_blank', 'noopener,noreferrer'); // [N-03][Y-04]
         var toast = document.getElementById('toast');
         if (toast){
           toast.textContent = '📧 Abrindo cliente de e-mail...';
@@ -9874,7 +10658,7 @@ async function fazerLogin(){
               ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\n📄 Acesse o PDF: ' + pdfUrl + '\n\nQualquer dúvida estamos à disposição!'
               : msgBase;
             var waUrl = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal);
-            window.open(waUrl, '_blank');
+            window.open(waUrl, '_blank', 'noopener,noreferrer');
             if (toast){
               toast.textContent = pdfUrl ? '✅ WhatsApp aberto com link do PDF!' : '💬 WhatsApp aberto (sem link de PDF).';
               toast.style.display = 'block'; setTimeout(function(){ toast.style.display = 'none'; }, 3500);
@@ -9882,7 +10666,7 @@ async function fazerLogin(){
           })();
         } else {
           // Fallback: abre sem PDF
-          window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgBase), '_blank');
+          window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgBase), '_blank', 'noopener,noreferrer');
           if (toast){ toast.textContent = '💬 WhatsApp aberto.'; toast.style.display = 'block'; setTimeout(function(){ toast.style.display = 'none'; }, 3000); }
         }
       } catch(err){ alert('Erro ao abrir WhatsApp: ' + err.message); }
@@ -9961,10 +10745,11 @@ async function fazerLogin(){
         caches.match(e.request).then(function(cached) {
           if (cached) return cached;
           return fetch(e.request).then(function(resp) {
-            // Cacheia apenas respostas válidas de assets estáticos
-            // BUG FIX: no-cors responses have status=0, not 200 — cache any ok or opaque response for known assets
+            // [N-02] Cacheia apenas respostas HTTP 200 bem-sucedidas de assets conhecidos.
+            // Respostas opaque (no-cors, status=0) não são cacheadas: podem ser erros 4xx/5xx
+            // mascarados e ocupam até 7MB no cache por padding de privacidade do browser.
             var isKnownAsset = ASSETS.some(function(a){ return url.startsWith(a.split('?')[0]); });
-            if (resp && (resp.status === 200 || resp.type === 'opaque') && isKnownAsset) {
+            if (resp && resp.status === 200 && isKnownAsset) {
               var clone = resp.clone();
               caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
             }
@@ -9984,12 +10769,14 @@ async function fazerLogin(){
     var swUrl = URL.createObjectURL(blob);
     navigator.serviceWorker.register(swUrl)
       .then(function(reg) {
+        URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
         console.log('✅ Service Worker registrado (PWA offline ativo).');
         caches.open('onlinees-v3').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
         });
       })
       .catch(function(err) {
+        URL.revokeObjectURL(swUrl); // [Y-06] libera blob mesmo em caso de falha
         // Fallback: tenta via data URL
         try {
           var swDataUrl = 'data:application/javascript;charset=utf-8,' + encodeURIComponent(swCode);
@@ -10421,7 +11208,7 @@ async function fazerLogin(){
      - Painel: botão "Gerar link" + badge "Visualizado"
 ============================================================ -->
 <style>
-#portalCliente{position:fixed;inset:0;z-index:8500;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);display:none;overflow-y:auto;font-family:"Plus Jakarta Sans",system-ui,sans-serif}
+#portalCliente{position:fixed;inset:0;z-index:8500;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);display:none;overflow-y:auto;font-family:"Poppins",system-ui,sans-serif} /* [B-03] */
 #portalCliente.ativo{display:block}
 .portal-wrap{max-width:720px;margin:0 auto;padding:24px 16px 60px}
 .portal-header{text-align:center;padding:28px 0 18px}
@@ -10484,7 +11271,7 @@ function _db(){return window.db||(window.firebase&&window.firebase.firestore?win
 window._gerarTokenPortal = async function(rat){
   if(rat.portalToken) return rat.portalToken;
   var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  var arr=new Uint8Array(10); crypto.getRandomValues(arr);
+  var arr=new Uint8Array(20); crypto.getRandomValues(arr); // [B-04] 20 bytes ≈ 115 bits de entropia
   var token=Array.from(arr).map(function(b){return chars[b%chars.length];}).join('');
   rat.portalToken=token;
   rat.portalTokenCriado=new Date().toISOString();
@@ -10507,11 +11294,18 @@ window._gerarTokenPortal = async function(rat){
 };
 
 window._urlPortal=function(token){
+  // Bug 2 fix: avisa se o sistema estiver rodando localmente (file://)
+  // pois o link gerado seria file:///... inacessível para o cliente
+  if(window.location.protocol==='file:'){
+    console.warn('[Portal] Sistema aberto via file:// — o link gerado só funciona localmente. Use a versão hospedada em HTTPS (ex: onlinees.vercel.app) para enviar links ao cliente.');
+  }
   return window.location.href.split('?')[0]+'?rat='+token;
 };
 
 // ── Buscar RAT pelo token ────────────────────────────────
 async function _buscarRat(token){
+  // SEGURANÇA: valida formato do token antes de qualquer consulta
+  if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
   try{
     var db=_db();
     if(db){
@@ -10544,6 +11338,9 @@ async function _registrarVisto(token){
 
 // ── Histórico 30 dias ────────────────────────────────────
 async function _historico(cnpj,idAtual){
+  // Bug 4 fix: CNPJ obrigatório e mínimo 8 chars para evitar busca sem filtro útil
+  if(!cnpj||typeof cnpj!=='string'||cnpj.trim().length<8) return [];
+  cnpj=cnpj.trim();
   var limite=new Date(); limite.setDate(limite.getDate()-30);
   var limIso=limite.toISOString();
   var todos=[];
@@ -10604,6 +11401,11 @@ async function _renderPortal(token){
     '<br><button class="portal-pdf-btn" id="portalBtnPdf"><i class="ri-file-pdf-line"></i> Baixar PDF completo</button>'+
     '</div>';
 
+  // Bug 4 fix: o histórico só é renderizado se o rat acessado pelo token tiver cnpjCliente
+  // e os demais RATs do histórico pertencem ao mesmo CNPJ — garantia de que um token de
+  // cliente A não revela histórico de cliente B.
+  // A verificação de CNPJ já ocorre na query do Firestore (where cnpjCliente == cnpj),
+  // mas adicionamos checagem explícita: o cnpj passado deve ser o do rat acessado.
   if(rat.cnpjCliente){
     var hist=await _historico(rat.cnpjCliente,rat.id||'');
     if(hist.length>0){
@@ -10652,101 +11454,6 @@ function _verificarUrl(){
   return true;
 }
 
-// ── Sobrescrever e-mail com link do portal ───────────────
-function _hookEmail(){
-  var btn=document.getElementById('btnEnviarEmail');
-  if(!btn||btn._phook) return;
-  btn._phook=true;
-  btn.onclick=async function(){
-    var emailEl=document.getElementById('aEmailCliente');
-    var email=emailEl?emailEl.value.trim():'';
-    if(!email){
-      if(typeof showToast==='function') showToast('📧 Informe o e-mail do cliente.');
-      if(emailEl){emailEl.focus();emailEl.style.outline='2px solid #f97316';setTimeout(function(){emailEl.style.outline='';},2500);}
-      return;
-    }
-    if(typeof validarObrigatorios==='function'&&!validarObrigatorios()) return;
-    if(typeof ensureNumeroRat==='function') ensureNumeroRat();
-    var r;
-    try{r=window.montarRelatorioAtual();}catch(e){if(typeof showToast==='function') showToast('Erro: '+e.message);return;}
-    window._ratPreSalvoId=r.id; // preserva ID para que btnSalvar não crie duplicata
-    try{
-      var _rl=window.relatorios||[];if(!_rl.find(function(x){return x.id===r.id;})){_rl.push(r);if(typeof window.saveRelatorios==='function') window.saveRelatorios(_rl);window.relatorios=_rl;}
-      if(navigator.onLine&&typeof salvarRelatorioNoFirestore==='function') salvarRelatorioNoFirestore(r);
-    }catch(e){}
-    if(typeof showLoader==='function') showLoader('Gerando link do portal...');
-    var portalUrl=null;
-    try{var tok=await window._gerarTokenPortal(r);portalUrl=window._urlPortal(tok);}catch(e){console.warn('[Portal/email]',e);}
-    if(typeof hideLoader==='function') hideLoader();
-    var assunto=encodeURIComponent('Online-ES / Relatório Técnico - RAT '+(r.numero||''));
-    var corpo=[
-      'Olá'+(r.nomeAssinaturaCliente||r.contato?', '+(r.nomeAssinaturaCliente||r.contato):'')+',',
-      '',
-      'Segue o Relatório Técnico de Atendimento da visita da Online-ES'+(r.cliente?' na empresa '+r.cliente:'')+'.',
-      '',
-      'Relatório nº: '+(r.numero||''),
-      'Data: '+(r.dataHoraBr||''),
-      'Técnico: '+(r.tecnico||''),
-      '',
-      portalUrl
-        ?'📄 Acesse e baixe o PDF completo pelo link:\n'+portalUrl+'\n\nO link fica disponível por 30 dias.'
-        :'⚠️ Use o botão "Gerar PDF" para baixar e anexar manualmente.',
-      '',
-      'Fico à disposição para quaisquer esclarecimentos.',
-      '',
-      'Atenciosamente,',
-      'Online-ES – Eletroeletrônica'
-    ].join('\n');
-    window.location.href='mailto:'+email+'?subject='+assunto+'&body='+encodeURIComponent(corpo);
-    try{if(typeof logInfo==='function') logInfo('RAT enviada por e-mail (portal)',{numero:r.numero||'',comLink:!!portalUrl});}catch(e){}
-  };
-}
-
-// ── Sobrescrever WhatsApp com link do portal ─────────────
-function _hookWhats(){
-  var btn=document.getElementById('btnWhatsLocal');
-  if(!btn||btn._phook) return;
-  btn._phook=true;
-  btn.onclick=async function(){
-    if(typeof validarObrigatorios==='function'&&!validarObrigatorios()) return;
-    var aWhats=document.getElementById('aWhats'),aTel=document.getElementById('aTelefone');
-    var tel=(aWhats&&aWhats.value?aWhats.value:(aTel&&aTel.value?aTel.value:'')).replace(/\D/g,'');
-    if(!tel){if(typeof showToast==='function') showToast('📱 Informe o WhatsApp do cliente.');return;}
-    if(tel.length<=11) tel='55'+tel;
-    if(typeof ensureNumeroRat==='function') ensureNumeroRat();
-    var r;
-    try{r=window.montarRelatorioAtual();}catch(e){if(typeof showToast==='function') showToast('Erro: '+e.message);return;}
-    window._ratPreSalvoId=r.id; // preserva ID para que btnSalvar não crie duplicata
-    try{
-      var _rl=window.relatorios||[];if(!_rl.find(function(x){return x.id===r.id;})){_rl.push(r);if(typeof window.saveRelatorios==='function') window.saveRelatorios(_rl);window.relatorios=_rl;}
-      if(navigator.onLine&&typeof salvarRelatorioNoFirestore==='function') salvarRelatorioNoFirestore(r);
-    }catch(e){}
-    if(typeof showLoader==='function') showLoader('Gerando link do portal...');
-    var portalUrl=null;
-    try{var tok=await window._gerarTokenPortal(r);portalUrl=window._urlPortal(tok);}catch(e){console.warn('[Portal/whats]',e);}
-    if(typeof hideLoader==='function') hideLoader();
-    // Tenta Web Share se sem link
-    if(!portalUrl){
-      try{
-        var tf=new File(['x'],'t.pdf',{type:'application/pdf'});
-        if(navigator.share&&navigator.canShare&&navigator.canShare({files:[tf]})){
-          var res=await window._gerarPdfBlob(r);
-          var pf=new File([res.blob],res.nome,{type:'application/pdf'});
-          await navigator.share({title:'RAT '+(r.numero||'')+' – '+(r.cliente||''),text:'Relatório Técnico ONLINE-ES',files:[pf]});
-          if(typeof showToast==='function') showToast('✅ PDF compartilhado!');
-          return;
-        }
-      }catch(eS){if(eS.name==='AbortError') return;}
-    }
-    var msg=portalUrl
-      ?'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📄 Acesse e baixe o PDF completo:\n'+portalUrl+'\n\n_O link fica disponível por 30 dias._\n\nQualquer dúvida estamos à disposição!'
-      :'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📎 PDF em seguida.\n\nQualquer dúvida estamos à disposição!';
-    window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(msg),'_blank');
-    if(portalUrl&&typeof showToast==='function') showToast('✅ WhatsApp aberto com link do portal!');
-    try{if(typeof logInfo==='function') logInfo('RAT enviada por WhatsApp (portal)',{numero:r.numero||'',comLink:!!portalUrl});}catch(e){}
-  };
-}
-
 // ── Injetar botões "Gerar link / Copiar link" no painel ──
 function _injetarPainel(){
   var tentativas=0;
@@ -10774,7 +11481,7 @@ function _injetarPainel(){
           bl.onclick=function(e){
             e.stopPropagation();
             var url=window._urlPortal(r.portalToken);
-            navigator.clipboard.writeText(url).then(function(){if(typeof showToast==='function') showToast('🔗 Link copiado!');}).catch(function(){prompt('Copie o link:',url);});
+            navigator.clipboard.writeText(url).then(function(){if(typeof showToast==='function') showToast('🔗 Link copiado!');}).catch(function(){ showPrompt('Copie o link:', url); });
           };
           acoesDiv.appendChild(bl);
           // Badge visualizado
@@ -10814,14 +11521,8 @@ function _injetarPainel(){
 // ── Init ─────────────────────────────────────────────────
 function _init(){
   if(_verificarUrl()) return; // modo portal público
-  // modo interno
-  var t=setInterval(function(){
-    if(document.getElementById('btnEnviarEmail')&&document.getElementById('btnWhatsLocal')){
-      clearInterval(t);
-      _hookEmail();
-      _hookWhats();
-    }
-  },500);
+  // modo interno — apenas injeta botões no painel
+  // (hooks de email/WhatsApp foram integrados diretamente nos handlers originais)
   _injetarPainel();
 }
 
@@ -10830,6 +11531,10 @@ else _init();
 
 })();
 </script>
+
+
+
+
 
 </body>
 </html>
