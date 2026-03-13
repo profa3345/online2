@@ -7442,26 +7442,31 @@ if (logoBase64) {
         showToast('⚠️ ' + (isVideo ? 'Vídeo' : 'Imagem') + ' "' + file.name + '" tem ' + tamanhoMB + 'MB — limite é ' + limiteMsg + '.');
         return;
       }
-      // Limite total
-      totalSize += file.size;
-      if (totalSize > MAX_TOTAL_SIZE) {
-        showToast('⚠️ Limite total de 80MB de anexos por relatório excedido.');
-        return;
-      }
       const reader = new FileReader();
       reader.onload = (ev)=>{
-        const div=document.createElement('div'); div.className='preview-item'; div.dataset.filesize = file.size;
+        const div=document.createElement('div'); div.className='preview-item';
         const btn=document.createElement('button'); btn.className='preview-remove'; btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
         if (file.type.startsWith('video')){
+          // Vídeos: usa file.size pré-leitura para controle de total
+          if (totalSize + file.size > MAX_TOTAL_SIZE) {
+            showToast('⚠️ Limite total de 80MB de anexos por relatório excedido.');
+            return;
+          }
+          totalSize += file.size;
+          div.dataset.filesize = file.size;
           const vid=document.createElement('video'); vid.src=ev.target.result; vid.controls=false;
           div.appendChild(vid); div.appendChild(btn); container.appendChild(div);
         } else {
-          // Comprime imagem antes de exibir e armazenar
+          // BUG FIX: usa tamanho PÓS-compressão para controle de total (evita bloquear fotos válidas)
           comprimirImagem(ev.target.result, function(comprimida) {
-            const img=document.createElement('img'); img.src=comprimida;
-            // Atualiza tamanho real após compressão
             var bytes = Math.round((comprimida.length - 22) * 3 / 4);
+            if (totalSize + bytes > MAX_TOTAL_SIZE) {
+              showToast('⚠️ Limite total de 80MB de anexos por relatório excedido.');
+              return;
+            }
+            totalSize += bytes;
             div.dataset.filesize = bytes;
+            const img=document.createElement('img'); img.src=comprimida;
             div.appendChild(img); div.appendChild(btn); container.appendChild(div);
           });
         }
@@ -7486,14 +7491,16 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     document.body.appendChild(inp);
     inp.addEventListener('change', function() {
       var container = document.getElementById(previewContainerId);
-      if (!container || !inp.files || !inp.files[0]) { document.body.removeChild(inp); return; }
+      if (!container || !inp.files || !inp.files[0]) { try { document.body.removeChild(inp); } catch(e){} return; }
       var file = inp.files[0];
       if (file.size > MAX_FILE_SIZE) {
         showToast('⚠️ Foto muito grande (' + (file.size/1024/1024).toFixed(1) + 'MB). Limite: 5MB.');
-        document.body.removeChild(inp); return;
+        try { document.body.removeChild(inp); } catch(e){} return;
       }
       var reader = new FileReader();
       reader.onload = function(ev) {
+        // BUG FIX: remove inp dentro do onload para evitar remoção prematura
+        try { if (inp.parentNode) document.body.removeChild(inp); } catch(e){}
         comprimirImagem(ev.target.result, function(comprimida) {
           var div = document.createElement('div'); div.className = 'preview-item';
           var bytes = Math.round((comprimida.length - 22) * 3 / 4);
@@ -7506,7 +7513,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         });
       };
       reader.readAsDataURL(file);
-      document.body.removeChild(inp);
     });
     inp.click();
   }
@@ -11343,14 +11349,24 @@ async function fazerLogin(){
       }
       var reader = new FileReader();
       reader.onload = function(ev) {
-        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = file.size;
-        var img = document.createElement('img'); img.src = ev.target.result; div.appendChild(img);
-        var btn = document.createElement('button'); btn.className = 'preview-remove'; btn.innerHTML = '&times;'; btn.onclick = function(){ div.remove(); }; div.appendChild(btn);
-        container.appendChild(div);
-        if (typeof showToast === 'function') showToast('📷 Foto adicionada!');
+        // BUG FIX: remove inp DENTRO do onload para evitar remoção prematura durante leitura
+        try { if (inp.parentNode) document.body.removeChild(inp); } catch(e) {}
+        // BUG FIX: comprime a imagem antes de adicionar ao preview (igual ao criarPreview)
+        var _addFallback = function(dataUrl) {
+          var bytes = Math.round((dataUrl.length - 22) * 3 / 4);
+          var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = bytes;
+          var img2 = document.createElement('img'); img2.src = dataUrl; div.appendChild(img2);
+          var btnRm = document.createElement('button'); btnRm.className = 'preview-remove'; btnRm.innerHTML = '&times;'; btnRm.onclick = function(){ div.remove(); }; div.appendChild(btnRm);
+          container.appendChild(div);
+          if (typeof showToast === 'function') showToast('📷 Foto adicionada!');
+        };
+        if (typeof comprimirImagem === 'function') {
+          comprimirImagem(ev.target.result, _addFallback);
+        } else {
+          _addFallback(ev.target.result);
+        }
       };
       reader.readAsDataURL(file);
-      document.body.removeChild(inp);
     });
     inp.click();
   }
@@ -11456,14 +11472,15 @@ async function fazerLogin(){
       document.body.appendChild(inp);
       inp.addEventListener('change', function() {
         var file = inp.files && inp.files[0];
-        document.body.removeChild(inp);
-        if (!file) return;
+        if (!file) { try { document.body.removeChild(inp); } catch(e){} return; }
         if (file.size > MAX) {
           if (typeof showToast === 'function') showToast('⚠️ Foto muito grande. Limite: 5MB.');
-          return;
+          try { document.body.removeChild(inp); } catch(e){} return;
         }
         var reader = new FileReader();
         reader.onload = function(ev) {
+          // BUG FIX: remove inp dentro do onload para evitar remoção prematura
+          try { if (inp.parentNode) document.body.removeChild(inp); } catch(e){}
           var dataUrl = ev.target.result;
           if (alvo === 'cliente') {
             window.assinaturaClienteAtual = dataUrl;
