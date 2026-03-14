@@ -2123,6 +2123,10 @@ html[data-role="technician"] nav button {
     messagingSenderId: "891796507607",
     appId: "1:891796507607:web:b5f7e9aab2975beca81992"
   };
+  // [FIX-SCOPE] Expõe firebaseConfig para window para que scripts externos
+  // (bloco app-modules) possam acessar projectId e apiKey nas chamadas REST.
+  // Sem isso, loginBuscarUsuarioFirestore lança TypeError e o login falha.
+  window.firebaseConfig = firebaseConfig;
 
   let firebaseApp = null;
   let db = null;
@@ -7197,8 +7201,7 @@ if (logoBase64) {
     try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comPortal: true }); } catch(e) {}
 
     } finally { hideLoader(); }
-  }; // fim btnWhatsLocal.onclick
-  } // fim if(btnWhatsLocal)
+  };
 
   // ── limparFormularioNovoAtendimento ──────────────────────────────────────────
   function limparFormularioNovoAtendimento(){
@@ -10054,8 +10057,11 @@ async function loginBuscarUsuarioFirestore(loginDigitado, firebaseUid) {
     const raw = String(loginDigitado || '').trim().toLowerCase();
     if (!raw) return null;
 
-    const pid = firebaseConfig.projectId;
-    const key = firebaseConfig.apiKey;
+    // [FIX-SCOPE] firebaseConfig é local no script block 1 — usa window.firebaseConfig
+    var _cfg = (typeof firebaseConfig !== 'undefined' ? firebaseConfig : null) || window.firebaseConfig || {};
+    const pid = _cfg.projectId;
+    const key = _cfg.apiKey;
+    if (!pid || !key) { console.warn('[loginBuscarUsuarioFirestore] firebaseConfig indisponível'); return null; }
 
     // Helper: busca documento via REST
     // NOTA: Funciona sem auth se rules permitirem, ou com auth se Firebase Auth
