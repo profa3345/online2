@@ -669,6 +669,13 @@ html[data-role="technician"] nav button {
     }
   }
 
+  /* [FIX-CURSOR] Cursor consistente em todos os campos readonly */
+  input[readonly], input[readonly]:focus,
+  select[disabled], select[disabled]:focus {
+    cursor: not-allowed !important;
+    opacity: 0.85;
+  }
+
   /* --- Mobile: override inline small font-sizes ilegíveis --- */
   /* [FIX-FONT-MIN] Garante font-size mínimo de 12px globalmente.
      Elementos com tamanho menor (ex: .6rem ≈ 9.6px) são elevados ao mínimo legível.
@@ -2430,7 +2437,7 @@ html[data-role="technician"] nav button {
   // === Sincronização de CLIENTES do Firestore ===
   async function syncClientesFromFirestore() {
     if (!navigator.onLine) return;
-    // Tenta SDK (autenticado) primeiro, REST como fallback
+    // Tenta SDK (autenticado) primeiro, REST como fallback apenas se autenticado
     const _fetchClientes = async () => {
       if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
         const snap = await db.collection("onlineEsClientes").get();
@@ -2438,7 +2445,13 @@ html[data-role="technician"] nav button {
         snap.forEach(doc => { const d = doc.data() || {}; d._firestoreId = doc.id; arr.push(d); });
         return arr;
       }
-      return await _fetchColecaoREST('onlineEsClientes', 500);
+      // [FIX-AUTH-REST] Só faz chamada REST se há currentUser — sem auth as regras
+      // do Firestore rejeitam a requisição e o erro era silenciado, retornando [] falso.
+      if (window._firebaseAuth && window._firebaseAuth.currentUser) {
+        return await _fetchColecaoREST('onlineEsClientes', 500);
+      }
+      console.warn('[syncClientes] Sem autenticação — sync adiado.');
+      return [];
     };
     try {
       const docs = await _fetchClientes();
@@ -2474,7 +2487,12 @@ html[data-role="technician"] nav button {
         snap.forEach(doc => { const d = doc.data() || {}; d._firestoreId = doc.id; arr.push(d); });
         return arr;
       }
-      return await _fetchColecaoREST('onlineEsEquipamentos', 500);
+      // [FIX-AUTH-REST] Apenas chama REST se autenticado
+      if (window._firebaseAuth && window._firebaseAuth.currentUser) {
+        return await _fetchColecaoREST('onlineEsEquipamentos', 500);
+      }
+      console.warn('[syncEquipamentos] Sem autenticação — sync adiado.');
+      return [];
     };
     try {
       const docs = await _fetchEq();
@@ -4008,8 +4026,9 @@ function autoFillCamposAtendimento(){
 
 
   btnCancelarSenha.onclick = ()=>{
-    // BUG FIX: se a troca de senha é obrigatória, não permite fechar o modal sem definir
-    var mustChange = window._userMustSetPassword || (typeof userMustSetPassword !== 'undefined' ? userMustSetPassword : null);
+    // [FIX-CANCEL-SENHA] Usa apenas window._userMustSetPassword — mais confiável
+    // que a variável local userMustSetPassword que pode estar fora de escopo
+    var mustChange = window._userMustSetPassword;
     if (mustChange && mustChange.mustChangePassword) {
       showToast('⚠️ Você precisa definir uma nova senha antes de continuar. Esta ação é obrigatória.', 4000);
       return;
@@ -4467,7 +4486,14 @@ function autoFillCamposAtendimento(){
         if (_inactTimer) clearTimeout(_inactTimer);
         _inactTimer = setTimeout(function() {
           if (!window.usuarioLogado) return; // já deslogado
-          showToast('⏱️ Sessão encerrada por inatividade. Faça login novamente.');
+          // [FIX-INACT] Salva rascunho antes de deslogar por inatividade
+          try {
+            if (typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
+              var _r = montarRelatorioAtual();
+              if (_r && _r.cliente) localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_r));
+            }
+          } catch(e) {}
+          showToast('⏱️ Sessão encerrada por inatividade. Rascunho salvo. Faça login novamente.', 4000);
           setTimeout(function() {
             try { document.getElementById('btnLogout') && document.getElementById('btnLogout').click(); } catch(e){}
           }, 1500);
@@ -4765,27 +4791,60 @@ function autoFillCamposAtendimento(){
 
   btnLogout.onclick = async ()=>{
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
-    // Fix: encerra sessão Firebase Auth para invalidar token e evitar reautenticação automática
+
+    // [FIX-LOGOUT-1] Salva rascunho do formulário antes de deslogar
+    // para que o técnico não perca o que estava preenchendo
+    try {
+      if (typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
+        var _rascunhoLogout = montarRelatorioAtual();
+        if (_rascunhoLogout && _rascunhoLogout.cliente) {
+          localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_rascunhoLogout));
+        }
+      }
+    } catch(e) {}
+
+    // Encerra sessão Firebase Auth
     try {
       var _fbAuth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
       if (_fbAuth && _fbAuth.currentUser) await _fbAuth.signOut();
     } catch(e) { console.warn('Firebase signOut falhou (ignorado):', e); }
-    usuarioLogado=null;
-    // SEGURANÇA: limpa referências globais ao usuário e dados sensíveis em memória
-    // Para o listener do Firestore para evitar callbacks em estado deslogado
+
+    // Para o listener do Firestore
     try { if (typeof window._relatoriosListener === 'function') { window._relatoriosListener(); window._relatoriosListener = null; } } catch(e){}
-    try { window.usuarioLogado = null; } catch(e){}
-    try { window.assinaturaClienteAtual = null; } catch(e){}
-    try { window.assinaturaTecnicoAtual = null; } catch(e){}
-    try { window._userMustSetPassword = null; } catch(e){}
-    try { window._editandoRelatorioId = null; } catch(e){}
-    try { window._ratPreSalvoId = null; } catch(e){}
-    app.style.display='none'; var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden'; var _sbOv=document.getElementById('sidebarOverlay'); if(_sbOv) _sbOv.style.display='none';
-    // FIX: oculta elementos fixed fora do #app que podem vazar sobre a tela de login
+
+    // Para todos os timers ativos
+    try { if (typeof relogioAtendimentoTimer !== 'undefined' && relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; } } catch(e){}
+    try { if (window._renderDebounceTimer) { clearTimeout(window._renderDebounceTimer); window._renderDebounceTimer = null; } } catch(e){}
+
+    // [FIX-LOGOUT-2] Limpa dados em memória para evitar vazamento entre sessões
+    // Sem isso, o próximo usuário que logar no mesmo dispositivo herda dados do anterior
+    usuarioLogado = null;
+    try { window.usuarioLogado        = null; } catch(e){}
+    try { window.relatorios           = [];   } catch(e){}
+    try { window.usuarios             = [];   } catch(e){}
+    try { window.clientes             = [];   } catch(e){}
+    try { window.equipamentos         = [];   } catch(e){}
+    try { window.assinaturaClienteAtual  = null; } catch(e){}
+    try { window.assinaturaTecnicoAtual  = null; } catch(e){}
+    try { window._userMustSetPassword    = null; } catch(e){}
+    try { window._editandoRelatorioId    = null; } catch(e){}
+    try { window._ratPreSalvoId          = null; } catch(e){}
+    try { window._ratNumeroBloqueado     = false; } catch(e){}
+    try { window._snapshotSaving         = false; } catch(e){}
+
+    app.style.display='none';
+    var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden';
+    var _sbOv=document.getElementById('sidebarOverlay'); if(_sbOv) _sbOv.style.display='none';
     var _barra=document.getElementById('barraAcoesMobile'); if(_barra) _barra.style.display='none';
     var _asi=document.getElementById('autoSaveIndicator'); if(_asi) _asi.classList.remove('visible');
     var _portal=document.getElementById('portalCliente'); if(_portal){ _portal.classList.remove('ativo'); }
-    document.documentElement.removeAttribute('data-role'); telaLogin.classList.remove('hidden'); telaLogin.style.display='flex';
+    document.documentElement.removeAttribute('data-role');
+    telaLogin.classList.remove('hidden');
+    telaLogin.style.display='flex';
+    // Limpa campos de login para nova sessão
+    try { var _lu=document.getElementById('loginUsuario'); if(_lu) _lu.value=''; } catch(e){}
+    try { var _ls=document.getElementById('loginSenha');   if(_ls) _ls.value=''; } catch(e){}
+    try { var _me=document.getElementById('msgErro');      if(_me) { _me.textContent=''; _me.style.display='none'; } } catch(e){}
   };
   btnToggleSidebar.onclick = ()=>{
     sidebar.classList.toggle('open');
@@ -11361,7 +11420,13 @@ async function fazerLogin(){
     function _atualizarBarra() {
       var telaNovo = document.getElementById('telaNovo');
       if (!telaNovo) return;
-      barra.style.display = (telaNovo.style.display !== 'none' && window.innerWidth <= 880) ? 'flex' : 'none';
+      // [FIX-BARRA] Condições para exibir a barra:
+      // 1. Usuário autenticado (window.usuarioLogado definido)
+      // 2. telaNovo explicitamente visível (display 'block' ou 'flex', nunca '' vazio)
+      // 3. Tela mobile (≤ 880px)
+      var logado = !!window.usuarioLogado;
+      var telaVisivel = telaNovo.style.display !== '' && telaNovo.style.display !== 'none';
+      barra.style.display = (logado && telaVisivel && window.innerWidth <= 880) ? 'flex' : 'none';
     }
     var observer = new MutationObserver(_atualizarBarra);
     var telaNovo = document.getElementById('telaNovo');
