@@ -4457,6 +4457,12 @@ function autoFillCamposAtendimento(){
     }
 
     var _ehMobile = window.matchMedia('(max-width: 880px)').matches;
+    // [FIX-BACK] Seta estado inicial no histórico logo ao entrar no sistema,
+    // assim o botão voltar do Android tem sempre um estado válido para interceptar.
+    try {
+      var _telaPadraoInit = isSupervisorOrAdmin(user) ? 'painel' : 'novo';
+      history.replaceState({ tela: _telaPadraoInit }, '', '');
+    } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
       // [UX-4] Mostra dica de exclusão somente para técnicos
@@ -4754,10 +4760,78 @@ function autoFillCamposAtendimento(){
         if (ov) ov.style.display = 'none';
       } catch(e) {}
     }
+    // [FIX-BACK] Empurra estado no histórico do browser para que o botão voltar
+    // do Android intercepte a navegação dentro do app em vez de sair/fazer logout.
+    // Não empurra se a navegação veio do próprio popstate (evita loop de histórico).
+    try {
+      if (!window._navegandoPopstate) {
+        var _estadoAtual = history.state;
+        var _telaAtual   = _estadoAtual && _estadoAtual.tela;
+        if (_telaAtual !== nome) {
+          history.pushState({ tela: nome }, '', '');
+        }
+      }
+    } catch(e) {}
     var p = _mostrarTelaBase(nome);
     try { _atualizarBnavAtivo(nome); } catch(e) {}
     return p;
   };
+
+  // [FIX-BACK] Handler do botão físico/gesto Voltar no Android.
+  // Intercepta o popstate e decide o que fazer:
+  //  • Modal câmera aberto → fecha o modal
+  //  • Sidebar aberta → fecha a sidebar
+  //  • Tela != tela-padrão do role → volta para tela anterior do histórico do app
+  //  • Tela-raiz → não faz nada (não deixa o browser fechar/recarregar o app)
+  window.addEventListener('popstate', function(e) {
+    // Se é um logout intencional, não interceptar
+    if (window._logoutIntencional) return;
+    // Se não há usuário logado, não interceptar
+    if (!window.usuarioLogado) return;
+
+    var telaAlvo = e.state && e.state.tela;
+
+    // 1. Se o modal câmera estiver aberto, fechar ele
+    var _camModal = document.getElementById('modalCamera');
+    if (_camModal && !_camModal.classList.contains('hidden')) {
+      var _camClose = document.getElementById('camCloseBtn');
+      if (_camClose) _camClose.click();
+      // Repõe o estado no histórico para que o próximo voltar funcione
+      history.pushState({ tela: telaAlvo || 'meus' }, '', '');
+      return;
+    }
+
+    // 2. Se a sidebar estiver aberta (mobile), fechar ela
+    try {
+      var _sb = document.getElementById('sidebar');
+      if (_sb && _sb.classList.contains('open')) {
+        _sb.classList.remove('open');
+        var _ov = document.getElementById('sidebarOverlay');
+        if (_ov) _ov.style.display = 'none';
+        var _role2 = (window.usuarioLogado && window.usuarioLogado.role) || '';
+        var _telaPadrao = (_role2 === 'tecnico') ? 'novo' : 'painel';
+        history.pushState({ tela: telaAlvo || _telaPadrao }, '', '');
+        return;
+      }
+    } catch(e) {}
+
+    // 3. Se tem tela de destino no estado, navegar para ela
+    if (telaAlvo && typeof window.mostrarTela === 'function') {
+      // Usa flag para evitar que window.mostrarTela empurre mais pushState durante navegação por popstate
+      window._navegandoPopstate = true;
+      try { window.mostrarTela(telaAlvo); } catch(e) {}
+      window._navegandoPopstate = false;
+      return;
+    }
+
+    // 4. Sem estado (entrada raiz do histórico) — repõe um estado para impedir
+    //    que o próximo voltar feche o PWA ou recarregue a página
+    var _role3 = (window.usuarioLogado && window.usuarioLogado.role) || '';
+    var _telaPadrao2 = (_role3 === 'tecnico') ? 'novo' : 'painel';
+    history.pushState({ tela: _telaPadrao2 }, '', '');
+  });
+
+  // Empurra estado inicial ao entrar no app — feito em entrarSistema() após usuarioLogado estar definido.
 
   // BUG FIX: limpa _ratPreSalvoId ao abrir novo atendimento para evitar que RAT pré-salva
   // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
@@ -4790,6 +4864,8 @@ function autoFillCamposAtendimento(){
   if (mSistema) mSistema.onclick = ()=>window.mostrarTela('sistema').catch(e=>console.warn('Erro ao abrir tela:', e));
 
   btnLogout.onclick = async ()=>{
+    // [FIX-BACK] Marca logout intencional para o handler popstate não interceptar
+    window._logoutIntencional = true;
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
 
     // [FIX-LOGOUT-1] Salva rascunho do formulário antes de deslogar
@@ -4845,6 +4921,8 @@ function autoFillCamposAtendimento(){
     try { var _lu=document.getElementById('loginUsuario'); if(_lu) _lu.value=''; } catch(e){}
     try { var _ls=document.getElementById('loginSenha');   if(_ls) _ls.value=''; } catch(e){}
     try { var _me=document.getElementById('msgErro');      if(_me) { _me.textContent=''; _me.style.display='none'; } } catch(e){}
+    // Recarrega para garantir estado limpo (sem dados residuais em memória entre sessões)
+    setTimeout(function(){ window.location.reload(); }, 150);
   };
   btnToggleSidebar.onclick = ()=>{
     sidebar.classList.toggle('open');
@@ -8087,6 +8165,29 @@ function aplicarPermissoesConfiguracoes(){
         }
       } catch(e) { console.warn('Backup Firestore parcial:', e); }
     }
+    // [SEC-BKP] Remove hashes de senha do localStorage antes de exportar
+    var _stripSenhas = function(jsonStr) {
+      try {
+        var arr = JSON.parse(jsonStr);
+        if (Array.isArray(arr)) {
+          arr.forEach(function(u) { delete u.password; delete u._salt; delete u._passwordHash; });
+          return JSON.stringify(arr);
+        }
+      } catch(e) {}
+      return jsonStr;
+    };
+    if (dump['online-es-usuarios-v1']) dump['online-es-usuarios-v1'] = _stripSenhas(dump['online-es-usuarios-v1']);
+    if (dump['online-es-users'])       dump['online-es-users']       = _stripSenhas(dump['online-es-users']);
+
+    // [SEC-BKP] Remove hashes de senha dos dados do Firestore
+    if (firestoreData['onlineEsUsuarios'] && Array.isArray(firestoreData['onlineEsUsuarios'])) {
+      firestoreData['onlineEsUsuarios'] = firestoreData['onlineEsUsuarios'].map(function(u) {
+        var c = Object.assign({}, u);
+        delete c.password; delete c._salt; delete c._passwordHash;
+        return c;
+      });
+    }
+
     const blob = new Blob([JSON.stringify({
       generatedAt: new Date().toISOString(),
       version: '2.0',
@@ -10078,24 +10179,25 @@ document.addEventListener('click', function(ev){
 })();
 
 // === MÓDULO: Logout Reforçado ===
-// Patch: reforça o botão Sair (logout)
+// Patch de segurança: garante que o botão Sair sempre funcione mesmo se entrarSistema
+// ainda não rodou. O onclick principal é registrado em entrarSistema().
+// Este patch só age se o onclick ainda não foi definido.
 (function(){
   try{
     var btnLogout = document.getElementById('btnLogout');
     if (btnLogout && !btnLogout.dataset.patchLogout){
       btnLogout.dataset.patchLogout = '1';
-      // remove qualquer onclick antigo
-      btnLogout.onclick = null;
       btnLogout.addEventListener('click', function(ev){
+        // Se o onclick de entrarSistema já está definido, deixa ele executar.
+        // Só age como fallback quando onclick não está presente (usuário não logado / erro de init).
+        if (typeof btnLogout.onclick === 'function') return;
         ev.preventDefault();
-        // Para o listener de relatórios em tempo real
         try { if (window._relatoriosListener) { window._relatoriosListener(); window._relatoriosListener = null; } } catch(e){}
         window._snapshotSaving = false;
-        // Firebase Auth signOut
         try { if (window._firebaseAuth) window._firebaseAuth.signOut(); } catch(e){}
         try { window.usuarioLogado = null; } catch(e){}
         try { document.documentElement.removeAttribute('data-role'); } catch(e){}
-        // Recarrega a pagina — garante volta para tela de login em qualquer situacao
+        window._logoutIntencional = true;
         window.location.reload();
       });
     }
@@ -11069,13 +11171,27 @@ async function fazerLogin(){
 
   async function iniciarCamera() {
     pararCamera();
+    // Desabilita captura até a câmera estar pronta (evita tela preta)
+    captureBtn.disabled = true;
+    captureBtn.style.opacity = '0.45';
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
       video.srcObject = stream;
+      // Aguarda metadados do vídeo carregarem antes de liberar captura
+      await new Promise(function(resolve) {
+        if (video.readyState >= 2) { resolve(); return; }
+        video.addEventListener('loadedmetadata', resolve, { once: true });
+      });
+      // Garante que o vídeo está de fato reproduzindo (evita frame preto no iOS/Android)
+      try { await video.play(); } catch(e) {}
+      captureBtn.disabled = false;
+      captureBtn.style.opacity = '';
     } catch (err) {
+      captureBtn.disabled = false;
+      captureBtn.style.opacity = '';
       modal.classList.add('hidden');
       document.body.style.overflow = '';
       // Permissão negada: avisa o usuário antes de abrir fallback
@@ -11223,37 +11339,42 @@ async function fazerLogin(){
     inp.type = 'file';
     inp.accept = 'image/*';
     inp.setAttribute('capture', 'environment');
+    inp.multiple = true; // permite selecionar múltiplos arquivos quando possível
     inp.style.display = 'none';
     document.body.appendChild(inp);
     inp.addEventListener('change', function() {
       var container = document.getElementById(previewContainerId);
-      if (!container || !inp.files || !inp.files[0]) { document.body.removeChild(inp); return; }
-      var file = inp.files[0];
+      if (!container || !inp.files || !inp.files.length) { try { document.body.removeChild(inp); } catch(e){} return; }
       var MAX = 5 * 1024 * 1024;
-      if (file.size > MAX) {
-        if (typeof showToast === 'function') showToast('⚠️ Foto muito grande (' + (file.size/1024/1024).toFixed(1) + 'MB). Limite: 5MB.');
-        document.body.removeChild(inp); return;
-      }
-      var reader = new FileReader();
-      reader.onload = function(ev) {
-        // BUG FIX: remove inp DENTRO do onload para evitar remoção prematura durante leitura
-        try { if (inp.parentNode) document.body.removeChild(inp); } catch(e) {}
-        // BUG FIX: comprime a imagem antes de adicionar ao preview (igual ao criarPreview)
-        var _addFallback = function(dataUrl) {
-          var bytes = Math.round((dataUrl.length - 22) * 3 / 4);
-          var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = bytes;
-          var img2 = document.createElement('img'); img2.src = dataUrl; div.appendChild(img2);
-          var btnRm = document.createElement('button'); btnRm.className = 'preview-remove'; btnRm.innerHTML = '&times;'; btnRm.onclick = function(){ div.remove(); }; div.appendChild(btnRm);
-          container.appendChild(div);
-          if (typeof showToast === 'function') showToast('📷 Foto adicionada!');
-        };
-        if (typeof comprimirImagem === 'function') {
-          comprimirImagem(ev.target.result, _addFallback);
-        } else {
-          _addFallback(ev.target.result);
+      var files = Array.prototype.slice.call(inp.files);
+      try { if (inp.parentNode) document.body.removeChild(inp); } catch(e) {}
+      var adicionadas = 0;
+      var _addFallback = function(dataUrl) {
+        var bytes = Math.round((dataUrl.length - 22) * 3 / 4);
+        var div = document.createElement('div'); div.className = 'preview-item'; div.dataset.filesize = bytes;
+        var img2 = document.createElement('img'); img2.src = dataUrl; div.appendChild(img2);
+        var btnRm = document.createElement('button'); btnRm.className = 'preview-remove'; btnRm.innerHTML = '&times;'; btnRm.onclick = function(){ div.remove(); }; div.appendChild(btnRm);
+        container.appendChild(div);
+        adicionadas++;
+        if (adicionadas === files.length) {
+          if (typeof showToast === 'function') showToast('📷 ' + adicionadas + (adicionadas === 1 ? ' foto adicionada!' : ' fotos adicionadas!'));
         }
       };
-      reader.readAsDataURL(file);
+      files.forEach(function(file) {
+        if (file.size > MAX) {
+          if (typeof showToast === 'function') showToast('⚠️ Foto muito grande (' + (file.size/1024/1024).toFixed(1) + 'MB). Ignorada.');
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          if (typeof comprimirImagem === 'function') {
+            comprimirImagem(ev.target.result, _addFallback);
+          } else {
+            _addFallback(ev.target.result);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
     });
     inp.click();
   }
