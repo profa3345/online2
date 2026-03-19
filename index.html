@@ -6013,8 +6013,40 @@ document.getElementById('btnAddCliente').onclick=()=>{
   // PDF
   async function addImagemReduzidaAoPdf(doc, imgSrc, x, y, maxWmm, maxHmm, permitirAmpliacao = false){
   // Reduz e mantém a proporção da imagem dentro dos limites informados
-  return new Promise((resolve)=>{
-    if (!imgSrc) { resolve(0); return; }
+  // [FIX-PDF] Rejeita placeholders '[local]' — imagem não está disponível no dispositivo atual
+  if (!imgSrc || imgSrc === '[local]' || imgSrc === '[comprimido]' || typeof imgSrc !== 'string') {
+    return 0;
+  }
+  // [FIX-PDF] Detecta formato real da imagem antes de inserir no jsPDF
+  // jsPDF rejeita silenciosamente PNG/WEBP quando o formato declarado é 'JPEG'
+  const _fmtPdf = (function(src) {
+    var h = src.slice(0, 50).toLowerCase();
+    if (h.includes('image/jpeg') || h.includes('image/jpg')) return 'JPEG';
+    if (h.includes('image/webp')) return 'JPEG'; // converte WEBP via canvas antes de inserir
+    return 'PNG';
+  })(imgSrc);
+
+  // [FIX-PDF] WEBP não é suportado por todos os builds do jsPDF — converte para JPEG via canvas
+  const _prepararSrc = function(src) {
+    return new Promise(function(resolve) {
+      if (!src.toLowerCase().startsWith('data:image/webp')) { resolve(src); return; }
+      try {
+        var ci = new Image();
+        ci.onload = function() {
+          var cv = document.createElement('canvas');
+          cv.width = ci.width; cv.height = ci.height;
+          var cx = cv.getContext('2d');
+          cx.drawImage(ci, 0, 0);
+          resolve(cv.toDataURL('image/jpeg', 0.85));
+        };
+        ci.onerror = function() { resolve(src); };
+        ci.src = src;
+      } catch(e) { resolve(src); }
+    });
+  };
+
+  return new Promise(async (resolve)=>{
+    var finalSrc = await _prepararSrc(imgSrc);
     const img = new Image();
     var _done = false;
     // Timeout de 8s — evita travar indefinidamente em imagens CORS/lentas
@@ -6023,8 +6055,10 @@ document.getElementById('btnAddCliente').onclick=()=>{
       if (_done) return; _done = true; clearTimeout(_timer);
       let w = img.width;
       let h = img.height;
+      // [FIX-PDF] Detecta formato final após possível conversão
+      const _fmt = finalSrc !== imgSrc ? 'JPEG' : _fmtPdf;
       if (!w || !h){
-        try { doc.addImage(imgSrc, 'JPEG', x, y, maxWmm, maxHmm); } catch(e){}
+        try { doc.addImage(finalSrc, _fmt, x, y, maxWmm, maxHmm); } catch(e){ console.warn('[PDF] addImage falhou:', e.message); }
         resolve(maxHmm);
         return;
       }
@@ -6034,14 +6068,14 @@ document.getElementById('btnAddCliente').onclick=()=>{
       const ratio = permitirAmpliacao ? Math.min(maxWpx / w, maxHpx / h) : Math.min(maxWpx / w, maxHpx / h, 1);
       const drawWmm = (w * ratio) / pxPerMm;
       const drawHmm = (h * ratio) / pxPerMm;
-      try { doc.addImage(imgSrc, 'JPEG', x, y, drawWmm, drawHmm); } catch(e){}
+      try { doc.addImage(finalSrc, _fmt, x, y, drawWmm, drawHmm); } catch(e){ console.warn('[PDF] addImage falhou:', e.message); resolve(0); return; }
       resolve(drawHmm);
     };
     img.onerror = function(){ if(!_done){ _done=true; clearTimeout(_timer); resolve(0); } };
-    if (typeof imgSrc === 'string' && imgSrc.startsWith('http')) {
+    if (typeof finalSrc === 'string' && finalSrc.startsWith('http')) {
       img.crossOrigin = 'anonymous';
     }
-    img.src = imgSrc;
+    img.src = finalSrc;
   });
 }
 
@@ -6301,29 +6335,76 @@ if (logoBase64) {
     if(temImgs){
       if(y>240){ doc.addPage(); y=15; }
       doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.text("6. Anexos fotográficos",10,y); y+=4;
-      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.text("As imagens abaixo foram reduzidas automaticamente para envio em PDF.",10,y); y+=5;
-      const allImages=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[]);
-      let col = 0;
-      let lastImgH = 40;
-      for(let i=0;i<allImages.length;i++){
-        if(y>265){ doc.addPage(); y=15; }
-        const x = col===0 ? 10 : 110;
-        const imgH = await addImagemReduzidaAoPdf(doc, allImages[i], x, y, 85, 55);
-        lastImgH = imgH || lastImgH || 40;
-        if(col===1){
-          // fechou a linha (2 colunas), desce para a próxima linha
-          y += (imgH || 40) + 6;
-          col = 0;
-        } else {
-          // primeira coluna preenchida, próxima imagem irá para a segunda coluna
-          col = 1;
+      doc.setFont("helvetica","normal"); doc.setFontSize(8);
+
+      // [FIX-PDF] Tenta recuperar imagens reais do localStorage quando o array vem do Firestore
+      // (imagens marcadas como '[local]' no Firestore ainda existem no localStorage do técnico)
+      const _recuperarImagens = function(arr) {
+        if (!Array.isArray(arr)) return [];
+        // Se já são base64 locais, retorna direto
+        if (arr.every(function(s) { return s && s.startsWith('data:'); })) return arr;
+        // Tenta buscar do localStorage pelo id do relatório
+        try {
+          var _local = typeof loadRelatorios === 'function' ? loadRelatorios() : (window.relatorios || []);
+          var _rLocal = _local.find(function(x) { return x.id === r.id; });
+          if (_rLocal) return _rLocal;
+        } catch(e) {}
+        return null;
+      };
+
+      // Tenta recuperar versão local completa do relatório
+      var _rComImgs = r;
+      try {
+        var _localList = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+        var _rLocal2 = _localList.find(function(x) { return x.id === r.id; });
+        if (_rLocal2 && (
+          (_rLocal2.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
+          (_rLocal2.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
+          (_rLocal2.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
+        )) {
+          _rComImgs = _rLocal2;
         }
+      } catch(e) {}
+
+      // [FIX-PDF] Filtra imagens válidas — remove placeholders '[local]' e '[comprimido]'
+      const allImages = [].concat(_rComImgs.imgsEquip||[]).concat(_rComImgs.imgsServico||[]).concat(_rComImgs.imgsBaterias||[])
+        .filter(function(src) {
+          return src && typeof src === 'string' && src !== '[local]' && src !== '[comprimido]' && src.startsWith('data:');
+        });
+
+      if (!allImages.length) {
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text('As fotos estão salvas no dispositivo do técnico e não puderam ser incluídas neste PDF.', 10, y);
+        doc.setTextColor(0);
+        y += 8;
+      } else {
+        doc.text("As imagens abaixo foram reduzidas automaticamente para envio em PDF.",10,y); y+=5;
+        let col = 0;
+        let rowMaxH = 40; // altura máxima da linha atual
+        for(let i=0;i<allImages.length;i++){
+          if(y>265){ doc.addPage(); y=15; }
+          const x = col===0 ? 10 : 110;
+          const imgH = await addImagemReduzidaAoPdf(doc, allImages[i], x, y, 85, 55);
+          if (imgH > 0) {
+            // [FIX-PDF] Só conta coluna se a imagem foi inserida com sucesso
+            rowMaxH = Math.max(rowMaxH, imgH);
+            if(col===1){
+              y += rowMaxH + 6;
+              col = 0;
+              rowMaxH = 40;
+            } else {
+              col = 1;
+            }
+          }
+          // Se imgH===0 a imagem falhou — não avança col nem y
+        }
+        // Se terminou com apenas uma imagem na linha (col==1), desce
+        if (col === 1) {
+          y += rowMaxH + 6;
+        }
+        y += 4;
       }
-      // Se terminou com apenas uma imagem na linha (col==1), ainda precisamos descer
-      if (col === 1) {
-        y += (lastImgH || 40) + 6;
-      }
-      y += 4;
     }
 
     if (y > 250) { 
