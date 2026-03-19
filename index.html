@@ -135,7 +135,7 @@
     .topbar h1{font-size:1.4rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
     .topbar small{font-size:1rem;color:#cbd5e1;font-weight:500}
     .topbar-right{display:flex;gap:10px;align-items:center}
-    .badge-online{background:rgba(34,197,94,.15);color:#bbf7d0;font-size:.6rem;border-radius:999px;padding:3px 9px}
+    .badge-online{background:rgba(34,197,94,.15);color:#bbf7d0;font-size:.6rem;border-radius:999px;padding:3px 9px;transition:background .3s,color .3s;font-weight:600;}
     .main{padding:14px 14px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
     .panel{background:rgba(15,23,42,.35);border:1px solid rgba(148,163,184,.05);border-radius:16px;padding:14px 14px 6px;box-shadow:0 10px 40px rgba(0,0,0,.12);backdrop-filter:blur(12px);animation:fadeIn .25s ease}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -224,6 +224,11 @@
     .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s}
     .cam-send-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(34,197,94,.45)}
     .cam-send-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    /* Chips de ações rápidas */
+    .chip-acao{display:inline-flex;align-items:center;padding:4px 10px;background:rgba(17,79,145,.10);border:1px solid rgba(17,79,145,.25);border-radius:999px;font-size:.7rem;color:#114f91;cursor:pointer;transition:background .15s,border-color .15s,transform .1s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+    .chip-acao:hover{background:rgba(17,79,145,.18);border-color:rgba(17,79,145,.45);}
+    .chip-acao:active{transform:scale(.95);}
+    .chip-acao.usado{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.35);color:#15803d;}
     .btn.camera-btn{background:linear-gradient(135deg,rgba(249,115,22,.18),rgba(234,88,12,.12));border:1px solid rgba(249,115,22,.45);color:#f97316;gap:5px}
     .btn.camera-btn:hover{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border-color:transparent}
     .report-overlay{position:fixed;inset:0;background:rgba(2,6,23,.65);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px;z-index:5000}
@@ -237,7 +242,7 @@
     .report-body .rotulo{font-weight:700;color:#0f172a}
     .report-close{background:transparent;border:none;color:#fff;font-size:1.1rem;cursor:pointer;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px}
     .toast{position:fixed;bottom:16px;right:16px;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(17,79,145,.3);border-radius:10px;padding:6px 12px;font-size:.7rem;display:none;z-index:11000}
-    @media(max-width:880px){.toast{bottom:calc(80px + env(safe-area-inset-bottom));}}
+    @media(max-width:880px){.toast{bottom:calc(90px + env(safe-area-inset-bottom));right:12px;left:12px;text-align:center;font-size:.8rem;padding:10px 14px;}}
 
     .global-loader{
       position:fixed;
@@ -544,6 +549,20 @@
     cursor: pointer;
     flex-shrink: 0;
   }
+  #barraAcoesMobile .btn-email-mobile {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: rgba(59,130,246,.18);
+    border: 1px solid rgba(59,130,246,.4);
+    color: #93c5fd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
   /* Toast suave (se existir) */
   #toast{ font-size: var(--fs-small) !important; }
 
@@ -729,16 +748,24 @@ html[data-role="technician"] nav button {
     position: fixed;
     top: 58px;
     right: 10px;
-    background: rgba(15,23,42,.82);
-    color: #94a3b8;
-    font-size: .65rem;
+    background: rgba(22,163,74,.15);
+    color: #4ade80;
+    font-size: .7rem;
     border-radius: 999px;
-    padding: 3px 10px;
+    padding: 4px 12px;
     z-index: 30;
     display: none;
     pointer-events: none;
     backdrop-filter: blur(6px);
-    border: 1px solid rgba(148,163,184,.15);
+    border: 1px solid rgba(22,163,74,.3);
+    font-weight: 600;
+    animation: _fadeInOut 3s ease forwards;
+  }
+  @keyframes _fadeInOut {
+    0%   { opacity:0; transform:translateY(-4px); }
+    15%  { opacity:1; transform:translateY(0); }
+    70%  { opacity:1; }
+    100% { opacity:0; }
   }
   #autoSaveIndicator.visible { display: block; }
 
@@ -1063,10 +1090,17 @@ html[data-role="technician"] nav button {
             <button class="btn small" id="btnLimparFormulario"><i class="ri-eraser-line"></i> Limpar</button>
           </div>
         </div>
-    
-        <p style="font-size:1.05rem;color:#1f2937;margin-bottom:10px;font-weight:600;">
-          Preencha os dados abaixo. As imagens anexadas aparecerão logo abaixo do botão de upload correspondente.
-        </p>
+
+        <!-- [UX] Barra de progresso de preenchimento -->
+        <div id="formProgressWrap" style="margin:0 0 12px 0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:.72rem;color:#64748b;font-weight:500;">Preenchimento do relatório</span>
+            <span id="formProgressPct" style="font-size:.72rem;color:#f97316;font-weight:700;">0%</span>
+          </div>
+          <div style="height:6px;background:rgba(148,163,184,.2);border-radius:999px;overflow:hidden;">
+            <div id="formProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ea580c);border-radius:999px;transition:width .4s ease;"></div>
+          </div>
+        </div>
 
         <!-- A. DADOS DO ATENDIMENTO -->
         <div class="section-card">
@@ -1080,7 +1114,15 @@ html[data-role="technician"] nav button {
             </div>
             <div class="col">
               <label>Data e hora do atendimento (BR – 24h)</label>
-              <input id="aDataHoraBR" aria-label="Data e hora do atendimento" readonly placeholder="dd/mm/aaaa hh:mm" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:600;background:#f8fafc;cursor:not-allowed;">
+              <div style="position:relative;display:flex;align-items:center;">
+                <input id="aDataHoraBR" aria-label="Data e hora do atendimento" placeholder="dd/mm/aaaa hh:mm" inputmode="numeric" autocomplete="off"
+                  style="width:100%;padding:6px 36px 6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:600;background:#f8fafc;">
+                <button type="button" id="btnResetDataHora" title="Usar data/hora atual"
+                  style="position:absolute;right:6px;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:1rem;padding:2px;line-height:1;display:flex;align-items:center;"
+                  aria-label="Resetar para agora">
+                  <i class="ri-refresh-line"></i>
+                </button>
+              </div>
             </div>
             <div class="col">
               <label>Técnico responsável</label>
@@ -1092,8 +1134,13 @@ html[data-role="technician"] nav button {
             <div class="col">
               <label>Cliente / Empresa <span style="color:#dc2626;">*</span></label>
               <div class="row" style="gap:6px;">
-                <div class="col">
-                  <select id="aClienteSelect" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+                <div class="col" style="position:relative;">
+                  <!-- [UX] Campo de busca com autocomplete em vez de <select> simples -->
+                  <input id="aClienteBusca" aria-label="Buscar cliente" placeholder="🔍 Digite para buscar..." autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false"
+                    style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;box-sizing:border-box;">
+                  <div id="aClienteDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:#fff;border:1px solid rgba(148,163,184,.35);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;margin-top:3px;"></div>
+                  <!-- select oculto mantido para compatibilidade com todo o código existente -->
+                  <select id="aClienteSelect" aria-label="Cliente selecionado" style="display:none;">
                     <option value="">Selecione um cliente</option>
                   </select>
                 </div>
@@ -1295,11 +1342,30 @@ html[data-role="technician"] nav button {
             <div class="col">
               <label>Diagnóstico do técnico <span style="color:#dc2626;">*</span></label>
               <textarea id="cDiagnostico" aria-label="Diagnóstico técnico" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"></textarea>
+              <div class="chips-rapidos" data-alvo="cDiagnostico" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">
+                <span class="chip-acao">Desgaste natural</span>
+                <span class="chip-acao">Falha de bateria</span>
+                <span class="chip-acao">Sobrecarga no sistema</span>
+                <span class="chip-acao">Falha no inversor</span>
+                <span class="chip-acao">Superaquecimento</span>
+                <span class="chip-acao">Falha de comunicação</span>
+                <span class="chip-acao">Curto-circuito interno</span>
+              </div>
             </div>
           </div>
           <div style="margin-top:6px;">
             <label>Ações realizadas <span style="color:#dc2626;">*</span></label>
             <textarea id="cAcoes" aria-label="Ações realizadas" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;" placeholder="Ex.: Limpeza interna, troca de ventoinha, reaperto de terminais, troca de baterias..."></textarea>
+            <div class="chips-rapidos" data-alvo="cAcoes" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">
+              <span class="chip-acao">Limpeza interna</span>
+              <span class="chip-acao">Troca de baterias</span>
+              <span class="chip-acao">Reaperto de terminais</span>
+              <span class="chip-acao">Troca de ventoinha</span>
+              <span class="chip-acao">Atualização de firmware</span>
+              <span class="chip-acao">Substituição de fusível</span>
+              <span class="chip-acao">Teste de carga</span>
+              <span class="chip-acao">Troca de capacitor</span>
+            </div>
           </div>
           <div style="margin-top:6px;">
             <label>Peças utilizadas</label>
@@ -3125,6 +3191,27 @@ html[data-role="technician"] nav button {
     });
   }
 
+  // [UX] Pré-preenche campos B ao selecionar equipamento do estoque
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'aEquipEstoque') {
+      var equipId = e.target.value;
+      if (!equipId) return;
+      var lista = Array.isArray(window.equipamentos) ? window.equipamentos : [];
+      var eq = lista.find(function(x) { return String(x.id) === String(equipId); });
+      if (!eq) return;
+      var _setIfEmpty = function(id, val) {
+        var el = document.getElementById(id);
+        if (el && !el.value.trim() && val) { el.value = val; }
+      };
+      // Preenche campos B apenas se estiverem vazios (não sobrescreve o que o técnico digitou)
+      _setIfEmpty('bEquipamento', [eq.marca, eq.modelo].filter(Boolean).join(' ') || eq.tipo || '');
+      _setIfEmpty('bSerie',       eq.serie || '');
+      _setIfEmpty('bKVA',         eq.kva || '');
+      if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario();
+      showToast('📦 Campos do equipamento preenchidos automaticamente.');
+    }
+  });
+
 
   let usuarioLogado = null;
   let userMustSetPassword = null;
@@ -3591,6 +3678,42 @@ function startRelogioAtendimento(){
     if (!el) return;
     // Atualiza imediatamente
     el.value = agoraBR();
+    // [UX] Registra listeners apenas uma vez (startRelogioAtendimento pode ser chamada múltiplas vezes)
+    if (!el._maskListenerSet) {
+      el._maskListenerSet = true;
+      // Para o relógio automático quando o usuário edita manualmente
+      el.addEventListener('focus', function() {
+        if (relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; }
+      });
+      // Máscara automática dd/mm/aaaa hh:mm enquanto digita
+      el.addEventListener('input', function() {
+        var v = el.value.replace(/\D/g, '').slice(0, 12);
+        var out = '';
+        if (v.length > 0)  out += v.slice(0,2);
+        if (v.length > 2)  out += '/' + v.slice(2,4);
+        if (v.length > 4)  out += '/' + v.slice(4,8);
+        if (v.length > 8)  out += ' ' + v.slice(8,10);
+        if (v.length > 10) out += ':' + v.slice(10,12);
+        el.value = out;
+        var valido = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.test(out);
+        var completo = v.length === 12;
+        el.style.borderColor = completo ? (valido ? '#16a34a' : '#dc2626') : '';
+        el.style.boxShadow   = completo ? (valido ? '0 0 0 3px rgba(22,163,74,.12)' : '0 0 0 3px rgba(220,38,38,.12)') : '';
+      });
+      // Botão reset: volta para hora atual e reinicia relógio
+      var btnReset = document.getElementById('btnResetDataHora');
+      if (btnReset && !btnReset._resetListenerSet) {
+        btnReset._resetListenerSet = true;
+        btnReset.addEventListener('click', function() {
+          el.value = agoraBR();
+          el.style.borderColor = '';
+          el.style.boxShadow   = '';
+          if (relogioAtendimentoTimer) clearInterval(relogioAtendimentoTimer);
+          relogioAtendimentoTimer = setInterval(function(){ el.value = agoraBR(); }, 10000);
+          showToast('⏱️ Data/hora redefinida para agora.');
+        });
+      }
+    }
     // Atualiza a cada 10 segundos enquanto o atendimento estiver em edição
     relogioAtendimentoTimer = setInterval(()=>{
       el.value = agoraBR();
@@ -4206,6 +4329,12 @@ function autoFillCamposAtendimento(){
     try { var _ratEl = document.getElementById('aNumeroRat'); if (_ratEl) _ratEl.value = r.numero || ' '; } catch(e){}
     // Preenche o formulário de Novo Atendimento com os dados do relatório
     mostrarTela('novo').then(() => {
+      // [UX] Rola para o topo do formulário ao editar (evita ficar no meio da página)
+      try {
+        var _formPanel = document.querySelector('#telaNovo .form-panel') || document.getElementById('telaNovo');
+        if (_formPanel) _formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch(e) {}
       try {
         if (aNumeroRat) aNumeroRat.value = r.numero || '';
         if (aDataHoraBR) aDataHoraBR.value = r.dataHoraBr || r.dataHoraBR || '';
@@ -4217,6 +4346,9 @@ function autoFillCamposAtendimento(){
           aClienteManual.value = r.clienteManual || r.cliente || '';
         } else if (aClienteSelect) {
           aClienteSelect.value = r.cliente || '';
+          // [UX] Sincroniza campo de busca visual com o valor restaurado
+          var _busca = document.getElementById('aClienteBusca');
+          if (_busca) _busca.value = r.cliente || '';
         }
 
         const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val || ''; };
@@ -4339,6 +4471,10 @@ function autoFillCamposAtendimento(){
         window._editandoRelatorioId = r.id;
 
         try { logInfo('RAT aberta para edição', { numero: r.numero || r.id }); } catch(e) {}
+        // [UX] Ajusta altura dos textareas após restaurar o conteúdo
+        try { if (typeof window._autoResizeTextareas === 'function') window._autoResizeTextareas(); } catch(e) {}
+        // [UX] Atualiza barra de progresso após restaurar campos
+        try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e) {}
         showToast('Relatório carregado para edição. Salve ao finalizar.');
       } catch(e) { console.warn('Erro ao preencher formulário para edição:', e); }
     }).catch(e => console.warn('Erro ao abrir tela novo:', e));
@@ -4459,8 +4595,9 @@ function autoFillCamposAtendimento(){
     var _ehMobile = window.matchMedia('(max-width: 880px)').matches;
     // [FIX-BACK] Seta estado inicial no histórico logo ao entrar no sistema,
     // assim o botão voltar do Android tem sempre um estado válido para interceptar.
+    // No mobile a tela inicial é a home (__home__); no desktop é a tela padrão do role.
     try {
-      var _telaPadraoInit = isSupervisorOrAdmin(user) ? 'painel' : 'novo';
+      var _telaPadraoInit = _ehMobile ? '__home__' : (isSupervisorOrAdmin(user) ? 'painel' : 'novo');
       history.replaceState({ tela: _telaPadraoInit }, '', '');
     } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
@@ -4817,18 +4954,30 @@ function autoFillCamposAtendimento(){
 
     // 3. Se tem tela de destino no estado, navegar para ela
     if (telaAlvo && typeof window.mostrarTela === 'function') {
-      // Usa flag para evitar que window.mostrarTela empurre mais pushState durante navegação por popstate
       window._navegandoPopstate = true;
-      try { window.mostrarTela(telaAlvo); } catch(e) {}
+      try {
+        if (telaAlvo === '__home__' && typeof window._mostrarHomeScreen === 'function') {
+          window._mostrarHomeScreen();
+        } else {
+          window.mostrarTela(telaAlvo);
+        }
+      } catch(e) {}
       window._navegandoPopstate = false;
       return;
     }
 
-    // 4. Sem estado (entrada raiz do histórico) — repõe um estado para impedir
-    //    que o próximo voltar feche o PWA ou recarregue a página
+    // 4. Sem estado (entrada raiz do histórico) — repõe estado e exibe tela raiz
+    //    para impedir que o próximo voltar feche o PWA ou recarregue a página
     var _role3 = (window.usuarioLogado && window.usuarioLogado.role) || '';
-    var _telaPadrao2 = (_role3 === 'tecnico') ? 'novo' : 'painel';
-    history.pushState({ tela: _telaPadrao2 }, '', '');
+    var _isMobile4 = window.innerWidth <= 880;
+    if (_isMobile4 && typeof window._mostrarHomeScreen === 'function') {
+      window._navegandoPopstate = true;
+      try { window._mostrarHomeScreen(); } catch(e) {}
+      window._navegandoPopstate = false;
+    } else {
+      var _telaPadrao2 = (_role3 === 'tecnico') ? 'novo' : 'painel';
+      history.pushState({ tela: _telaPadrao2 }, '', '');
+    }
   });
 
   // Empurra estado inicial ao entrar no app — feito em entrarSistema() após usuarioLogado estar definido.
@@ -5049,6 +5198,9 @@ function autoFillCamposAtendimento(){
     }
     if (mostrandoManual){
       if (aClienteSelect) aClienteSelect.value='';
+      // [UX] Limpa o campo de busca visual também
+      var _buscaCli = document.getElementById('aClienteBusca');
+      if (_buscaCli) { _buscaCli.value=''; _buscaCli.style.borderColor=''; _buscaCli.style.boxShadow=''; }
       if (aClienteManual) aClienteManual.value='';
       if (aCnpj){
         aCnpj.value = '';
@@ -6473,32 +6625,46 @@ if (logoBase64) {
   }
 
   function validarObrigatorios(){
+    // Helper: destaca campo inválido e rola até ele
+    function _erroCampo(el, msg) {
+      showToast(msg);
+      // Se o elemento alvo é o select oculto do cliente, usa o campo de busca visível
+      var _elVisivel = el;
+      if (el && el.id === 'aClienteSelect') {
+        _elVisivel = document.getElementById('aClienteBusca') || el;
+      }
+      if (_elVisivel) {
+        _elVisivel.style.borderColor = '#dc2626';
+        _elVisivel.style.boxShadow   = '0 0 0 3px rgba(220,38,38,.12)';
+        _elVisivel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        _elVisivel.focus && _elVisivel.focus();
+        setTimeout(function() {
+          _elVisivel.style.borderColor = '';
+          _elVisivel.style.boxShadow   = '';
+        }, 3000);
+      }
+      return false;
+    }
+
     const usandoManual = (aClienteManual && aClienteManual.style.display==='block');
     const temCliente = usandoManual ? (aClienteManual.value||'').trim() : (aClienteSelect.value||'').trim();
-    if (!temCliente){ showToast('O campo "Cliente / Empresa" é obrigatório.'); return false; }
+    if (!temCliente) return _erroCampo(usandoManual ? aClienteManual : aClienteSelect, 'O campo "Cliente / Empresa" é obrigatório.');
 
     if (usandoManual){
       const cnpjManual = (aCnpj && aCnpj.value ? aCnpj.value.trim() : '');
-      if (!cnpjManual){
-        showToast('Informe o documento do cliente (CPF ou CNPJ) para cadastrá-lo.');
-        return false;
-      }
+      if (!cnpjManual) return _erroCampo(aCnpj, 'Informe o documento do cliente (CPF ou CNPJ) para cadastrá-lo.');
     } else {
       const nomeSel = (aClienteSelect && aClienteSelect.value) ? aClienteSelect.value.trim() : '';
       if (nomeSel){
         const cnpjSel = (aCnpj && aCnpj.value ? aCnpj.value.trim() : '');
-        if (!cnpjSel){
-          showToast('Este cliente ainda está sem documento cadastrado (CPF ou CNPJ). Informe no campo correspondente.');
-          return false;
-        }
+        if (!cnpjSel) return _erroCampo(aCnpj, 'Este cliente ainda está sem documento (CPF ou CNPJ). Informe no campo.');
       }
     }
 
-    if (!cDiagnostico.value.trim()){ showToast('O campo "Diagnóstico do técnico" é obrigatório.'); return false; }
-    if (!cAcoes.value.trim()){ showToast('O campo "Ações realizadas" é obrigatório.'); return false; }
-    if (!/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.test((aDataHoraBR.value||'').trim())){
-      showToast('Informe a data/hora no formato BR: dd/mm/aaaa hh:mm'); return false;
-    }
+    if (!cDiagnostico.value.trim()) return _erroCampo(cDiagnostico, 'O campo "Diagnóstico do técnico" é obrigatório.');
+    if (!cAcoes.value.trim())       return _erroCampo(cAcoes,       'O campo "Ações realizadas" é obrigatório.');
+    if (!/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.test((aDataHoraBR.value||'').trim()))
+      return _erroCampo(aDataHoraBR, 'Data/hora inválida. Use o formato: dd/mm/aaaa hh:mm');
     return true;
   }
   window.validarObrigatorios = validarObrigatorios;
@@ -6808,6 +6974,9 @@ if (logoBase64) {
           aClienteManual.style.display = 'block';
         } else if (r.cliente && aClienteSelect) {
           aClienteSelect.value = r.cliente;
+          // [UX] Sincroniza campo de busca visual
+          var _buscaRasc = document.getElementById('aClienteBusca');
+          if (_buscaRasc) _buscaRasc.value = r.cliente;
           try { aClienteSelect.dispatchEvent(new Event('change')); } catch(e){}
         }
 
@@ -6880,6 +7049,9 @@ if (logoBase64) {
 
         showToast('Rascunho restaurado. Continue preenchendo.');
         try { logInfo('Rascunho restaurado', { numero: r.numero || 'N/A' }); } catch(e){}
+        // [UX] Ajusta textareas e barra de progresso
+        try { if (typeof window._autoResizeTextareas === 'function') window._autoResizeTextareas(); } catch(e){}
+        try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e){}
       } catch(e) {
         console.warn('Falha ao restaurar campos do rascunho:', e);
       }
@@ -6935,17 +7107,20 @@ if (logoBase64) {
         rSem.vidsEquip = []; rSem.vidsServico = []; rSem.vidsBaterias = [];
         rSem.assinaturaCliente = null; rSem.assinaturaTecnicoImg = null;
         localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rSem));
-        // Mostra indicador visual por 2.5s
+        // Mostra indicador visual com animação (remove/readiciona para reiniciar)
         var ind = document.getElementById('autoSaveIndicator');
         if (ind) {
+          ind.classList.remove('visible');
+          // Força reflow para reiniciar a animação CSS
+          void ind.offsetWidth;
           ind.classList.add('visible');
-          setTimeout(function() { ind.classList.remove('visible'); }, 2500);
+          setTimeout(function() { ind.classList.remove('visible'); }, 3000);
         }
       } catch(e) { /* silencioso */ }
     }
     // Inicia auto-save 10s após login, depois a cada 60s
     setTimeout(function() {
-      _autoSaveTimer = setInterval(_autoSaveRascunho, 60000);
+      _autoSaveTimer = setInterval(_autoSaveRascunho, 30000); // [UX] 30s — era 60s, muito lento
     }, 10000);
     // Expõe para limpar ao salvar manualmente
     window._pararAutoSave = function() { if (_autoSaveTimer) { clearInterval(_autoSaveTimer); _autoSaveTimer = null; } };
@@ -6964,8 +7139,128 @@ if (logoBase64) {
     });
   })();
 
+  // ═══ CAMPO DE BUSCA DE CLIENTES (autocomplete) ════════════════════════
+  (function() {
+    var _busca    = document.getElementById('aClienteBusca');
+    var _dropdown = document.getElementById('aClienteDropdown');
+    var _select   = document.getElementById('aClienteSelect');
+    if (!_busca || !_dropdown || !_select) return;
+
+    // Seleciona cliente: preenche select oculto + dispara o evento change existente
+    function _selecionarCliente(nome) {
+      _busca.value = nome;
+      _select.value = nome;
+      _dropdown.style.display = 'none';
+      // Dispara o evento change para que o código existente preencha CNPJ/telefone/endereço
+      _select.dispatchEvent(new Event('change'));
+      // Feedback visual
+      _busca.style.borderColor = '#16a34a';
+      _busca.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.12)';
+      if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario();
+    }
+
+    function _renderDropdown(termo) {
+      var lista = Array.isArray(window.clientes) ? window.clientes : [];
+      var filtrados = termo
+        ? lista.filter(function(c) {
+            return (c.nome || '').toLowerCase().includes(termo.toLowerCase()) ||
+                   (c.cnpj || '').includes(termo) ||
+                   (c.cidade || '').toLowerCase().includes(termo.toLowerCase());
+          })
+        : lista.slice().sort(function(a, b) { return (a.nome||'').localeCompare(b.nome||''); });
+
+      _dropdown.innerHTML = '';
+      if (!filtrados.length) {
+        _dropdown.innerHTML = '<div style="padding:10px 12px;font-size:.78rem;color:#94a3b8;">Nenhum cliente encontrado</div>';
+        _dropdown.style.display = 'block';
+        return;
+      }
+      filtrados.slice(0, 50).forEach(function(c, idx) {
+        var item = document.createElement('div');
+        item.setAttribute('data-idx', idx);
+        item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:.82rem;color:#0f172a;border-bottom:1px solid rgba(148,163,184,.1);transition:background .1s;';
+        var cidade = c.cidade && c.uf ? ' <span style="color:#94a3b8;font-size:.72rem;">(' + c.cidade + '/' + c.uf + ')</span>' : '';
+        var cnpj   = c.cnpj ? ' <span style="color:#94a3b8;font-size:.68rem;">' + c.cnpj + '</span>' : '';
+        item.innerHTML = '<strong>' + (c.nome || '') + '</strong>' + cidade + cnpj;
+        item.addEventListener('mousedown', function(e) { e.preventDefault(); _selecionarCliente(c.nome || ''); });
+        item.addEventListener('touchstart', function(e) { e.preventDefault(); _selecionarCliente(c.nome || ''); }, {passive:false});
+        item.addEventListener('mouseover', function() { _dropdown.querySelectorAll('.ativo').forEach(function(x){x.classList.remove('ativo');x.style.background='';}); item.style.background = '#f1f5f9'; });
+        item.addEventListener('mouseout',  function() { item.style.background = ''; });
+        _dropdown.appendChild(item);
+      });
+      _dropdown.style.display = 'block';
+    }
+
+    _busca.addEventListener('focus', function() { _renderDropdown(_busca.value.trim()); });
+    _busca.addEventListener('input', function() {
+      var v = _busca.value.trim();
+      _renderDropdown(v);
+      // Se limpou o campo, limpa o select também
+      if (!v) { _select.value = ''; _busca.style.borderColor=''; _busca.style.boxShadow=''; }
+    });
+    // Teclado: setas para navegar, Enter para selecionar, Escape para fechar
+    _busca.addEventListener('keydown', function(e) {
+      var items = _dropdown.querySelectorAll('div[data-idx]');
+      var cur = _dropdown.querySelector('div[data-idx].ativo');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        var next = cur ? cur.nextElementSibling : items[0];
+        if (cur) cur.classList.remove('ativo');
+        if (next) { next.classList.add('ativo'); next.style.background='#f1f5f9'; next.scrollIntoView({block:'nearest'}); }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        var prev = cur ? cur.previousElementSibling : null;
+        if (cur) cur.classList.remove('ativo');
+        if (prev) { prev.classList.add('ativo'); prev.style.background='#f1f5f9'; prev.scrollIntoView({block:'nearest'}); }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (cur) cur.dispatchEvent(new MouseEvent('mousedown'));
+      } else if (e.key === 'Escape') {
+        _dropdown.style.display = 'none';
+      }
+    });
+    _busca.addEventListener('blur', function() {
+      // Fecha com delay para deixar o click no item disparar
+      setTimeout(function() { _dropdown.style.display = 'none'; }, 180);
+      // Se o texto digitado não corresponde a nenhum cliente, limpa
+      var lista = Array.isArray(window.clientes) ? window.clientes : [];
+      var match = lista.find(function(c) { return (c.nome||'').toLowerCase() === _busca.value.toLowerCase(); });
+      if (!match && _select.value !== _busca.value) {
+        _select.value = '';
+      }
+    });
+    // Fecha dropdown ao clicar fora
+    document.addEventListener('click', function(e) {
+      if (!_busca.contains(e.target) && !_dropdown.contains(e.target)) {
+        _dropdown.style.display = 'none';
+      }
+    });
+
+    // Sincroniza campo de busca quando popularSelectClientes() é chamado
+    // (ex: ao carregar dados do Firestore)
+    var _origPopular = window.popularSelectClientes;
+    window.popularSelectClientes = function() {
+      if (typeof _origPopular === 'function') _origPopular.apply(this, arguments);
+      // Mantém o valor selecionado visível no campo de busca
+      if (_select.value && !_busca.value) _busca.value = _select.value;
+    };
+
+    // Ao editar RAT: sincroniza o campo de busca com o valor do select
+    var _origEditarRelatorio = window.editarRelatorio;
+    // Observa mudanças no select oculto (feitas pelo código de edição)
+    var _obs = new MutationObserver(function() {
+      if (_select.value && _busca.value !== _select.value) _busca.value = _select.value;
+    });
+    _obs.observe(_select, { attributes: true, attributeFilter: ['value'] });
+    // Fallback: polling leve ao abrir edição
+    document.addEventListener('_ratCarregada', function() {
+      if (_select.value) _busca.value = _select.value;
+    });
+  })();
+
   // ═══ VALIDAÇÃO VISUAL EM CAMPOS OBRIGATÓRIOS (blur) ═══════════════════
   (function() {
+    // Campos de texto/textarea que não podem ficar vazios
     var camposObrig = ['cDiagnostico', 'cAcoes'];
     camposObrig.forEach(function(id) {
       var el = document.getElementById(id);
@@ -6975,17 +7270,178 @@ if (logoBase64) {
           el.style.borderColor = '#dc2626';
           el.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
         } else {
-          el.style.borderColor = '';
-          el.style.boxShadow = '';
+          el.style.borderColor = '#16a34a';
+          el.style.boxShadow = '0 0 0 3px rgba(22,163,74,.12)';
         }
       });
       el.addEventListener('input', function() {
         if (el.value.trim()) {
-          el.style.borderColor = '';
-          el.style.boxShadow = '';
+          el.style.borderColor = '#16a34a';
+          el.style.boxShadow = '0 0 0 3px rgba(22,163,74,.12)';
+        } else {
+          el.style.borderColor = '#dc2626';
+          el.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
         }
       });
     });
+
+    // Select de cliente: feedback ao mudar seleção
+    var selCliente = document.getElementById('aClienteSelect');
+    if (selCliente) {
+      selCliente.addEventListener('change', function() {
+        if (selCliente.value) {
+          selCliente.style.borderColor = '#16a34a';
+          selCliente.style.boxShadow = '0 0 0 3px rgba(22,163,74,.12)';
+        } else {
+          selCliente.style.borderColor = '#dc2626';
+          selCliente.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
+        }
+      });
+      selCliente.addEventListener('blur', function() {
+        var clienteManualAtivo = document.getElementById('aClienteManual');
+        var emModoManual = clienteManualAtivo && clienteManualAtivo.style.display === 'block';
+        if (!emModoManual && !selCliente.value) {
+          selCliente.style.borderColor = '#dc2626';
+          selCliente.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
+        }
+      });
+    }
+
+    // Input manual de cliente
+    var inputManual = document.getElementById('aClienteManual');
+    if (inputManual) {
+      inputManual.addEventListener('blur', function() {
+        if (!inputManual.value.trim()) {
+          inputManual.style.borderColor = '#dc2626';
+          inputManual.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
+        } else {
+          inputManual.style.borderColor = '#16a34a';
+          inputManual.style.boxShadow = '0 0 0 3px rgba(22,163,74,.12)';
+        }
+      });
+      inputManual.addEventListener('input', function() {
+        if (inputManual.value.trim()) {
+          inputManual.style.borderColor = '#16a34a';
+          inputManual.style.boxShadow = '0 0 0 3px rgba(22,163,74,.12)';
+        } else {
+          inputManual.style.borderColor = '#dc2626';
+          inputManual.style.boxShadow = '0 0 0 3px rgba(220,38,38,.12)';
+        }
+      });
+    }
+
+    // [UX] Ao tentar salvar, pisca os campos inválidos para guiar o técnico
+    window._destacarCamposInvalidos = function() {
+      var _flash = function(el, ok) {
+        if (!el) return;
+        el.style.borderColor = ok ? '#16a34a' : '#dc2626';
+        el.style.boxShadow = ok ? '0 0 0 3px rgba(22,163,74,.12)' : '0 0 0 3px rgba(220,38,38,.12)';
+        if (!ok) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      };
+      var diagEl = document.getElementById('cDiagnostico');
+      var acoesEl = document.getElementById('cAcoes');
+      _flash(diagEl,  !!(diagEl  && diagEl.value.trim()));
+      _flash(acoesEl, !!(acoesEl && acoesEl.value.trim()));
+    };
+  })();
+
+  // ═══ CHIPS DE AÇÕES RÁPIDAS ═══════════════════════════════════════════
+  (function() {
+    document.querySelectorAll('.chips-rapidos').forEach(function(container) {
+      var alvoId = container.getAttribute('data-alvo');
+      var alvo   = alvoId ? document.getElementById(alvoId) : null;
+      if (!alvo) return;
+      container.querySelectorAll('.chip-acao').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+          var texto = chip.textContent.trim();
+          var atual = alvo.value.trim();
+          // Não duplica se já estiver no campo
+          if (atual.toLowerCase().includes(texto.toLowerCase())) {
+            showToast('Já adicionado: ' + texto);
+            return;
+          }
+          alvo.value = atual ? atual + '\n' + texto : texto;
+          // Feedback visual: chip fica verde e textarea limpa o erro
+          chip.classList.add('usado');
+          alvo.style.borderColor = '#16a34a';
+          alvo.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.12)';
+          // Auto-resize do textarea
+          alvo.style.height = 'auto';
+          alvo.style.height = alvo.scrollHeight + 'px';
+          alvo.dispatchEvent(new Event('input'));
+        });
+      });
+    });
+  })();
+
+  // ═══ BARRA DE PROGRESSO DO FORMULÁRIO ════════════════════════════════
+  (function() {
+    var _campos = [
+      // [id, peso] — campos obrigatórios têm peso 2, opcionais peso 1
+      ['aClienteSelect',  2], ['aClienteManual', 2],
+      ['aCnpj',           1],
+      ['bEquipamento',    1],
+      ['cTipo',           1],
+      ['cStatus',         1],
+      ['cDiagnostico',    2],
+      ['cAcoes',          2],
+      ['aDataHoraBR',     1],
+      ['aTelefone',       1],
+      ['cProblema',       1]
+    ];
+    var _pesoTotal = _campos.reduce(function(s, c) { return s + c[1]; }, 0);
+
+    function _calcProgress() {
+      var preenchidos = 0;
+      var clienteManualAtivo = (function() {
+        var cm = document.getElementById('aClienteManual');
+        return cm && cm.style.display === 'block';
+      })();
+
+      _campos.forEach(function(c) {
+        var id = c[0], peso = c[1];
+        // Se está em modo manual, ignora o select e vice-versa
+        if (id === 'aClienteSelect' && clienteManualAtivo) return;
+        if (id === 'aClienteManual' && !clienteManualAtivo) return;
+        var el = document.getElementById(id);
+        if (!el) return;
+        var val = el.value ? el.value.trim() : '';
+        if (val && val !== '' && val !== 'Selecione um cliente' && val !== 'Selecione') {
+          preenchidos += peso;
+        }
+      });
+
+      var pct = Math.round((preenchidos / _pesoTotal) * 100);
+      var bar = document.getElementById('formProgressBar');
+      var lbl = document.getElementById('formProgressPct');
+      if (!bar || !lbl) return;
+      bar.style.width = pct + '%';
+      lbl.textContent = pct + '%';
+      // Muda cor conforme progresso
+      if (pct >= 80) {
+        bar.style.background = 'linear-gradient(90deg,#16a34a,#15803d)';
+        lbl.style.color = '#16a34a';
+      } else if (pct >= 40) {
+        bar.style.background = 'linear-gradient(90deg,#f97316,#ea580c)';
+        lbl.style.color = '#f97316';
+      } else {
+        bar.style.background = 'linear-gradient(90deg,#f97316,#ea580c)';
+        lbl.style.color = '#f97316';
+      }
+    }
+
+    // Observa mudanças nos campos do formulário
+    var _telaNovo = document.getElementById('telaNovo');
+    if (_telaNovo) {
+      _telaNovo.addEventListener('input',  _calcProgress);
+      _telaNovo.addEventListener('change', _calcProgress);
+    }
+    // Calcula ao restaurar rascunho / edição
+    window._atualizarProgressoFormulario = _calcProgress;
+    // Calcula inicial
+    setTimeout(_calcProgress, 500);
   })();
 
   // ═══ CEP: BUSCA AUTOMÁTICA VIA VIACEP ═════════════════════════════════
@@ -7000,23 +7456,34 @@ if (logoBase64) {
       var bairEl  = document.getElementById('aBairro');
       var cidEl   = document.getElementById('aCidade');
       var ufEl    = document.getElementById('aUF');
-      // Só preenche campos ainda vazios para não sobrescrever o que o usuário digitou
       var algumVazio = (!endEl || !endEl.value.trim()) || (!cidEl || !cidEl.value.trim());
       if (!algumVazio) return;
       _cepBusy = true;
-      _cepEl.style.opacity = '0.6';
+      // [UX] Feedback visual de carregamento — spinner + texto
+      var _origBorder = _cepEl.style.borderColor;
+      _cepEl.style.borderColor  = '#f97316';
+      _cepEl.style.boxShadow    = '0 0 0 3px rgba(249,115,22,.15)';
+      if (typeof showToast === 'function') showToast('🔍 Buscando CEP...');
       try {
         var resp = await fetch('https://viacep.com.br/ws/' + cep + '/json/', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
-        if (!resp.ok) return;
+        if (!resp.ok) throw new Error('CEP não encontrado');
         var d = await resp.json();
-        if (d.erro) return;
+        if (d.erro) throw new Error('CEP inválido');
         if (endEl  && !endEl.value.trim()  && d.logradouro) endEl.value  = d.logradouro;
         if (bairEl && !bairEl.value.trim() && d.bairro)     bairEl.value = d.bairro;
         if (cidEl  && !cidEl.value.trim()  && d.localidade) cidEl.value  = d.localidade;
         if (ufEl   && !ufEl.value.trim()   && d.uf)         ufEl.value   = d.uf.toUpperCase();
-        if (typeof showToast === 'function') showToast('📍 Endereço preenchido pelo CEP.');
-      } catch(e) { /* sem internet ou timeout — silencioso */ }
-      finally { _cepBusy = false; _cepEl.style.opacity = ''; }
+        _cepEl.style.borderColor = '#16a34a';
+        _cepEl.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.12)';
+        if (typeof showToast === 'function') showToast('📍 Endereço preenchido automaticamente.');
+        setTimeout(function() { _cepEl.style.borderColor = ''; _cepEl.style.boxShadow = ''; }, 2500);
+      } catch(e) {
+        _cepEl.style.borderColor = '#dc2626';
+        _cepEl.style.boxShadow   = '0 0 0 3px rgba(220,38,38,.12)';
+        if (typeof showToast === 'function') showToast('⚠️ CEP não encontrado. Preencha o endereço manualmente.');
+        setTimeout(function() { _cepEl.style.borderColor = ''; _cepEl.style.boxShadow = ''; }, 2500);
+      }
+      finally { _cepBusy = false; }
     });
   })();
 
@@ -7069,10 +7536,12 @@ if (logoBase64) {
       b.textContent = '● Online';
       b.style.background = 'rgba(34,197,94,.15)';
       b.style.color = '#bbf7d0';
+      b.style.borderColor = '';
     } else {
       b.textContent = '○ Offline';
       b.style.background = 'rgba(248,113,113,.15)';
       b.style.color = '#fca5a5';
+      b.style.border = '1px solid rgba(248,113,113,.3)';
     }
   }
   window.addEventListener('offline', _atualizarBadgeOnline);
@@ -7370,6 +7839,9 @@ if (logoBase64) {
       window.assinaturaTecnicoAtual = null;
       // Select cliente e manual
       if (aClienteSelect) { aClienteSelect.value = ''; }
+      // [UX] Limpa campo de busca visual
+      var _buscaClear = document.getElementById('aClienteBusca');
+      if (_buscaClear) { _buscaClear.value=''; _buscaClear.style.borderColor=''; _buscaClear.style.boxShadow=''; }
       if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
       if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
       var cnpjWrap = (aCnpj && aCnpj.parentElement) ? aCnpj.parentElement : document.getElementById('aCnpjWrapper');
@@ -7387,6 +7859,9 @@ if (logoBase64) {
       try { startRelogioAtendimento(); } catch(e){}
       // Fix 7: oculta botão Ver no Maps
       try { var _bvm = document.getElementById('btnVerMaps'); if (_bvm) { _bvm.href='#'; _bvm.style.display='none'; } } catch(e){}
+      // [UX] Reseta barra de progresso e chips usados
+      try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e){}
+      try { document.querySelectorAll('.chip-acao.usado').forEach(function(c){ c.classList.remove('usado'); }); } catch(e){}
       showToast('Formulário limpo.');
     } catch(e) {
       console.warn('Erro ao limpar formulário:', e);
@@ -7431,6 +7906,9 @@ if (logoBase64) {
               aClienteManual.value = ultimo.clienteManual || ultimo.cliente || '';
             } else if (aClienteSelect) {
               aClienteSelect.value = ultimo.cliente || '';
+              // [UX] Sincroniza campo de busca visual
+              var _buscaDup = document.getElementById('aClienteBusca');
+              if (_buscaDup) _buscaDup.value = ultimo.cliente || '';
             }
             setVal('aContato',      ultimo.contato);
             setVal('aTelefone',     ultimo.telefone);
@@ -7628,20 +8106,32 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
   function resizeSignatureCanvas(){
     if (!sigCanvas) return;
-    // BUG FIX: usa o mesmo box de referência que o canvas do técnico para garantir largura idêntica
-    var tecBox = document.getElementById('assinaturaTecnicoBox');
+    // [FIX-SIG] Usa o próprio box do cliente como referência — o box do técnico pode
+    // não estar visível no mobile, retornando width=0 e quebrando as coordenadas de toque.
     var cliBox = document.getElementById('assinaturaClienteBox') || sigCanvas.parentElement;
-    // Usa a largura do tecBox como referência (se disponível e visível)
-    var refBox = (tecBox && tecBox.getBoundingClientRect().width > 0) ? tecBox : cliBox;
-    const rect = refBox.getBoundingClientRect();
+    const rect = cliBox.getBoundingClientRect();
     const ratio = window.devicePixelRatio || 1;
 
-    const width = Math.max(320, (rect.width || sigCanvas.clientWidth || 600) - 24);
+    const novaWidth  = Math.max(280, (rect.width  || sigCanvas.clientWidth  || 600) - 32);
     const height = 140;
 
-    sigCanvas.width = width * ratio;
+    // [FIX-SIG] Preserva assinatura existente antes de redimensionar o canvas.
+    // Redimensionar o canvas apaga seu conteúdo — se o técnico já assinou mas
+    // não clicou "Usar", a assinatura seria perdida silenciosamente.
+    var _imgAntes = null;
+    var _wAntes = sigCanvas.width;
+    var _hAntes = sigCanvas.height;
+    if (_wAntes > 0 && _hAntes > 0 && assinaturaClienteAtual) {
+      // Já confirmada — não precisa preservar o canvas, a variável tem a imagem
+      _imgAntes = null;
+    } else if (_wAntes > 0 && _hAntes > 0) {
+      // Pode ter traços não confirmados — tenta preservar
+      try { _imgAntes = sigCanvas.toDataURL('image/png'); } catch(e) {}
+    }
+
+    sigCanvas.width  = novaWidth * ratio;
     sigCanvas.height = height * ratio;
-    sigCanvas.style.width = width + 'px';
+    sigCanvas.style.width  = novaWidth + 'px';
     sigCanvas.style.height = height + 'px';
 
     sigCtx.setTransform(1,0,0,1,0,0);
@@ -7652,7 +8142,27 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
     // fundo branco
     sigCtx.fillStyle = '#ffffff';
-    sigCtx.fillRect(0,0,width,height);
+    sigCtx.fillRect(0, 0, novaWidth, height);
+
+    // [FIX-SIG] Restaura traços não confirmados se existiam
+    if (_imgAntes) {
+      try {
+        var _img = new Image();
+        _img.onload = function() { sigCtx.drawImage(_img, 0, 0, novaWidth, height); };
+        _img.src = _imgAntes;
+      } catch(e) {}
+    }
+    // [FIX-SIG] Se já havia assinatura confirmada, reexibe no canvas após resize
+    // para que o técnico veja que a assinatura ainda está salva (não some do canvas).
+    if (!_imgAntes && (assinaturaClienteAtual || window.assinaturaClienteAtual)) {
+      try {
+        var _sigConf = assinaturaClienteAtual || window.assinaturaClienteAtual;
+        var _imgConf = new Image();
+        var _wConf = novaWidth, _hConf = height;
+        _imgConf.onload = function() { sigCtx.drawImage(_imgConf, 0, 0, _wConf, _hConf); };
+        _imgConf.src = _sigConf;
+      } catch(e) {}
+    }
   }
 
   // [UX-6] Indicador visual de assinatura: borda verde + badge "✓ Assinado" ao capturar assinatura
@@ -7736,7 +8246,18 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   sigCanvas.addEventListener('touchmove', moveDraw, {passive:false});
   sigCanvas.addEventListener('touchend', endDraw);
 
-  window.addEventListener('resize', ()=>{ resizeSignatureCanvas(); try{ if(typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); }catch(e){} });
+  // [FIX-SIG] Debounce de 300ms no resize — evita apagar canvas quando teclado virtual
+  // abre/fecha no mobile (o que também dispara o evento resize do window).
+  // Também bloqueia o resize enquanto o técnico está desenhando.
+  var _sigResizeTimer = null;
+  window.addEventListener('resize', function() {
+    if (desenhando) return; // não redimensiona durante o traço
+    clearTimeout(_sigResizeTimer);
+    _sigResizeTimer = setTimeout(function() {
+      resizeSignatureCanvas();
+      try { if (typeof resizeSigTecnicoCanvas === 'function') resizeSigTecnicoCanvas(); } catch(e) {}
+    }, 300);
+  });
 
   // Inicializa ao carregar
   resizeSignatureCanvas();
@@ -7821,12 +8342,20 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const box = document.getElementById('assinaturaTecnicoBox') || sigTecnicoCanvas.parentElement;
       const rect = box.getBoundingClientRect();
       const ratio = window.devicePixelRatio || 1;
-      const width = Math.max(320, (rect.width || sigTecnicoCanvas.clientWidth || 600) - 24);
+      const novaWidth  = Math.max(280, (rect.width || sigTecnicoCanvas.clientWidth || 600) - 32);
       const height = 140;
 
-      sigTecnicoCanvas.width = width * ratio;
+      // [FIX-SIG] Preserva traços não confirmados antes de redimensionar
+      var _imgAntesTec = null;
+      var _wAntesTec = sigTecnicoCanvas.width;
+      var _hAntesTec = sigTecnicoCanvas.height;
+      if (_wAntesTec > 0 && _hAntesTec > 0 && !assinaturaTecnicoAtual) {
+        try { _imgAntesTec = sigTecnicoCanvas.toDataURL('image/png'); } catch(e) {}
+      }
+
+      sigTecnicoCanvas.width  = novaWidth * ratio;
       sigTecnicoCanvas.height = height * ratio;
-      sigTecnicoCanvas.style.width = width + 'px';
+      sigTecnicoCanvas.style.width  = novaWidth + 'px';
       sigTecnicoCanvas.style.height = height + 'px';
 
       sigTecCtx.setTransform(1,0,0,1,0,0);
@@ -7835,7 +8364,26 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       sigTecCtx.lineCap = 'round';
       sigTecCtx.lineJoin = 'round';
       sigTecCtx.fillStyle = '#ffffff';
-      sigTecCtx.fillRect(0,0,width,height);
+      sigTecCtx.fillRect(0, 0, novaWidth, height);
+
+      // [FIX-SIG] Restaura traços não confirmados
+      if (_imgAntesTec) {
+        try {
+          var _imgT = new Image();
+          _imgT.onload = function() { sigTecCtx.drawImage(_imgT, 0, 0, novaWidth, height); };
+          _imgT.src = _imgAntesTec;
+        } catch(e) {}
+      }
+      // [FIX-SIG] Reexibe assinatura confirmada do técnico após resize
+      if (!_imgAntesTec && (assinaturaTecnicoAtual || window.assinaturaTecnicoAtual)) {
+        try {
+          var _sigTecConf = assinaturaTecnicoAtual || window.assinaturaTecnicoAtual;
+          var _imgTecConf = new Image();
+          var _wTC = novaWidth, _hTC = height;
+          _imgTecConf.onload = function() { sigTecCtx.drawImage(_imgTecConf, 0, 0, _wTC, _hTC); };
+          _imgTecConf.src = _sigTecConf;
+        } catch(e) {}
+      }
     }
 
     function getPosTec(e){
@@ -7885,7 +8433,13 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     sigTecnicoCanvas.addEventListener('touchmove', moveDrawTec, {passive:false});
     sigTecnicoCanvas.addEventListener('touchend', endDrawTec);
 
-    window.addEventListener('resize', ()=>resizeSigTecnicoCanvas());
+    // [FIX-SIG] Debounce no resize do técnico — mesmo motivo do cliente
+    var _sigTecResizeTimer = null;
+    window.addEventListener('resize', function() {
+      if (desenhandoTec) return;
+      clearTimeout(_sigTecResizeTimer);
+      _sigTecResizeTimer = setTimeout(function() { resizeSigTecnicoCanvas(); }, 300);
+    });
     // Expõe globalmente para ser chamada de fora do escopo (entrarSistema, mostrarTela)
     window.resizeSigTecnicoCanvas = resizeSigTecnicoCanvas;
 
@@ -7960,6 +8514,29 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   }
   aTelefone.addEventListener('input',()=>aplicarMascaraTelefone(aTelefone));
   aWhats.addEventListener('input',()=>aplicarMascaraTelefone(aWhats));
+
+  // [UX] Auto-resize de textareas — cresce conforme o usuário digita
+  (function() {
+    function _autoResize(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = Math.max(60, el.scrollHeight) + 'px';
+    }
+    ['cProblema','cDiagnostico','cAcoes','dObs'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.resize = 'none'; // desabilita resize manual — o auto cuida disso
+      el.style.overflow = 'hidden';
+      el.addEventListener('input', function() { _autoResize(el); });
+      _autoResize(el); // ajusta ao carregar / restaurar rascunho
+    });
+    // Expõe para ser chamado após restaurar dados em edição
+    window._autoResizeTextareas = function() {
+      ['cProblema','cDiagnostico','cAcoes','dObs'].forEach(function(id) {
+        _autoResize(document.getElementById(id));
+      });
+    };
+  })();
   // Expor funções críticas globalmente para acesso por outros módulos e safety net
   window.montarRelatorioAtual = montarRelatorioAtual;
   window.validarObrigatorios  = validarObrigatorios;
@@ -8854,6 +9431,15 @@ window.setCustomLogoBase64 = function(b64){
     _atualizarBnavAtivo('__home__');
     // Rola para o topo
     try { window.scrollTo(0,0); } catch(e){}
+    // [FIX-BACK] Registra home no histórico para o botão voltar funcionar
+    try {
+      if (!window._navegandoPopstate) {
+        var _est = history.state;
+        if (!_est || _est.tela !== '__home__') {
+          history.pushState({ tela: '__home__' }, '', '');
+        }
+      }
+    } catch(e) {}
   }
 
   window._iniciarMobileHome  = _iniciarMobileHome;
@@ -9456,6 +10042,21 @@ async function renderMeus(){
         ? '<p style="font-size:.78rem;color:#475569;">Nenhum resultado para "<strong>' + (esc ? esc(_termoBusca) : _termoBusca) + '</strong>".</p>'
         : '<p style="font-size:.78rem;color:#475569;">Não há relatórios salvos localmente.</p>';
       return;
+    }
+
+    // [UX] Contador de resultados
+    var _totalSemFiltro = todos.filter(function(r){ return !r._deleted; }).length;
+    var _contadorEl = document.getElementById('meusContador');
+    if (!_contadorEl) {
+      _contadorEl = document.createElement('p');
+      _contadorEl.id = 'meusContador';
+      _contadorEl.style.cssText = 'font-size:.72rem;color:#64748b;margin:0 0 8px 0;';
+      lista.parentNode.insertBefore(_contadorEl, lista);
+    }
+    if (_termoBusca) {
+      _contadorEl.textContent = 'Mostrando ' + filtrados.length + ' de ' + _totalSemFiltro + ' relatório(s)';
+    } else {
+      _contadorEl.textContent = filtrados.length + ' relatório(s) encontrado(s)';
     }
     if(origemTodos){
       var aviso = document.createElement('p');
@@ -11513,12 +12114,13 @@ async function fazerLogin(){
 </script>
 
 <!-- ══ INDICADOR DE AUTO-SAVE ══ -->
-<div id="autoSaveIndicator" style="display:none;">💾 Rascunho salvo automaticamente</div>
+<div id="autoSaveIndicator" style="display:none;">✓ Rascunho salvo</div>
 
 <!-- ══ BARRA DE AÇÕES FIXA (mobile) ══ -->
 <div id="barraAcoesMobile" style="display:none;">
   <button class="btn-save-mobile" id="btnSalvarMobile"><i class="ri-save-3-line"></i> Salvar relatório</button>
   <button class="btn-whats-mobile" id="btnWhatsMobile" aria-label="Enviar pelo WhatsApp" title="Enviar WhatsApp"><i class="ri-whatsapp-line"></i></button>
+  <button class="btn-email-mobile" id="btnEmailMobile" aria-label="Enviar por e-mail" title="Enviar e-mail"><i class="ri-mail-send-line"></i></button>
   <button class="btn-pdf-mobile" id="btnPdfMobile" aria-label="Gerar PDF" title="Gerar PDF"><i class="ri-file-pdf-line"></i></button>
 </div>
 <script>
@@ -11531,6 +12133,9 @@ async function fazerLogin(){
     });
     waitEl('btnWhatsMobile', function(btn){
       btn.onclick = function(){ var orig=document.getElementById('btnWhatsLocal'); if(orig) orig.click(); };
+    });
+    waitEl('btnEmailMobile', function(btn){
+      btn.onclick = function(){ var orig=document.getElementById('btnEnviarEmail'); if(orig) orig.click(); };
     });
     waitEl('btnPdfMobile', function(btn){
       btn.onclick = function(){ var orig=document.getElementById('btnGerarPdfLocal'); if(orig) orig.click(); };
