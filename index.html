@@ -41,16 +41,27 @@
        Enquanto os hashes reais não forem adicionados, os atributos integrity
        foram REMOVIDOS para evitar que o browser rejeite os scripts e quebre o app.
        O Service Worker já faz cache dos assets CDN, mitigando o risco de supply-chain. -->
+  <!-- [SRI] Subresource Integrity — protege contra adulteração de CDN.
+       Para calcular os hashes: curl -sL <URL> | openssl dgst -sha384 -binary | openssl base64 -A
+       Ou use: https://www.srihash.org
+       Substitua HASH_REMIXICON, HASH_FB_APP, HASH_FB_AUTH, HASH_FB_FS pelos valores calculados. -->
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
+        integrity="sha384-hlyh3bZtgya52o/xl1sa3jb1Hv8UW8lsNRB1mlJM26/nlx1S1J7zVBZMOjkKl+MU"
         crossorigin="anonymous">
   <!-- [LAZY] Chart.js removido: não utilizado em nenhuma tela (peso morto ~200KB). -->
   <!-- [LAZY] jsPDF carregado sob demanda via _ensureJsPDF() — só quando o usuário gera PDF. -->
 
   <!-- Firebase compat SDK (para login e coleções) -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"
+          integrity="sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1"
+          crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"
+          integrity="sha384-I1LYojsZ5RM1cOda44Z2h42Qa6YfsQ1XkXxREnhp4ueYBR/4d1pG1K+NZM537Vsj"
+          crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"
+          integrity="sha384-Ke0FJhH7LyRqDxZ0wt+/OXV38yfQVu7g9VPEEGjYmB4RVOY/ta04uecRhsMwT7V3"
+          crossorigin="anonymous"></script>
   <!-- Fallback: se gstatic falhar — usa createElement (substitui document.write obsoleto) -->
   <script>
     (function() {
@@ -205,23 +216,68 @@
     .preview-remove{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:18px;height:18px;border-radius:999px;cursor:pointer;font-size:.55rem;display:flex;align-items:center;justify-content:center}
 
     /* ── Modal Câmera ── */
-    #modalCamera{position:fixed;inset:0;background:rgba(2,6,23,.92);backdrop-filter:blur(10px);z-index:10200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:12px}
+    #modalCamera{position:fixed;inset:0;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden}
     #modalCamera.hidden{display:none}
-    #modalCamera video{width:100%;max-width:480px;max-height:55vh;border-radius:14px;object-fit:cover;border:2px solid rgba(249,115,22,.5);background:#000;box-shadow:0 0 30px rgba(249,115,22,.2)}
+    /* Vídeo ocupa toda a tela — sem tela preta, sem corte */
+    #modalCamera video{
+      width:100%;
+      height:100%;
+      position:absolute;
+      top:0;left:0;
+      object-fit:cover;
+      background:#000;
+      z-index:0;
+    }
+    /* Controles flutuantes sobre o vídeo */
+    #modalCamera .cam-controls,
+    #modalCamera .cam-hint,
+    #modalCamera #camPreviewStrip,
+    #modalCamera > div:not(#camPreviewStrip) {
+      position:relative;
+      z-index:1;
+    }
+    /* Overlay escuro no fundo dos controles para legibilidade */
+    #modalCamera .cam-controls{
+      position:fixed;
+      bottom:calc(16px + env(safe-area-inset-bottom));
+      left:0;right:0;
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
+      padding:12px 16px;
+      background:linear-gradient(transparent, rgba(0,0,0,.6));
+      z-index:2;
+    }
+    #camSendBar {
+      position:fixed;
+      bottom:calc(88px + env(safe-area-inset-bottom));
+      left:0;right:0;
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
+      padding:6px 16px;
+      z-index:2;
+    }
+    /* Strip de miniaturas — topo da tela */
+    #camPreviewStrip{
+      position:fixed;
+      top:calc(12px + env(safe-area-inset-top));
+      left:0;right:0;
+      display:flex;gap:8px;padding:0 12px;
+      overflow-x:auto;
+      z-index:2;
+      pointer-events:auto;
+    }
     #modalCamera canvas{display:none}
-    .cam-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;width:100%;max-width:480px}
-    .cam-capture-btn{width:64px;height:64px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 6px 24px rgba(249,115,22,.5);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0}
+    /* .cam-controls legacy removed — replaced by fullscreen overlay version */
+    .cam-capture-btn{width:68px;height:68px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 6px 28px rgba(249,115,22,.6),0 0 0 6px rgba(249,115,22,.2);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0}
     .cam-capture-btn:hover{transform:scale(1.08);box-shadow:0 10px 32px rgba(249,115,22,.65)}
     .cam-capture-btn:active{transform:scale(.95)}
     .cam-flip-btn{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;flex-shrink:0}
     .cam-flip-btn:hover{background:rgba(255,255,255,.22)}
     .cam-close-btn{width:42px;height:42px;border-radius:999px;background:rgba(248,113,113,.18);border:1px solid rgba(248,113,113,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fca5a5;transition:.15s;flex-shrink:0}
     .cam-close-btn:hover{background:rgba(248,113,113,.35)}
-    #camPreviewStrip{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:480px;max-height:110px;overflow-y:auto;padding:4px 0}
-    #camPreviewStrip .cam-thumb{position:relative;width:70px;height:56px;border-radius:8px;overflow:hidden;border:2px solid rgba(249,115,22,.4);flex-shrink:0}
+    /* #camPreviewStrip legacy removed — replaced by fullscreen fixed version */
+    #camPreviewStrip .cam-thumb{position:relative;width:64px;height:52px;border-radius:8px;overflow:hidden;border:2px solid rgba(249,115,22,.6);flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.4)}
     #camPreviewStrip .cam-thumb img{width:100%;height:100%;object-fit:cover}
     #camPreviewStrip .cam-thumb-rm{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:.5rem;display:flex;align-items:center;justify-content:center}
-    .cam-hint{font-size:.72rem;color:rgba(226,232,240,.65);text-align:center;max-width:340px;line-height:1.4}
+    .cam-hint{font-size:.72rem;color:rgba(255,255,255,.8);text-align:center;max-width:340px;line-height:1.4;text-shadow:0 1px 4px rgba(0,0,0,.6)}
     .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s}
     .cam-send-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(34,197,94,.45)}
     .cam-send-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
@@ -505,13 +561,13 @@
     left: 0;
     right: 0;
     /* [V-04] z-index acima do bottomNav (200) para que a barra de ações fique visível */
-    z-index: 201;
+    z-index: 203;
     background: rgba(15,23,42,.97);
     border-top: 1px solid rgba(249,115,22,.35);
     backdrop-filter: blur(12px);
     padding: 10px 14px;
-    /* [V-04] padding-bottom sem offset do bottomNav (removido) */
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    /* [V-04] padding-bottom acima do bottomNav (62px) no mobile */
+    padding-bottom: calc(62px + env(safe-area-inset-bottom));
     gap: 8px;
     align-items: center;
     justify-content: stretch;
@@ -751,6 +807,40 @@ html[data-role="technician"] nav button {
     }
   }
 
+  /* ── Banner offline ── */
+  #offlineBanner {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 500;
+    background: linear-gradient(90deg, #7c3aed, #6d28d9);
+    color: #fff;
+    font-size: .78rem;
+    font-weight: 600;
+    padding: 7px 16px;
+    text-align: center;
+    letter-spacing: .02em;
+    box-shadow: 0 2px 12px rgba(109,40,217,.4);
+    animation: _slideDown .25s ease;
+  }
+  @keyframes _slideDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to   { transform: translateY(0);     opacity: 1; }
+  }
+  /* Banner só aparece após login (login-screen tem z-index:9000) */
+  body.offline-mode.logado #offlineBanner { display: block; }
+  body.offline-mode.logado .topbar { margin-top: 34px; }
+  /* Destaque laranja nos campos ao salvar offline */
+  body.offline-mode #btnSalvarLocal {
+    background: linear-gradient(90deg,#7c3aed,#6d28d9) !important;
+    box-shadow: 0 8px 24px rgba(109,40,217,.4) !important;
+  }
+  body.offline-mode #btnSalvarLocal::after {
+    content: ' (salvo local)';
+    font-size: .7em;
+    opacity: .8;
+  }
+
   /* --- Validação visual de campos obrigatórios --- */
   #cDiagnostico:invalid-visual, #cAcoes:invalid-visual {
     border-color: #dc2626 !important;
@@ -803,7 +893,7 @@ html[data-role="technician"] nav button {
 
 @media (max-width: 880px) {
 
-  /* sidebar-toggle sempre visível no mobile (bottomNav removido — sidebar é a única navegação) */
+  /* sidebar-toggle sempre visível no mobile */
   /* body.home-ativa .sidebar-toggle { display: none !important; } — REMOVIDO */
 
   /* ── Tela Home ── */
@@ -945,7 +1035,106 @@ html[data-role="technician"] nav button {
   .home-card[data-tela="cadastros"].home-card-icon { color: #34d399; background: rgba(52,211,153,.1); }
   .home-card[data-tela="sistema"]  .home-card-icon { color: #94a3b8; background: rgba(148,163,184,.1); }
 
-  /* Bottom Nav removido */
+  /* ── Bottom Navigation Bar ── */
+  #bottomNav {
+    display: none; /* mostrado só no mobile via JS */
+  }
+  @media (max-width: 880px) {
+    #bottomNav {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 62px;
+      background: rgba(10,16,35,.97);
+      border-top: 1px solid rgba(148,163,184,.1);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      z-index: 200;
+      align-items: stretch;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .bnav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: .58rem;
+      font-weight: 600;
+      letter-spacing: .02em;
+      cursor: pointer;
+      transition: color .15s ease;
+      padding: 6px 2px 4px;
+      position: relative;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .bnav-item i {
+      font-size: 1.3rem;
+      transition: transform .15s ease, color .15s ease;
+    }
+    .bnav-item.active {
+      color: #f97316;
+    }
+    .bnav-item.active i {
+      transform: translateY(-2px);
+    }
+    .bnav-item.active::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 20%; right: 20%;
+      height: 2px;
+      background: #f97316;
+      border-radius: 0 0 4px 4px;
+    }
+    .bnav-item.bnav-fab-placeholder {
+      flex: 1.2; /* espaço para o FAB */
+      pointer-events: none;
+    }
+    /* Empurra o conteúdo para não ficar atrás do bottom nav */
+    .content { padding-bottom: calc(62px + env(safe-area-inset-bottom)); }
+  }
+
+  /* ── FAB — Botão flutuante "Novo Atendimento" ── */
+  #fabNovo {
+    display: none;
+  }
+  @media (max-width: 880px) {
+    #fabNovo {
+      display: flex;
+      position: fixed;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 202;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      border: none;
+      color: #fff;
+      font-size: 1.6rem;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 24px rgba(249,115,22,.55), 0 2px 8px rgba(0,0,0,.3);
+      transition: transform .18s ease, box-shadow .18s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #fabNovo:active {
+      transform: translateX(-50%) scale(.92);
+      box-shadow: 0 3px 12px rgba(249,115,22,.4);
+    }
+    /* Oculta FAB na home (os cards já têm a ação) */
+    body.home-ativa #fabNovo { display: none; }
+    /* Oculta FAB no step 5 (barraAcoesMobile assume as ações) */
+    body.step5-ativo #fabNovo { display: none; }
+    /* Extra padding quando barraAcoesMobile está ativa (step 5) */
+    body.step5-ativo .content { padding-bottom: calc(130px + env(safe-area-inset-bottom)); }
+  }
 
 } /* end @media 880px */
   </style>
@@ -953,6 +1142,12 @@ html[data-role="technician"] nav button {
 
 </head>
 <body>
+<!-- Banner offline — aparece automaticamente quando sem internet -->
+<div id="offlineBanner">
+  <i class="ri-wifi-off-line"></i>
+  &nbsp;Você está offline — RATs serão salvas localmente e enviadas quando a conexão voltar
+</div>
+
 <!-- Font Controls -->
 
 
@@ -1085,6 +1280,14 @@ html[data-role="technician"] nav button {
   </aside>
 
   <div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99;" onclick="document.getElementById('sidebar').classList.remove('open');this.style.display='none';"></div>
+
+  <!-- Bottom Navigation Bar - mobile only, preenchido por JS conforme perfil -->
+  <nav id="bottomNav" role="navigation" aria-label="Navegação principal"></nav>
+
+  <!-- FAB - Novo Atendimento (visível em todas as telas exceto home) -->
+  <button id="fabNovo" title="Novo Atendimento" aria-label="Novo Atendimento">
+    <i class="ri-add-line"></i>
+  </button>
   <div class="content">
     <div class="topbar">
       <button class="sidebar-toggle" id="btnToggleSidebar">
@@ -1206,7 +1409,7 @@ html[data-role="technician"] nav button {
                   <!-- [UX] Campo de busca com autocomplete em vez de <select> simples -->
                   <input id="aClienteBusca" aria-label="Buscar cliente" placeholder="🔍 Digite para buscar..." autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false"
                     style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;box-sizing:border-box;">
-                  <div id="aClienteDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:#fff;border:1px solid rgba(148,163,184,.35);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;margin-top:3px;"></div>
+                  <div id="aClienteDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:300;background:#fff;border:1px solid rgba(148,163,184,.35);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;margin-top:3px;"></div>
                   <!-- select oculto mantido para compatibilidade com todo o código existente -->
                   <select id="aClienteSelect" aria-label="Cliente selecionado" style="display:none;">
                     <option value="">Selecione um cliente</option>
@@ -2190,11 +2393,18 @@ html[data-role="technician"] nav button {
         'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'
       ];
+      // [SRI] Hashes para scripts jsPDF carregados sob demanda.
+      // Calcule com: curl -sL <URL> | openssl dgst -sha384 -binary | openssl base64 -A
+      var sriHashes = [
+        'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',       // jspdf.umd.min.js
+        'sha384-vxxMdt1K6XlME6zkLsgFrrHIeC7XIdAo1GW/uhhObjJXnymxiIi/eoMXsKJA13ZJ'    // jspdf.plugin.autotable.min.js
+      ];
       // Carrega jsPDF primeiro, depois autotable (ordem importa)
       function loadSerial(i) {
         if (i >= urls.length) return;
         var s = document.createElement('script');
         s.src = urls[i]; s.crossOrigin = 'anonymous';
+        if (sriHashes[i] && !sriHashes[i].includes('HASH_')) s.integrity = sriHashes[i];
         s.onload = function() { loaded++; if (loaded === urls.length) resolve(); else loadSerial(i+1); };
         s.onerror = function() {
           // fallback manual por índice
@@ -2830,21 +3040,91 @@ html[data-role="technician"] nav button {
       var docId = String(r.id || r.numero || Date.now());
       var user = window.usuarioLogado || {};
       if (user.uid && !r.ownerUid) r.ownerUid = user.uid;
-      // [v38] Firebase Storage removido — base64 nunca sobe para o Firestore
-      // Imagens ficam apenas no localStorage do dispositivo do técnico
-      // Remove base64 para evitar documento > 1MB no Firestore
+
+      // [FOTO-FS] Fotos sobem para o Firestore comprimidas.
+      // Limite Firestore: 1MB por documento.
+      // Estratégia: inclui base64 se o total estimado couber em 900KB (margem de segurança).
+      // Vídeos nunca sobem (muito grandes) — ficam como [local].
       var rFirestore = Object.assign({}, r);
-      ['imgsEquip','imgsServico','imgsBaterias','vidsEquip','vidsServico','vidsBaterias'].forEach(function(k) {
+
+      // Função auxiliar: comprime base64 para 800px/0.50 se ainda não foi comprimido
+      function _comprimirParaFS(dataUrl) {
+        return new Promise(function(resolve) {
+          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+            resolve(dataUrl); return;
+          }
+          // Já está pequeno o suficiente (~100KB = ~133K chars em base64)
+          if (dataUrl.length < 140000) { resolve(dataUrl); return; }
+          var img = new Image();
+          img.onload = function() {
+            var MAX = 800;
+            var w = img.width, h = img.height;
+            if (w > MAX || h > MAX) {
+              var ratio = Math.min(MAX/w, MAX/h);
+              w = Math.round(w*ratio); h = Math.round(h*ratio);
+            }
+            var cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(cv.toDataURL('image/jpeg', 0.50));
+          };
+          img.onerror = function() { resolve(dataUrl); };
+          img.src = dataUrl;
+        });
+      }
+
+      // Comprime todas as imagens e calcula tamanho total
+      var _camposImg = ['imgsEquip','imgsServico','imgsBaterias'];
+      var _compressPromises = [];
+      _camposImg.forEach(function(k) {
+        if (Array.isArray(rFirestore[k])) {
+          rFirestore[k] = rFirestore[k].slice(); // copia para não mutar o original
+          rFirestore[k].forEach(function(v, i) {
+            if (typeof v === 'string' && v.startsWith('data:image')) {
+              _compressPromises.push(_comprimirParaFS(v).then(function(c) {
+                rFirestore[k][i] = c;
+              }));
+            }
+          });
+        }
+      });
+
+      // Aguarda compressões
+      await Promise.all(_compressPromises);
+
+      // Vídeos: nunca sobem (muito grandes)
+      ['vidsEquip','vidsServico','vidsBaterias'].forEach(function(k) {
         if (Array.isArray(rFirestore[k])) {
           rFirestore[k] = rFirestore[k].map(function(v) {
             return (typeof v === 'string' && v.startsWith('data:')) ? '[local]' : v;
           });
         }
       });
+
+      // Assinaturas: comprime e inclui (são pequenas ~30KB)
       if (typeof rFirestore.assinaturaCliente === 'string' && rFirestore.assinaturaCliente.startsWith('data:'))
-        rFirestore.assinaturaCliente = '[local]';
+        rFirestore.assinaturaCliente = await _comprimirParaFS(rFirestore.assinaturaCliente);
       if (typeof rFirestore.assinaturaTecnicoImg === 'string' && rFirestore.assinaturaTecnicoImg.startsWith('data:'))
-        rFirestore.assinaturaTecnicoImg = '[local]';
+        rFirestore.assinaturaTecnicoImg = await _comprimirParaFS(rFirestore.assinaturaTecnicoImg);
+
+      // Verifica tamanho total estimado (limite Firestore: 1MB = ~1.048.576 bytes)
+      // JSON.stringify + base64 overhead: estimamos 1.3× o tamanho real
+      var _jsonEstimado = JSON.stringify(rFirestore).length;
+      var _LIMITE_FS = 900 * 1024; // 900KB de margem de segurança
+      if (_jsonEstimado > _LIMITE_FS) {
+        // Documento muito grande — remove fotos e avisa
+        _camposImg.forEach(function(k) {
+          if (Array.isArray(rFirestore[k])) {
+            rFirestore[k] = rFirestore[k].map(function(v) {
+              return (typeof v === 'string' && v.startsWith('data:')) ? '[local]' : v;
+            });
+          }
+        });
+        rFirestore.assinaturaCliente    = (typeof rFirestore.assinaturaCliente === 'string' && rFirestore.assinaturaCliente.startsWith('data:')) ? '[local]' : rFirestore.assinaturaCliente;
+        rFirestore.assinaturaTecnicoImg = (typeof rFirestore.assinaturaTecnicoImg === 'string' && rFirestore.assinaturaTecnicoImg.startsWith('data:')) ? '[local]' : rFirestore.assinaturaTecnicoImg;
+        console.warn('[FOTO-FS] Documento muito grande (' + Math.round(_jsonEstimado/1024) + 'KB) — fotos removidas do Firestore. Reduza o número de fotos.');
+        if (typeof showToast === 'function') showToast('⚠️ Muitas fotos: PDF do cliente não terá imagens. Reduza para até 6 fotos.', 5000);
+      }
       if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
         await db.collection("onlineEsRelatorios").doc(docId).set(rFirestore, { merge: true });
         
@@ -5316,6 +5596,7 @@ function autoFillCamposAtendimento(){
     try { var _ls=document.getElementById('loginSenha');   if(_ls) _ls.value=''; } catch(e){}
     try { var _me=document.getElementById('msgErro');      if(_me) { _me.textContent=''; _me.style.display='none'; } } catch(e){}
     // Recarrega para garantir estado limpo (sem dados residuais em memória entre sessões)
+    document.body.classList.remove('logado'); // [OFFLINE] remove classe antes do reload
     setTimeout(function(){ window.location.reload(); }, 150);
   };
   btnToggleSidebar.onclick = ()=>{
@@ -8479,52 +8760,56 @@ if (logoBase64) {
 
   async function syncPendentes(){
     if (!navigator.onLine) return;
-    if (!window.usuarioLogado) return; // Não sincroniza sem sessão ativa
-    if (window._syncPendentesRunning) return; // Evita execuções concorrentes
+    if (!window.usuarioLogado) return;
+    if (window._syncPendentesRunning) return;
     window._syncPendentesRunning = true;
-    // FIX: try/finally garante reset do flag mesmo que qualquer linha lance exceção,
-    // evitando que sincronizações futuras fiquem bloqueadas para sempre.
     try {
-      let alterou = 0;
-      var falhos = []; // RATs que falharam no Firestore — permanecem em pendentes
       var lista = pendentes.slice();
+      if (!lista.length) return;
+      var alterou = 0;
+      var falhos = [];
+      // [OFFLINE] Mostra progresso quando há múltiplas RATs
+      if (lista.length > 1) showToast('🔄 Sincronizando ' + lista.length + ' RAT(s) offline...', 2500);
       for (var _pend of lista) {
-        if (!relatorios.find(r=>r.id===_pend.id)){
-          // Tenta fazer upload das fotos [local] antes de enviar
+        if (!relatorios.find(function(r){ return r.id === _pend.id; })) {
           var _ok = false;
-          try {
-            if (typeof salvarRelatorioNoFirestore === 'function') await salvarRelatorioNoFirestore(_pend);
-            _ok = true;
-          } catch(e) {
-            console.warn('[syncPendentes] Falha ao enviar RAT', _pend.numero||_pend.id, e.message);
-            falhos.push(_pend);
+          // [OFFLINE] Retry simples: tenta 2x com 1.5s de espera entre tentativas
+          for (var _try = 0; _try < 2; _try++) {
+            try {
+              if (typeof salvarRelatorioNoFirestore === 'function') await salvarRelatorioNoFirestore(_pend);
+              _ok = true;
+              break;
+            } catch(e) {
+              if (_try === 0) await new Promise(function(r){ setTimeout(r, 1500); });
+              else console.warn('[syncPendentes] Falha ao enviar RAT', _pend.numero||_pend.id, e.message);
+            }
           }
           if (_ok) { relatorios.push(_pend); alterou++; }
+          else falhos.push(_pend);
         } else {
-          // Já está em relatorios (pré-salvo) — só remove de pendentes sem reenviar
-          alterou++;
+          alterou++; // já salvo — só remove de pendentes
         }
       }
-      if (alterou > 0 || falhos.length < lista.length){
+      if (alterou > 0 || falhos.length < lista.length) {
         saveRelatorios(relatorios);
-        pendentes = falhos; savePendentes(pendentes); // mantém só os que falharam
-        if (alterou > 0) showToast('✅ ' + alterou + ' relatório(s) sincronizado(s) com o banco de dados.');
-        if (falhos.length > 0) showToast('⚠️ ' + falhos.length + ' relatório(s) não sincronizado(s). Tentando novamente em breve.');
-        try { logInfo('RATs pendentes sincronizadas com Firestore', { quantidade: alterou, falhos: falhos.length }); } catch(e){}
+        pendentes = falhos; savePendentes(pendentes);
+        if (alterou > 0) showToast('✅ ' + alterou + ' RAT' + (alterou > 1 ? 's' : '') + ' sincronizada' + (alterou > 1 ? 's' : '') + ' com sucesso!');
+        if (falhos.length > 0) showToast('⚠️ ' + falhos.length + ' RAT(s) ainda offline. Tentando novamente em 30s.', 4000);
+        try { logInfo('RATs pendentes sincronizadas', { quantidade: alterou, falhos: falhos.length }); } catch(e){}
         if (usuarioLogado && isSupervisorOrAdmin(usuarioLogado)){ renderLista(); atualizarDashboard(); }
       }
     } finally {
       window._syncPendentesRunning = false;
-      // [UX] Atualiza badge de pendentes após sincronização
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
     }
   }
   // BUG FIX: listeners 'online' unificados em um só para evitar syncPendentes duplo
   // BUG FIX: atualiza badge Online/Offline dinamicamente
   function _atualizarBadgeOnline() {
+    var online = navigator.onLine;
     var b = document.getElementById('badgeOnline');
     if (b) {
-      if (navigator.onLine) {
+      if (online) {
         b.textContent = '● Online';
         b.style.background = 'rgba(34,197,94,.15)';
         b.style.color = '#bbf7d0';
@@ -8536,6 +8821,8 @@ if (logoBase64) {
         b.style.border = '1px solid rgba(248,113,113,.3)';
       }
     }
+    // [OFFLINE] Classe no body controla banner e estilos de modo offline
+    document.body.classList.toggle('offline-mode', !online);
     // [UX] Badge de pendentes — mostra quantas RATs aguardam envio
     _atualizarBadgePendentes();
   }
@@ -8569,6 +8856,8 @@ if (logoBase64) {
   }
 
   window._atualizarBadgePendentes = _atualizarBadgePendentes;
+  // [OFFLINE] Define estado inicial (pode já estar offline ao abrir o app)
+  _atualizarBadgeOnline();
   window.addEventListener('offline', _atualizarBadgeOnline);
   window.addEventListener('online', function(){
     _atualizarBadgeOnline();
@@ -8579,7 +8868,13 @@ if (logoBase64) {
       }
     }, 2000);
   });
-  setInterval(function(){ syncPendentes(); }, 15000);
+  // [OFFLINE] Sync inteligente: roda a cada 30s se há pendentes, idle se não há
+  setInterval(function(){
+    try {
+      var _n = (typeof loadPendentes === 'function' ? loadPendentes() : pendentes || []).length;
+      if (_n > 0 && navigator.onLine) syncPendentes();
+    } catch(e){}
+  }, 30000);
 
 
   btnGerarPdfLocal.onclick = async ()=>{
@@ -9048,7 +9343,9 @@ if (logoBase64) {
   function comprimirImagem(dataUrl, callback) {
     var img = new Image();
     img.onload = function() {
-      var MAX_DIM = 1200;
+      // [FOTO-FS] 800px máx + qualidade 0.5 → ~80-100KB/foto
+      // Permite 6 fotos × 100KB = 600KB + texto ≈ 750KB < 1MB (limite Firestore)
+      var MAX_DIM = 800;
       var w = img.width, h = img.height;
       if (w > MAX_DIM || h > MAX_DIM) {
         var ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
@@ -9057,7 +9354,7 @@ if (logoBase64) {
       var canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.75));
+      callback(canvas.toDataURL('image/jpeg', 0.50));
     };
     img.onerror = function() { callback(dataUrl); };
     img.src = dataUrl;
@@ -10523,16 +10820,65 @@ window.setCustomLogoBase64 = function(b64){
       });
     }
 
-    // ── Bottom Navigation Bar — REMOVIDO ──
-    // (botões de navegação inferior desativados)
+    // ── Bottom Navigation Bar ──
+    var nav = document.getElementById('bottomNav');
+    if (nav && isMobile) {
+      nav.innerHTML = '';
+      // Itens base: sempre aparecem
+      var _bnavItems = [
+        { tela: '__home__', icon: 'ri-home-4-line',      label: 'Início'    },
+        { tela: 'meus',     icon: 'ri-file-list-3-line', label: 'Meus'      },
+        { tela: '__fab__',  icon: '',                    label: '',  isFab: true }, // placeholder do FAB
+        { tela: 'painel',   icon: 'ri-dashboard-3-line', label: 'Painel',   hidden: ehTecnico },
+        { tela: 'sistema',  icon: 'ri-settings-4-line',  label: 'Sistema'   },
+      ];
+      _bnavItems.forEach(function(item) {
+        if (item.hidden) return;
+        var btn = document.createElement('button');
+        if (item.isFab) {
+          btn.className = 'bnav-item bnav-fab-placeholder';
+          btn.setAttribute('aria-hidden', 'true');
+          nav.appendChild(btn);
+          return;
+        }
+        btn.className = 'bnav-item';
+        btn.dataset.tela = item.tela;
+        btn.innerHTML = '<i class="' + item.icon + '"></i><span>' + item.label + '</span>';
+        btn.addEventListener('click', function() {
+          if (item.tela === '__home__') {
+            _mostrarHomeScreen();
+            var sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
+            var so = document.getElementById('sidebarOverlay'); if (so) so.style.display = 'none';
+          } else {
+            if (typeof mostrarTela === 'function') mostrarTela(item.tela).catch(function(){});
+            var sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
+            var so = document.getElementById('sidebarOverlay'); if (so) so.style.display = 'none';
+          }
+        });
+        nav.appendChild(btn);
+      });
+    }
+
+    // ── FAB — Novo Atendimento ──
+    var fab = document.getElementById('fabNovo');
+    if (fab && isMobile) {
+      fab.style.display = 'flex';
+      fab.onclick = function() {
+        window._editandoRelatorioId = null;
+        window._ratPreSalvoId = null;
+        if (typeof mostrarTela === 'function') mostrarTela('novo').then(function(){
+          try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){}
+        }).catch(function(){});
+        var sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
+        var so = document.getElementById('sidebarOverlay'); if (so) so.style.display = 'none';
+      };
+    }
 
     // ── Mostra home screen no mobile, ou tela padrão no desktop ──
     if (isMobile) {
       _mostrarHomeScreen();
     }
     // No desktop o fluxo normal de entrarSistema já chama mostrarTela (painel ou novo)
-
-    // resize listener do bottomNav removido
   }
 
   function _mostrarHomeScreen() {
@@ -10567,6 +10913,8 @@ window.setCustomLogoBase64 = function(b64){
   }
 
   window._iniciarMobileHome  = _iniciarMobileHome;
+  // [OFFLINE] Adiciona classe .logado ao body para ativar banner offline após login
+  document.body.classList.add('logado');
   window._mostrarHomeScreen  = _mostrarHomeScreen;
   window._atualizarBnavAtivo = _atualizarBnavAtivo;
 
@@ -12894,7 +13242,7 @@ async function fazerLogin(){
 (function() {
   if (!('serviceWorker' in navigator)) return;
 
-  var SW_VERSION = 'onlinees-v4';
+  var SW_VERSION = 'onlinees-v7';
   var CACHE_ASSETS = [
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
@@ -12904,58 +13252,117 @@ async function fazerLogin(){
   ];
 
   var swCode = `
-    var CACHE = 'onlinees-v4';
-    // [LAZY] jsPDF e Chart.js removidos do pré-cache do SW — carregados sob demanda.
-    var ASSETS = ["https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js","https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"];
+    var CACHE = 'onlinees-v7';
+    var CACHE_FONTS = 'onlinees-fonts-v1';
 
+    // Assets CDN — pré-cacheados no install
+    var ASSETS_CDN = [
+      "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
+      "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js",
+      "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js",
+      "https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
+    ];
+
+    // ── Install: pré-cacheia assets CDN ──────────────────────────────
     self.addEventListener('install', function(e) {
       e.waitUntil(
         caches.open(CACHE).then(function(cache) {
-          // Cache a página principal
-          return cache.addAll(ASSETS.map(function(url) {
-            return new Request(url, {mode: 'no-cors'});
-          })).catch(function(err) {
-            console.warn('SW: falha ao cachear alguns assets:', err);
-          });
+          return Promise.all(ASSETS_CDN.map(function(url) {
+            return fetch(new Request(url, { mode: 'no-cors' }))
+              .then(function(resp) { return cache.put(url, resp); })
+              .catch(function() {}); // falha silenciosa por asset — não bloqueia install
+          }));
         }).then(function() { return self.skipWaiting(); })
       );
     });
 
+    // ── Activate: limpa caches antigos ────────────────────────────────
     self.addEventListener('activate', function(e) {
       e.waitUntil(
         caches.keys().then(function(keys) {
-          return Promise.all(keys.filter(function(k) { return k !== CACHE; })
+          return Promise.all(keys
+            .filter(function(k) { return k !== CACHE && k !== CACHE_FONTS; })
             .map(function(k) { return caches.delete(k); }));
         }).then(function() { return self.clients.claim(); })
       );
     });
 
+    // ── Fetch: estratégias por tipo de recurso ────────────────────────
     self.addEventListener('fetch', function(e) {
       var url = e.request.url;
-      // Não intercepta chamadas ao Firebase/Firestore/API
+      var method = e.request.method;
+
+      // Não intercepta: Firebase APIs, métodos não-GET
+      if (method !== 'GET') return;
       if (url.includes('firestore.googleapis.com') ||
           url.includes('identitytoolkit.googleapis.com') ||
           url.includes('firebase.googleapis.com') ||
           url.includes('googleapis.com/v1') ||
-          e.request.method !== 'GET') return;
+          url.includes('firebaseio.com')) return;
 
-      e.respondWith(
-        caches.match(e.request).then(function(cached) {
-          if (cached) return cached;
-          return fetch(e.request).then(function(resp) {
-            // [N-02] Cacheia apenas respostas HTTP 200 bem-sucedidas de assets conhecidos.
-            // Respostas opaque (no-cors, status=0) não são cacheadas: podem ser erros 4xx/5xx
-            // mascarados e ocupam até 7MB no cache por padding de privacidade do browser.
-            var isKnownAsset = ASSETS.some(function(a){ return url.startsWith(a.split('?')[0]); });
-            if (resp && resp.status === 200 && isKnownAsset) {
+      // ── Fontes Google: Cache-First (raramente mudam) ──
+      if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
+        e.respondWith(
+          caches.open(CACHE_FONTS).then(function(cache) {
+            return cache.match(e.request).then(function(cached) {
+              if (cached) return cached;
+              return fetch(e.request).then(function(resp) {
+                if (resp && resp.status === 200) cache.put(e.request, resp.clone());
+                return resp;
+              }).catch(function() { return cached || new Response('', { status: 503 }); });
+            });
+          })
+        );
+        return;
+      }
+
+      // ── Assets CDN (Firebase, remixicon): Cache-First ──
+      var isCdnAsset = ASSETS_CDN.some(function(a) { return url.startsWith(a.split('?')[0]); });
+      if (isCdnAsset) {
+        e.respondWith(
+          caches.match(e.request).then(function(cached) {
+            if (cached) return cached;
+            return fetch(e.request).then(function(resp) {
+              if (resp && resp.status === 200) {
+                var clone = resp.clone();
+                caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+              }
+              return resp;
+            }).catch(function() { return new Response('', { status: 503 }); });
+          })
+        );
+        return;
+      }
+
+      // ── App Shell (index.html / navegação): Network-First com fallback cache ──
+      if (e.request.mode === 'navigate' ||
+          url.includes('index.html') ||
+          (!url.includes('.') && !url.includes('?rat='))) {
+        e.respondWith(
+          fetch(e.request).then(function(resp) {
+            if (resp && resp.status === 200) {
               var clone = resp.clone();
               caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
             }
             return resp;
           }).catch(function() {
-            // Offline e não cacheado — retorna página principal como fallback
-            return caches.match('/') || caches.match('/index.html');
-          });
+            return caches.match(e.request)
+              .then(function(c) { return c || caches.match('/') || caches.match('/index.html'); });
+          })
+        );
+        return;
+      }
+
+      // ── Demais recursos: Network-First ──
+      e.respondWith(
+        fetch(e.request).then(function(resp) {
+          if (resp && resp.status === 200) {
+            var clone = resp.clone();
+            caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+          }
+          return resp;
+        }).catch(function() {
+          return caches.match(e.request).then(function(c) { return c || new Response('', { status: 503 }); });
         })
       );
     });
@@ -12969,8 +13376,11 @@ async function fazerLogin(){
       .then(function(reg) {
         URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
         console.log('✅ Service Worker registrado (PWA offline ativo).');
-        caches.open('onlinees-v4').then(function(cache) {
+        // [OFFLINE] Cacheia a página atual após registro do SW
+        caches.open('onlinees-v7').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
+          // Também tenta cachear Poppins se disponível
+          cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
         });
       })
       .catch(function(err) {
@@ -13004,9 +13414,9 @@ async function fazerLogin(){
     <button class="cam-flip-btn" id="camFlipBtn" aria-label="Virar câmera" title="Virar câmera"><i class="ri-refresh-line"></i></button>
   </div>
 
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;">
-    <p class="cam-hint"><i class="ri-information-line"></i> Toque no botão laranja para capturar. Você pode tirar várias fotos antes de confirmar.</p>
-    <button class="cam-send-btn" id="camSendBtn" disabled><i class="ri-check-line"></i> Confirmar fotos (<span id="camCount">0</span>)</button>
+  <div id="camSendBar">
+    <p class="cam-hint"><i class="ri-information-line"></i> Toque no <span style="color:#f97316;font-weight:700;">●</span> para capturar. Várias fotos permitidas.</p>
+    <button class="cam-send-btn" id="camSendBtn" disabled><i class="ri-check-line"></i> Confirmar (<span id="camCount">0</span>)</button>
   </div>
 </div>
 
@@ -13086,7 +13496,8 @@ async function fazerLogin(){
     var w = video.videoWidth  || 1280;
     var h = video.videoHeight || 720;
     // Limita a 1200px no lado maior (reduz fotos de ~4MB para ~150-300KB)
-    var MAX_CAM = 1200;
+    // [FOTO-FS] 800px máx + qualidade 0.5 → ~80-100KB/foto para caber no Firestore
+    var MAX_CAM = 800;
     if (w > MAX_CAM || h > MAX_CAM) {
       var ratio = Math.min(MAX_CAM / w, MAX_CAM / h);
       w = Math.round(w * ratio); h = Math.round(h * ratio);
@@ -13096,8 +13507,7 @@ async function fazerLogin(){
     var ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, w, h);
 
-    // JPEG 0.75 — boa qualidade visual, ~150-300KB por foto
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.50);
     var approxSize = Math.round(dataUrl.length * 0.75); // bytes estimados
     capturedPhotos.push({ dataUrl: dataUrl, size: approxSize });
 
