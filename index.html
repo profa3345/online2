@@ -2812,6 +2812,12 @@ html[data-role="technician"] nav button {
 
   async function salvarClienteNoFirestore(c) {
     if (!navigator.onLine) return;
+    // [FIX] Rejeita itens inválidos (ex: booleano true, null, objetos sem nome)
+    // que geravam documentos com ID "true" ou similar no Firestore.
+    if (!c || typeof c !== 'object' || !c.nome || typeof c.nome !== 'string') {
+      console.warn('[salvarClienteNoFirestore] Item inválido ignorado:', c);
+      return;
+    }
     const idBase = (c.nome || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
     const id = idBase || ('cli-' + Date.now());
     const dados = {
@@ -2834,6 +2840,11 @@ html[data-role="technician"] nav button {
 
   async function salvarEquipamentoNoFirestore(eq) {
     if (!navigator.onLine) return;
+    // [FIX] Rejeita itens inválidos que gerariam documentos corrompidos no Firestore
+    if (!eq || typeof eq !== 'object' || Array.isArray(eq)) {
+      console.warn('[salvarEquipamentoNoFirestore] Item inválido ignorado:', eq);
+      return;
+    }
     const id = String(eq.id || Date.now());
     const dados = {
       id, tipo: eq.tipo||'', marca: eq.marca||'', modelo: eq.modelo||'',
@@ -2954,11 +2965,19 @@ html[data-role="technician"] nav button {
         });
       });
       const lista = Array.from(mapaClientes.values());
+      // [FIX] Não sobrescreve com lista vazia (pode indicar falha de auth silenciosa)
+      if (lista.length === 0) {
+        console.warn('[syncClientes] Nenhum cliente retornado do Firestore — localStorage preservado.');
+        return;
+      }
+      // [FIX] Grava direto no localStorage sem chamar saveClientes(),
+      // pois saveClientes → AppStorage.setClientes → _syncToFirestore cria loop de escrita.
       try { localStorage.setItem(STORAGE_CLIENTES, JSON.stringify(lista)); } catch(e) {}
       window.clientes = lista;
-      if (typeof saveClientes === 'function') saveClientes(lista);
+      try { clientes = lista; } catch(e) {}
       if (typeof renderClientes === 'function') renderClientes();
       if (typeof popularSelectClientes === 'function') popularSelectClientes();
+      if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
       console.log("syncClientesFromFirestore:", lista.length, "clientes sincronizados.");
     } catch(e) { console.error("Erro em syncClientesFromFirestore:", e); }
   }
@@ -2990,9 +3009,16 @@ html[data-role="technician"] nav button {
         estoque: (typeof d.estoque === "number" && !isNaN(d.estoque)) ? d.estoque : null,
         updatedAt: d.updatedAt || null
       }));
-      if (typeof saveEquipamentos === 'function') saveEquipamentos(lista);
+      // [FIX] Não sobrescreve com lista vazia (pode indicar falha de auth silenciosa)
+      if (lista.length === 0) {
+        console.warn('[syncEquipamentos] Nenhum equipamento retornado do Firestore — localStorage preservado.');
+        return;
+      }
+      // [FIX] Grava direto no localStorage sem chamar saveEquipamentos(),
+      // pois saveEquipamentos → AppStorage.setEquipamentos → _syncToFirestore cria loop de escrita.
       try { localStorage.setItem(STORAGE_EQUIPAMENTOS, JSON.stringify(lista)); } catch(e) {}
       window.equipamentos = lista;
+      try { equipamentos = lista; } catch(e) {}
       if (typeof renderEquipamentos === 'function') renderEquipamentos();
       if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque();
       console.log("syncEquipamentosFromFirestore:", lista.length, "equipamentos sincronizados.");
@@ -6201,7 +6227,15 @@ function renderUsuarios(){
 
   tbody.innerHTML = '';
 
-  (usuarios || []).forEach(u=>{
+  const _usuariosFiltrados = (usuarios || []);
+  if (_usuariosFiltrados.length === 0) {
+    const trVazio = document.createElement('tr');
+    trVazio.innerHTML = '<td colspan="5" style="text-align:center;color:#94a3b8;padding:18px;font-size:.82rem;"><i class="ri-user-line"></i> Nenhum usuário cadastrado.</td>';
+    tbody.appendChild(trVazio);
+    return;
+  }
+
+  _usuariosFiltrados.forEach(u=>{
     const isRowAdmin   = u.role === 'admin';
     const canEditAdmin = isAdmin(); // só Admin vê editar no admin
     const showEditBtn  = (isRowAdmin ? canEditAdmin : isSupervisorOrAdmin());
@@ -6365,7 +6399,14 @@ function renderUsuarios(){
     const tbody = document.getElementById('tabelaEquipamentos')?.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
-    (equipamentos || []).forEach(eq=>{
+    const _equipsFiltrados = (equipamentos || []);
+    if (_equipsFiltrados.length === 0) {
+      const trVazio = document.createElement('tr');
+      trVazio.innerHTML = '<td colspan="7" style="text-align:center;color:#94a3b8;padding:18px;font-size:.82rem;"><i class="ri-tools-line"></i> Nenhum equipamento cadastrado.</td>';
+      tbody.appendChild(trVazio);
+      return;
+    }
+    _equipsFiltrados.forEach(eq=>{
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(eq.tipo||'-')}</td>
@@ -6452,7 +6493,15 @@ function renderClientes(){
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  (clientes || []).forEach(c => {
+  const _clientesFiltrados = (clientes || []);
+  if (_clientesFiltrados.length === 0) {
+    const trVazio = document.createElement('tr');
+    trVazio.innerHTML = '<td colspan="9" style="text-align:center;color:#94a3b8;padding:18px;font-size:.82rem;"><i class="ri-building-line"></i> Nenhum cliente cadastrado.</td>';
+    tbody.appendChild(trVazio);
+    return;
+  }
+
+  _clientesFiltrados.forEach(c => {
     const tr = document.createElement('tr');
     // Fix XSS: todos os campos escapados com esc() antes de inserir no innerHTML
     const _ec = (v) => (v||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -6587,7 +6636,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
     if(!nome){ showToast('Informe o nome da empresa.'); return; }
     if(!cnpj){ showToast('Informe o CNPJ do cliente.'); return; }
     if((clientes||[]).find(c=>(c.nome||'').toLowerCase()===nome.toLowerCase())){ showToast('Cliente já existe.'); return; }
-    const novoCliente = {nome, cnpj, telefone, cep, endereco, bairro, cidade, uf};
+    const novoCliente = {nome, cnpj, telefone, cep, endereco, bairro, cidade, uf, ativo: true};
     clientes.push(novoCliente);
     saveClientes(clientes);
     try {
@@ -7344,7 +7393,8 @@ if (logoBase64) {
         endereco: aEndereco && aEndereco.value ? aEndereco.value.trim() : '',
         bairro: aBairro && aBairro.value ? aBairro.value.trim() : '',
         cidade: cidadeVal,
-        uf: ufVal
+        uf: ufVal,
+        ativo: true
       };
       lista.push(novoCliente);
       window.clientes = lista;
@@ -13178,13 +13228,26 @@ async function fazerLogin(){
     }
   }
 
+  // [FIX-UX] Desabilita o botão durante o login assíncrono para evitar cliques duplos
+  function _runLogin() {
+    if (btnEntrar.disabled) return;
+    btnEntrar.disabled = true;
+    var _labelOrig = btnEntrar.innerHTML;
+    btnEntrar.innerHTML = '<i class="ri-loader-4-line"></i> Entrando…';
+    fazerLogin()
+      .catch(_onLoginError)
+      .finally(function() {
+        btnEntrar.disabled = false;
+        btnEntrar.innerHTML = _labelOrig;
+      });
+  }
   btnEntrar.onclick = function(ev){
     ev.preventDefault();
-    fazerLogin().catch(_onLoginError);
+    _runLogin();
   };
   // Enter no campo senha
   loginSenha.addEventListener('keyup', function(e){
-    if (e.key === 'Enter') fazerLogin().catch(_onLoginError);
+    if (e.key === 'Enter') _runLogin();
   });
   // FIX: Enter no campo usuário (avança para senha — UX padrão)
   if (loginUsuario) {
@@ -14493,7 +14556,19 @@ function _verificarUrlAssinar() {
     document.getElementById('sigQrMsg').innerHTML = '<span style="color:#94a3b8;">Enviando assinatura...</span>';
 
     var base64 = canvas.toDataURL('image/png');
-    var nome   = (document.getElementById('sigQrNome').value || '').trim();
+    // [FIX-QR] Comprime assinatura para JPEG 0.7 antes de enviar ao Firestore.
+    // PNG sem compressão pode ultrapassar 500KB; JPEG reduz para ~30-80KB.
+    try {
+      var _tmpCanvas = document.createElement('canvas');
+      _tmpCanvas.width = canvas.width; _tmpCanvas.height = canvas.height;
+      var _tmpCtx = _tmpCanvas.getContext('2d');
+      _tmpCtx.fillStyle = '#ffffff';
+      _tmpCtx.fillRect(0, 0, _tmpCanvas.width, _tmpCanvas.height);
+      _tmpCtx.drawImage(canvas, 0, 0);
+      var _compressed = _tmpCanvas.toDataURL('image/jpeg', 0.70);
+      if (_compressed && _compressed.length > 50) base64 = _compressed;
+    } catch(_e) { /* mantém PNG original se falhar */ }
+    var nome   = (document.getElementById('sigQrNome').value || '').trim().slice(0, 120);
 
     // Salva no Firestore
     try {
