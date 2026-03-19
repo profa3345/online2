@@ -4977,6 +4977,9 @@ function autoFillCamposAtendimento(){
       window._navegandoPopstate = true;
       try { window._mostrarHomeScreen(); } catch(e) {}
       window._navegandoPopstate = false;
+      // [FIX-BACK] Repõe sempre o estado __home__ no histórico para que o próximo
+      // pressionar voltar não esvazie o histórico e feche o PWA
+      try { history.pushState({ tela: '__home__' }, '', ''); } catch(e) {}
     } else {
       var _telaPadrao2 = (_role3 === 'tecnico') ? 'novo' : 'painel';
       history.pushState({ tela: _telaPadrao2 }, '', '');
@@ -12642,7 +12645,11 @@ async function _renderPortal(token){
     btn.onclick=function(){
       var t=btn.getAttribute('data-ptoken');
       _renderPortal(t);
-      window.history.replaceState(null,'','?rat='+t);
+      window.history.replaceState(
+        // Preserva o estado da tela atual (se existir) para que o botão voltar funcione
+        (history.state && history.state.tela) ? history.state : null,
+        '', '?rat='+t
+      );
     };
   });
 }
@@ -12801,6 +12808,17 @@ function _init(){
   // (hooks de email/WhatsApp foram integrados diretamente nos handlers originais)
   _injetarPainel();
 }
+
+// [FIX-BACK] Garante que sempre há pelo menos 1 entrada no histórico com estado válido.
+// Sem isso, no PWA standalone a primeira pressão do botão voltar fecha o app.
+// Só age se o estado atual for null (sem sessão iniciada ainda).
+(function() {
+  try {
+    if (!history.state || !history.state.tela) {
+      history.replaceState({ tela: '__init__' }, '', '');
+    }
+  } catch(e) {}
+})();
 
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_init);
 else _init();
