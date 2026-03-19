@@ -841,6 +841,41 @@ html[data-role="technician"] nav button {
     opacity: .8;
   }
 
+  /* ── Contador de fotos ── */
+  #fotoContadorBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(15,23,42,.06);
+    border: 1px solid rgba(148,163,184,.2);
+    border-radius: 12px;
+    padding: 8px 14px;
+    margin-bottom: 14px;
+    font-size: .78rem;
+    font-weight: 600;
+    color: #0f172a;
+    gap: 10px;
+  }
+  #fotoContadorBar .fc-label { color: #475569; font-weight: 500; }
+  #fotoContadorBar .fc-count { font-size: 1rem; font-weight: 700; color: #16a34a; transition: color .2s; }
+  #fotoContadorBar .fc-bar-wrap {
+    flex: 1; height: 6px; background: rgba(148,163,184,.2);
+    border-radius: 999px; overflow: hidden; min-width: 60px;
+  }
+  #fotoContadorBar .fc-bar {
+    height: 100%; border-radius: 999px;
+    background: #16a34a; transition: width .2s, background .2s;
+    width: 0%;
+  }
+  #fotoContadorBar.fc-warn .fc-count { color: #f97316; }
+  #fotoContadorBar.fc-warn .fc-bar  { background: #f97316; }
+  #fotoContadorBar.fc-full .fc-count { color: #dc2626; }
+  #fotoContadorBar.fc-full .fc-bar  { background: #dc2626; }
+  #fotoContadorBar .fc-tip {
+    font-size: .68rem; color: #64748b; font-weight: 400; white-space: nowrap;
+  }
+  #fotoContadorBar.fc-full .fc-tip { color: #dc2626; font-weight: 600; }
+
   /* --- Validação visual de campos obrigatórios --- */
   #cDiagnostico:invalid-visual, #cAcoes:invalid-visual {
     border-color: #dc2626 !important;
@@ -1595,6 +1630,15 @@ html[data-role="technician"] nav button {
 
         <!-- STEP 3: SERVIÇO -->
         <div class="form-step" id="form-step-3" style="display:none;">
+
+        <!-- Contador de fotos para o PDF -->
+        <div id="fotoContadorBar">
+          <span class="fc-label"><i class="ri-image-line"></i> Fotos para o PDF</span>
+          <span class="fc-count" id="fcNum">0</span>
+          <span style="color:#94a3b8;font-weight:400;font-size:.75rem;">/6</span>
+          <div class="fc-bar-wrap"><div class="fc-bar" id="fcBar"></div></div>
+          <span class="fc-tip" id="fcTip">Adicione até 6 fotos</span>
+        </div>
 
         <!-- C. SERVIÇO EXECUTADO -->
         <div class="section-card">
@@ -8102,6 +8146,10 @@ if (logoBase64) {
         if (formEl) formEl.scrollTo ? formEl.scrollTo(0,0) : null;
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch(e) {}
+      // Atualiza contador de fotos ao entrar no step 3
+      if (n === 3) {
+        try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
+      }
       // [FIX-CANVAS] Redimensiona canvas de assinatura ao entrar no step 4
       // (canvas em elemento display:none retorna width=0 no getBoundingClientRect)
       if (n === 4) {
@@ -9413,6 +9461,61 @@ if (logoBase64) {
 if (bUploadFotos) bUploadFotos.addEventListener('change', ()=>criarPreview(bUploadFotos, bPreview));
 if (cUpload)      cUpload.addEventListener('change', ()=>criarPreview(cUpload, cPreview));
 if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, dPreview));
+
+  // ── Contador de fotos em tempo real ──────────────────────────────────
+  // Conta apenas imagens (não vídeos) nos 3 previews — vídeos não vão para o Firestore
+  var _MAX_FOTOS_PDF = 6;
+
+  function _atualizarContadorFotos() {
+    try {
+      var total = 0;
+      ['bPreview','cPreview','dPreview'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.querySelectorAll('.preview-item').forEach(function(item) {
+          // Conta apenas imagens (img), não vídeos
+          if (item.querySelector('img')) total++;
+        });
+      });
+
+      var bar   = document.getElementById('fotoContadorBar');
+      var num   = document.getElementById('fcNum');
+      var fcBar = document.getElementById('fcBar');
+      var tip   = document.getElementById('fcTip');
+      if (!bar || !num || !fcBar || !tip) return;
+
+      num.textContent = total;
+      var pct = Math.min(100, Math.round(total / _MAX_FOTOS_PDF * 100));
+      fcBar.style.width = pct + '%';
+
+      bar.classList.remove('fc-warn','fc-full');
+      if (total >= _MAX_FOTOS_PDF) {
+        bar.classList.add('fc-full');
+        tip.textContent = 'Limite atingido — PDF inclui todas as fotos';
+      } else if (total === _MAX_FOTOS_PDF - 1) {
+        bar.classList.add('fc-warn');
+        tip.textContent = 'Mais 1 foto disponível';
+      } else if (total > 0) {
+        tip.textContent = ((_MAX_FOTOS_PDF - total) + ' foto(s) restante(s)');
+      } else {
+        tip.textContent = 'Adicione até ' + _MAX_FOTOS_PDF + ' fotos';
+      }
+    } catch(e) {}
+  }
+  window._atualizarContadorFotos = _atualizarContadorFotos;
+
+  // Observa mudanças nos 3 containers de preview
+  (function() {
+    var _fcObserver = new MutationObserver(function() {
+      _atualizarContadorFotos();
+    });
+    ['bPreview','cPreview','dPreview'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) _fcObserver.observe(el, { childList: true, subtree: false });
+    });
+    // Atualiza ao entrar no step 3 (pode ter fotos de edição)
+    _atualizarContadorFotos();
+  })();
 
   // ─── Botões Câmera: abrem câmera do dispositivo e adicionam foto ao preview ───
   function _abrirCamera(previewContainerId) {
@@ -13242,7 +13345,7 @@ async function fazerLogin(){
 (function() {
   if (!('serviceWorker' in navigator)) return;
 
-  var SW_VERSION = 'onlinees-v7';
+  var SW_VERSION = 'onlinees-v8';
   var CACHE_ASSETS = [
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
@@ -13252,7 +13355,7 @@ async function fazerLogin(){
   ];
 
   var swCode = `
-    var CACHE = 'onlinees-v7';
+    var CACHE = 'onlinees-v8';
     var CACHE_FONTS = 'onlinees-fonts-v1';
 
     // Assets CDN — pré-cacheados no install
@@ -13377,7 +13480,7 @@ async function fazerLogin(){
         URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
         console.log('✅ Service Worker registrado (PWA offline ativo).');
         // [OFFLINE] Cacheia a página atual após registro do SW
-        caches.open('onlinees-v7').then(function(cache) {
+        caches.open('onlinees-v8').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
           // Também tenta cachear Poppins se disponível
           cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
