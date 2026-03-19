@@ -711,7 +711,10 @@ html[data-role="technician"] nav button {
     border-radius:10px;
     background:#ffffff;
     cursor:crosshair;
-    touch-action:none;
+    /* [FIX-v39] touch-action:manipulation permite scroll ANTES de iniciar o traço;
+       o JS já bloqueia via preventDefault() apenas durante o desenho (startDraw/startDrawTec).
+       'none' travava a tela inteira no mobile ao simples toque no canvas. */
+    touch-action:manipulation;
     display:block;
     /* [FIX-SIG1] overscroll-behavior evita que o scroll da página seja ativado
        enquanto o usuário desenha dentro do canvas */
@@ -8200,13 +8203,18 @@ if (logoBase64) {
       if (n === 3) {
         try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
       }
-      // [FIX-CANVAS] Redimensiona canvas de assinatura ao entrar no step 4
-      // (canvas em elemento display:none retorna width=0 no getBoundingClientRect)
+      // [FIX-v39] Usa requestAnimationFrame duplo ao entrar no step 4.
+      // setTimeout(80) era insuficiente em devices lentos: o display:'' do step
+      // ainda não havia propagado ao layout antes do getBoundingClientRect(),
+      // retornando width=0 e quebrando as coordenadas do canvas.
+      // rAF duplo garante que o browser completou o layout antes de redimensionar.
       if (n === 4) {
-        setTimeout(function() {
-          try { if (typeof resizeSignatureCanvas === 'function') resizeSignatureCanvas(); } catch(e) {}
-          try { if (typeof window.resizeSigTecnicoCanvas === 'function') window.resizeSigTecnicoCanvas(); } catch(e) {}
-        }, 80);
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            try { if (typeof resizeSignatureCanvas === 'function') resizeSignatureCanvas(); } catch(e) {}
+            try { if (typeof window.resizeSigTecnicoCanvas === 'function') window.resizeSigTecnicoCanvas(); } catch(e) {}
+          });
+        });
       }
       // [UX-8] No step 1, mostra sugestão do último cliente atendido
       if (n === 1) {
@@ -9710,12 +9718,20 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   }
 
   function clearSignature(){
+    var _ratio = window.devicePixelRatio || 1;
     sigCtx.setTransform(1,0,0,1,0,0);
     sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
     sigCtx.fillStyle = '#ffffff';
     sigCtx.fillRect(0,0,sigCanvas.width,sigCanvas.height);
+    // [FIX-v39] Reaplica scale do devicePixelRatio após resetar a transformação.
+    // setTransform(1,0,0,1,0,0) zera o scale — sem reaplica-lo, traços posteriores
+    // ficam deslocados em telas de alta densidade (Retina/DPI>1).
+    sigCtx.scale(_ratio, _ratio);
+    sigCtx.lineWidth = 2.4;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
     assinaturaClienteAtual = null;
-      window.assinaturaClienteAtual = null;
+    window.assinaturaClienteAtual = null;
     if (sigStatus) sigStatus.textContent = '';
     if (sigNomeWrap) sigNomeWrap.style.display = 'none';
     if (sigNomeCliente) sigNomeCliente.value = '';
@@ -9976,9 +9992,23 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
     if (btnLimparAssinaturaTec){
       btnLimparAssinaturaTec.onclick = ()=>{
-        resizeSigTecnicoCanvas();
+        // [FIX-v39] Zera a variável ANTES de chamar resizeSigTecnicoCanvas.
+        // O resize reexibe a assinatura confirmada se a variável ainda não for null,
+        // fazendo o botão "Limpar" não ter efeito após clicar "Usar esta assinatura".
         assinaturaTecnicoAtual = null;
-      window.assinaturaTecnicoAtual = null;
+        window.assinaturaTecnicoAtual = null;
+        // Limpa o canvas explicitamente (não depende só do resize)
+        try {
+          var _r = window.devicePixelRatio || 1;
+          sigTecCtx.setTransform(1,0,0,1,0,0);
+          sigTecCtx.clearRect(0, 0, sigTecnicoCanvas.width, sigTecnicoCanvas.height);
+          sigTecCtx.fillStyle = '#ffffff';
+          sigTecCtx.fillRect(0, 0, sigTecnicoCanvas.width, sigTecnicoCanvas.height);
+          sigTecCtx.scale(_r, _r);
+          sigTecCtx.lineWidth = 2.4;
+          sigTecCtx.lineCap = 'round';
+          sigTecCtx.lineJoin = 'round';
+        } catch(e) { resizeSigTecnicoCanvas(); }
         if (sigStatusTec) sigStatusTec.textContent = '';
         _marcarCanvasAssinado(sigTecnicoCanvas, sigStatusTec, false);
       };
@@ -13408,7 +13438,7 @@ async function fazerLogin(){
 (function() {
   if (!('serviceWorker' in navigator)) return;
 
-  var SW_VERSION = 'onlinees-v8';
+  var SW_VERSION = 'onlinees-v9';
   var CACHE_ASSETS = [
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
@@ -13418,7 +13448,7 @@ async function fazerLogin(){
   ];
 
   var swCode = `
-    var CACHE = 'onlinees-v8';
+    var CACHE = 'onlinees-v9';
     var CACHE_FONTS = 'onlinees-fonts-v1';
 
     // Assets CDN — pré-cacheados no install
@@ -13543,7 +13573,7 @@ async function fazerLogin(){
         URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
         console.log('✅ Service Worker registrado (PWA offline ativo).');
         // [OFFLINE] Cacheia a página atual após registro do SW
-        caches.open('onlinees-v8').then(function(cache) {
+        caches.open('onlinees-v9').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
           // Também tenta cachear Poppins se disponível
           cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
