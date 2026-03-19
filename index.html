@@ -44,12 +44,8 @@
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
         crossorigin="anonymous">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
-          crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-          crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"
-          crossorigin="anonymous"></script>
+  <!-- [LAZY] Chart.js removido: não utilizado em nenhuma tela (peso morto ~200KB). -->
+  <!-- [LAZY] jsPDF carregado sob demanda via _ensureJsPDF() — só quando o usuário gera PDF. -->
 
   <!-- Firebase compat SDK (para login e coleções) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -139,6 +135,11 @@
     .main{padding:14px 14px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
     .panel{background:rgba(15,23,42,.35);border:1px solid rgba(148,163,184,.05);border-radius:16px;padding:14px 14px 6px;box-shadow:0 10px 40px rgba(0,0,0,.12);backdrop-filter:blur(12px);animation:fadeIn .25s ease}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    /* Modo rápido — oculta campos avançados */
+    .modo-rapido-ativo [data-adv] { display:none !important; }
+    #btnModoRapido { transition:background .2s,color .2s,border-color .2s; }
+    #btnModoRapido.ativo { background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.5);color:#f97316;font-weight:700; }
     .form-panel{background:var(--bg-form)!important;border:1px solid rgba(148,163,184,.22);border-radius:18px;box-shadow:0 16px 40px rgba(15,23,42,.06);color:#0f172a!important}
     .form-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.14);border-radius:18px;padding:16px 16px 12px;margin-bottom:12px;overflow-x:auto}
     .supervisor-panel{background:var(--bg-supervisor)!important;color:#0f172a!important;border:1px solid rgba(148,163,184,.12);box-shadow:0 8px 32px rgba(15,23,42,.08);border-radius:18px}
@@ -224,6 +225,18 @@
     .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s}
     .cam-send-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(34,197,94,.45)}
     .cam-send-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    /* Multi-step navigation */
+    #stepNav{background:rgba(255,255,255,.97);border-radius:16px;padding:14px 14px 10px;border:1px solid rgba(148,163,184,.18);box-shadow:0 2px 12px rgba(15,23,42,.06);}
+    .step-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:4px 2px;flex:1;min-width:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+    .step-num{width:28px;height:28px;border-radius:999px;background:rgba(148,163,184,.2);color:#64748b;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center;transition:background .2s,color .2s;flex-shrink:0;}
+    .step-lbl{font-size:.6rem;color:#94a3b8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52px;transition:color .2s;}
+    .step-btn.active .step-num{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;box-shadow:0 4px 12px rgba(249,115,22,.4);}
+    .step-btn.active .step-lbl{color:#f97316;}
+    .step-btn.done .step-num{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;}
+    .step-btn.done .step-lbl{color:#16a34a;}
+    .step-line{flex:1;height:2px;background:rgba(148,163,184,.25);border-radius:999px;min-width:6px;margin:0 2px;margin-bottom:14px;transition:background .3s;}
+    .step-line.done{background:linear-gradient(90deg,#16a34a,#22c55e);}
+    .step-line.active{background:linear-gradient(90deg,#f97316,#ea580c);}
     /* Chips de ações rápidas */
     .chip-acao{display:inline-flex;align-items:center;padding:4px 10px;background:rgba(17,79,145,.10);border:1px solid rgba(17,79,145,.25);border-radius:999px;font-size:.7rem;color:#114f91;cursor:pointer;transition:background .15s,border-color .15s,transform .1s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
     .chip-acao:hover{background:rgba(17,79,145,.18);border-color:rgba(17,79,145,.45);}
@@ -1020,6 +1033,31 @@ html[data-role="technician"] nav button {
   </div>
 </div>
 
+<!-- MODAL QR ASSINATURA -->
+<div id="modalQrAssinatura" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#1e293b;border-radius:18px;padding:24px 20px 20px;max-width:380px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#f1f5f9;text-align:center;">
+    <h3 style="margin:0 0 6px;font-size:1rem;color:#f1f5f9;"><i class="ri-qr-code-line" style="color:#6366f1;"></i> Assinatura via QR Code</h3>
+    <p style="font-size:.78rem;color:#94a3b8;margin:0 0 16px;line-height:1.5;">Mostre este QR Code para o cliente escanear com a câmera do celular. Ele assina no celular dele e a assinatura aparece aqui automaticamente.</p>
+    <!-- QR Code renderizado aqui -->
+    <div id="qrSigContainer" style="display:flex;justify-content:center;margin-bottom:14px;">
+      <canvas id="qrSigCanvas" style="border-radius:12px;background:#fff;padding:12px;"></canvas>
+    </div>
+    <!-- URL encurtada para mostrar ao cliente -->
+    <div id="qrSigUrl" style="font-size:.65rem;color:#64748b;word-break:break-all;margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:8px;"></div>
+    <!-- Status da assinatura -->
+    <div id="qrSigStatus" style="font-size:.82rem;font-weight:600;margin-bottom:14px;min-height:22px;color:#94a3b8;">
+      <i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Aguardando assinatura do cliente...
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;">
+      <button id="btnQrSigFechar" class="btn secondary" type="button">Cancelar</button>
+      <button id="btnQrSigUsarManual" class="btn" type="button" style="display:none;background:linear-gradient(90deg,#6366f1,#4f46e5);">
+        <i class="ri-check-line"></i> Usar esta assinatura
+      </button>
+    </div>
+    <p style="font-size:.65rem;color:#475569;margin-top:10px;">Requer que o cliente tenha internet. Se offline, use o canvas acima.</p>
+  </div>
+</div>
+
 <!-- APP -->
 <div class="app" id="app" style="display:none;visibility:hidden;">
   <aside class="sidebar" id="sidebar">
@@ -1062,6 +1100,7 @@ html[data-role="technician"] nav button {
           <button id="fontIncrease" class="btn small" title="Aumentar fonte" style="padding:.3rem .55rem;border-radius:10px;font-size:.8rem;">A+</button>
         </div>
         <span class="badge-online" id="badgeOnline">● Online</span>
+        <span id="badgePendentes" style="display:none;background:rgba(249,115,22,.18);color:#f97316;border:1px solid rgba(249,115,22,.4);font-size:.6rem;border-radius:999px;padding:3px 9px;font-weight:700;cursor:pointer;" title="RATs aguardando envio"></span>
       </div>
     </div>
 
@@ -1086,21 +1125,50 @@ html[data-role="technician"] nav button {
         <div class="row" style="align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px 0;">
           <h2 style="margin:0;display:flex;gap:6px;align-items:center;font-size:1.1rem;"><i class="ri-add-box-line"></i> Novo Atendimento</h2>
           <div style="display:flex; gap:8px;">
+            <button class="btn small" id="btnModoRapido" title="Modo Rápido: oculta campos opcionais"><i class="ri-flashlight-line"></i> Rápido</button>
             <button class="btn small" id="btnDuplicarAnterior" title="Duplicar relatório anterior"><i class="ri-pages-line"></i> Duplicar</button>
             <button class="btn small" id="btnLimparFormulario"><i class="ri-eraser-line"></i> Limpar</button>
           </div>
         </div>
 
-        <!-- [UX] Barra de progresso de preenchimento -->
-        <div id="formProgressWrap" style="margin:0 0 12px 0;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:.72rem;color:#64748b;font-weight:500;">Preenchimento do relatório</span>
-            <span id="formProgressPct" style="font-size:.72rem;color:#f97316;font-weight:700;">0%</span>
+        <!-- [UX] Navegação multi-step -->
+        <div id="stepNav" style="margin:0 0 14px 0;">
+          <!-- Indicador de etapas -->
+          <div style="display:flex;align-items:center;gap:0;margin-bottom:10px;">
+            <button class="step-btn active" data-step="1" type="button" aria-label="Etapa 1: Cliente">
+              <span class="step-num">1</span><span class="step-lbl">Cliente</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="2" type="button" aria-label="Etapa 2: Equipamento">
+              <span class="step-num">2</span><span class="step-lbl">Equipamento</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="3" type="button" aria-label="Etapa 3: Serviço">
+              <span class="step-num">3</span><span class="step-lbl">Serviço</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="4" type="button" aria-label="Etapa 4: Fotos">
+              <span class="step-num">4</span><span class="step-lbl">Fotos</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="5" type="button" aria-label="Etapa 5: Finalizar">
+              <span class="step-num">5</span><span class="step-lbl">Finalizar</span>
+            </button>
           </div>
-          <div style="height:6px;background:rgba(148,163,184,.2);border-radius:999px;overflow:hidden;">
-            <div id="formProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ea580c);border-radius:999px;transition:width .4s ease;"></div>
+          <!-- Barra de progresso melhorada -->
+          <div id="formProgressWrap" style="margin:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+              <span id="stepLabel" style="font-size:.75rem;color:#64748b;font-weight:600;">Etapa 1 de 5 — Cliente</span>
+              <span id="formProgressPct" style="font-size:.72rem;color:#f97316;font-weight:700;">0%</span>
+            </div>
+            <div style="height:7px;background:rgba(148,163,184,.2);border-radius:999px;overflow:hidden;">
+              <div id="formProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ea580c);border-radius:999px;transition:width .4s ease;"></div>
+            </div>
           </div>
         </div>
+
+        <!-- STEP 1: CLIENTE -->
+        <div class="form-step" id="form-step-1">
 
         <!-- A. DADOS DO ATENDIMENTO -->
         <div class="section-card">
@@ -1150,6 +1218,12 @@ html[data-role="technician"] nav button {
               </div>
               <input id="aClienteManual" aria-label="Nome do cliente (manual)" placeholder="Digite o nome da empresa" style="display:none;margin-top:6px;width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
               <small id="avisoClienteManual" class="help" style="display:none;">Será marcado como <strong>inserido manualmente</strong> neste relatório.</small>
+              <!-- [UX-8] Sugestão: reutilizar último cliente -->
+              <div id="_clienteSugestao" style="display:none;align-items:center;gap:8px;margin-top:7px;padding:8px 12px;background:rgba(17,79,145,.07);border:1px solid rgba(17,79,145,.2);border-radius:10px;flex-wrap:wrap;">
+                <span style="font-size:.75rem;color:#475569;"><i class="ri-history-line"></i> Último atendimento:</span>
+                <span class="_sugNome" style="font-size:.78rem;font-weight:700;color:#0f172a;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                <button type="button" id="_btnUsarUltimoCliente" style="font-size:.7rem;padding:4px 10px;border-radius:999px;background:rgba(17,79,145,.12);border:1px solid rgba(17,79,145,.3);color:#114f91;cursor:pointer;white-space:nowrap;font-weight:600;">Usar este cliente</button>
+              </div>
             </div>
             <div class="col">
               <label>Contato</label>
@@ -1259,6 +1333,11 @@ html[data-role="technician"] nav button {
 
 
 
+        </div><!-- /form-step-1 -->
+
+        <!-- STEP 2: EQUIPAMENTO -->
+        <div class="form-step" id="form-step-2" style="display:none;">
+
         <!-- B. DADOS DO EQUIPAMENTO -->
         <div class="section-card">
           <h3 style="margin-top:0;font-size:.9rem;display:flex;gap:6px;align-items:center;"><i class="ri-cpu-line"></i> B. DADOS DO EQUIPAMENTO</h3>
@@ -1308,6 +1387,11 @@ html[data-role="technician"] nav button {
             </div>
           </div>
         </div>
+
+        </div><!-- /form-step-2 -->
+
+        <!-- STEP 3: SERVIÇO -->
+        <div class="form-step" id="form-step-3" style="display:none;">
 
         <!-- C. SERVIÇO EXECUTADO -->
         <div class="section-card">
@@ -1433,6 +1517,12 @@ html[data-role="technician"] nav button {
             </div>
           </div>
         </div>
+        </div><!-- /section-card D.BATERIAS -->
+
+        </div><!-- /form-step-3 -->
+
+        <!-- STEP 4: FOTOS + ASSINATURAS -->
+        <div class="form-step" id="form-step-4" style="display:none;">
 
         <!-- ASSINATURA DIGITAL DO CLIENTE -->
         <div class="section-card" id="assinaturaClienteBox">
@@ -1454,6 +1544,10 @@ html[data-role="technician"] nav button {
             </button>
             <button type="button" class="btn small" id="btnModoTouchpad">
               <i class="ri-mouse-line"></i> Modo Touchpad: OFF
+            </button>
+            <!-- [QR-SIG] Botão para cliente assinar no próprio celular via QR Code -->
+            <button type="button" class="btn small" id="btnQrAssinatura" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.4);color:#6366f1;" title="Gerar QR Code para o cliente assinar no celular dele">
+              <i class="ri-qr-code-line"></i> QR do cliente
             </button>
             <small id="sigStatus" style="font-size:.68rem;color:#0f172a;"></small>
           </div>
@@ -1539,30 +1633,58 @@ html[data-role="technician"] nav button {
           </div>
         </div>
 
-        <div class="section-card">
-          <h3 style="margin-top:0;font-size:.9rem;display:flex;gap:6px;align-items:center;">
-            <i class="ri-check-double-line"></i> RELATÓRIO FINALIZADO
-          </h3>
-          <p style="font-size:.88rem;color:#1f2937;line-height:1.4;">
-            O PDF será gerado automaticamente e enviado ao cliente com link de acesso direto. <br>
-            <span style="font-size:.78rem;color:#475569;">Certifique-se de estar conectado à internet para que o link seja gerado.</span>
-          </p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn" id="btnSalvarLocal"><i class="ri-save-3-line"></i> Salvar relatório</button>
-            <button class="btn secondary" id="btnSalvarRascunho" style="opacity:0.55;transition:opacity .2s,background .2s,border-color .2s"><i class="ri-draft-line"></i> Salvar rascunho</button>
-            <button class="btn" id="btnGerarPdfLocal"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
-            <button class="btn" id="btnEnviarEmail" type="button" style="display:flex;align-items:center;gap:4px;">
-              <i class="ri-mail-send-line"></i> Enviar por e-mail
-            </button>
-            <button class="btn" id="btnWhatsLocal"><i class="ri-whatsapp-line"></i> Enviar via WhatsApp</button>
-            <button class="btn" id="btnCompartilharPDF" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border-color:rgba(124,58,237,.5);display:none;"><i class="ri-share-line"></i> Compartilhar PDF</button>
+        </div><!-- /form-step-4 -->
+
+        <!-- STEP 5: FINALIZAR -->
+        <div class="form-step" id="form-step-5" style="display:none;">
+          <!-- Resumo visual do atendimento -->
+          <div id="step5Resumo" style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.2);border-radius:14px;padding:14px 16px;margin-bottom:14px;">
+            <div style="font-size:.75rem;font-weight:700;color:#ea580c;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;"><i class="ri-check-double-line"></i> Resumo do atendimento</div>
+            <div id="step5ResumoContent" style="font-size:.82rem;color:#374151;line-height:1.7;">
+              <i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Carregando...
+            </div>
           </div>
-          <p style="font-size:1rem;color:#475569;margin-top:6px;font-weight:500;">
-            Informe o WhatsApp ou telefone do cliente para enviar o relatório diretamente para ele.
+
+          <!-- Ação principal -->
+          <button class="btn" id="btnSalvarLocal" style="width:100%;justify-content:center;padding:15px;font-size:1rem;font-weight:800;background:linear-gradient(90deg,#f97316,#ea580c);box-shadow:0 8px 24px rgba(249,115,22,.4);margin-bottom:12px;border-radius:14px;gap:8px;">
+            <i class="ri-save-3-line"></i> Finalizar e Salvar Atendimento
+          </button>
+
+          <!-- Ações secundárias em grade -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <button class="btn" id="btnWhatsLocal" style="justify-content:center;background:rgba(37,211,102,.12);border-color:rgba(37,211,102,.4);color:#16a34a;gap:6px;">
+              <i class="ri-whatsapp-line"></i> WhatsApp
+            </button>
+            <button class="btn" id="btnEnviarEmail" type="button" style="justify-content:center;background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.35);color:#1d4ed8;gap:6px;">
+              <i class="ri-mail-send-line"></i> E-mail
+            </button>
+            <button class="btn" id="btnGerarPdfLocal" style="justify-content:center;background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.35);color:#475569;gap:6px;">
+              <i class="ri-file-pdf-line"></i> Gerar PDF
+            </button>
+            <button class="btn secondary" id="btnSalvarRascunho" style="justify-content:center;gap:6px;">
+              <i class="ri-draft-line"></i> Rascunho
+            </button>
+          </div>
+          <button class="btn" id="btnCompartilharPDF" style="width:100%;justify-content:center;background:linear-gradient(135deg,#7c3aed,#6d28d9);border-color:rgba(124,58,237,.5);display:none;gap:6px;">
+            <i class="ri-share-line"></i> Compartilhar PDF
+          </button>
+          <p id="dica-compartilhar" style="display:none;font-size:.85rem;color:#7c3aed;margin-top:8px;font-weight:500;text-align:center;">
+            <i class="ri-smartphone-line"></i> No celular: <strong>Compartilhar PDF</strong> envia direto pelo WhatsApp, e-mail ou Drive.
           </p>
-          <p id="dica-compartilhar" style="display:none;font-size:.85rem;color:#7c3aed;margin-top:2px;font-weight:500;">
-            <i class="ri-smartphone-line"></i> No celular: <strong>Compartilhar PDF</strong> envia o arquivo direto pelo WhatsApp, e-mail, Drive ou qualquer app.
+          <p style="font-size:.75rem;color:#94a3b8;margin-top:10px;text-align:center;">
+            Certifique-se de estar conectado à internet para que o link seja gerado.
           </p>
+        </div><!-- /form-step-5 -->
+
+        <!-- Navegação entre etapas: Anterior / Próximo -->
+        <div id="stepNavBtns" style="display:flex;gap:10px;margin-top:16px;margin-bottom:8px;align-items:center;justify-content:space-between;">
+          <button id="btnStepPrev" type="button" class="btn secondary" style="display:none;gap:6px;align-items:center;">
+            <i class="ri-arrow-left-line"></i> Anterior
+          </button>
+          <div style="flex:1;"></div>
+          <button id="btnStepNext" type="button" class="btn orange" style="gap:6px;align-items:center;min-width:140px;justify-content:center;">
+            Próximo <i class="ri-arrow-right-line"></i>
+          </button>
         </div>
       </section>
 
@@ -1984,6 +2106,7 @@ html[data-role="technician"] nav button {
                 <tr>
                   <th style="min-width:140px;">Data/Hora</th>
                   <th style="min-width:120px;">Usuário</th>
+                  <th style="min-width:90px;" id="auditColPerfil" style="display:none;">Perfil</th>
                   <th style="min-width:140px;">Ação</th>
                   <th>Mensagem</th>
                 </tr>
@@ -2052,6 +2175,43 @@ html[data-role="technician"] nav button {
       .replace(/\//g, '&#x2F;');
   }
   window.esc = esc;
+
+  // ===== [LAZY] Carregador sob demanda de jsPDF =====
+  // jsPDF (~350KB) só é carregado quando o usuário clica em "Gerar PDF" pela primeira vez.
+  // Nas chamadas seguintes a Promise já está resolvida — custo zero.
+  var _jspdfPromise = null;
+  function _ensureJsPDF() {
+    if (_jspdfPromise) return _jspdfPromise;
+    _jspdfPromise = new Promise(function(resolve, reject) {
+      // Já carregado (ex: volta de rota sem reload)
+      if (window.jspdf && window.jspdf.jsPDF) { resolve(); return; }
+      var loaded = 0;
+      var urls = [
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'
+      ];
+      // Carrega jsPDF primeiro, depois autotable (ordem importa)
+      function loadSerial(i) {
+        if (i >= urls.length) return;
+        var s = document.createElement('script');
+        s.src = urls[i]; s.crossOrigin = 'anonymous';
+        s.onload = function() { loaded++; if (loaded === urls.length) resolve(); else loadSerial(i+1); };
+        s.onerror = function() {
+          // fallback manual por índice
+          var fb = document.createElement('script');
+          if (i === 0) fb.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+          else         fb.src = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js';
+          fb.onload = function() { loaded++; if (loaded === urls.length) resolve(); else loadSerial(i+1); };
+          fb.onerror = function() { reject(new Error('[LAZY] jsPDF não carregou nem pelo fallback.')); };
+          document.head.appendChild(fb);
+        };
+        document.head.appendChild(s);
+      }
+      loadSerial(0);
+    });
+    return _jspdfPromise;
+  }
+  window._ensureJsPDF = _ensureJsPDF;
 
   // [SEGURANÇA] Aviso crítico: a proteção dos dados depende das Firestore Security Rules.
   // Acesse: Firebase Console > Firestore Database > Rules
@@ -2183,6 +2343,12 @@ html[data-role="technician"] nav button {
   //       }
   //       match /onlineEsLogs/{doc} {
   //         allow read, write: if request.auth != null;
+  //       }
+  //       // [QR-SIG] Sessões de assinatura QR — cliente (sem login) só pode escrever;
+  //       // leitura exige auth. Docs deletados automaticamente pelo técnico após uso.
+  //       match /onlineEsSigSessoes/{doc} {
+  //         allow read: if request.auth != null;
+  //         allow write: if true;
   //       }
   //     }
   //   }
@@ -2908,15 +3074,20 @@ html[data-role="technician"] nav button {
     try{
       // Captura o usuário logado no momento do log
       var userAtual = '';
+      var userRole  = '';
       try {
         var u = window.usuarioLogado;
-        if (u) userAtual = u.fullName || u.username || u.usuario || '';
+        if (u) {
+          userAtual = u.fullName || u.username || u.usuario || '';
+          userRole  = u.role || '';
+        }
       } catch(e){}
 
       const entry = {
-        tipo: (tipo || 'info'),
+        tipo:     (tipo || 'info'),
         mensagem: mensagem || '',
-        usuario: userAtual,
+        usuario:  userAtual,
+        userRole: userRole,   // [AUDIT] salva role para filtro por perfil
         detalhes: detalhes || null,
         timestamp: new Date().toISOString()
       };
@@ -4258,13 +4429,55 @@ function autoFillCamposAtendimento(){
   }
 
   function popularBuscaTecnicoEmpresa(){
-    const tecnicos = Array.from(new Set(usuarios.map(u=>u.fullName||u.username)));
+    // [FIX] Garante que usuarios está atualizado do localStorage
+    try { usuarios = (typeof loadUsers === 'function' ? loadUsers() : null) || usuarios || []; } catch(e){}
+
+    // Técnicos: todos os usuários ativos (inclui admin/supervisor que também criam RATs)
+    const nomesUnicos = Array.from(new Set(
+      (usuarios || [])
+        .filter(function(u){ return u.active !== false; })
+        .map(function(u){ return (u.fullName || u.username || '').trim(); })
+        .filter(Boolean)
+    )).sort();
+
     buscaTecnico.innerHTML = '';
-    tecnicos.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.textContent=t; buscaTecnico.appendChild(o); });
-    buscaEmpresa.innerHTML='';
-    clientes.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'')).forEach(c=>{
-      const o=document.createElement('option'); o.value=c.nome; o.textContent=c.nome; buscaEmpresa.appendChild(o);
+    // Opção "Todos" no topo
+    var optTodos = document.createElement('option');
+    optTodos.value = ''; optTodos.textContent = '— Todos os técnicos —';
+    buscaTecnico.appendChild(optTodos);
+    nomesUnicos.forEach(function(t){
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      buscaTecnico.appendChild(o);
     });
+
+    // Também inclui técnicos que aparecem em RATs existentes mas não estão mais cadastrados
+    try {
+      const _rRats = (typeof loadRelatorios === 'function' ? loadRelatorios() : null) || relatorios || [];
+      const _nomesRats = Array.from(new Set(
+        _rRats.map(function(r){ return (r.tecnico || '').trim(); }).filter(Boolean)
+      ));
+      _nomesRats.forEach(function(t){
+        if (t && !nomesUnicos.includes(t)) {
+          const o = document.createElement('option');
+          o.value = t; o.textContent = t + ' (inativo)';
+          buscaTecnico.appendChild(o);
+        }
+      });
+    } catch(e){}
+
+    // Empresas/Clientes
+    try { clientes = (typeof loadClientes === 'function' ? loadClientes() : null) || clientes || []; } catch(e){}
+    buscaEmpresa.innerHTML = '';
+    var optTodosEmp = document.createElement('option');
+    optTodosEmp.value = ''; optTodosEmp.textContent = '— Todas as empresas —';
+    buscaEmpresa.appendChild(optTodosEmp);
+    (clientes || []).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); })
+      .forEach(function(c){
+        const o = document.createElement('option');
+        o.value = c.nome; o.textContent = c.nome;
+        buscaEmpresa.appendChild(o);
+      });
   }
 
   // ===== MODAL DELETAR RAT =====
@@ -4479,6 +4692,8 @@ function autoFillCamposAtendimento(){
         try { if (typeof window._autoResizeTextareas === 'function') window._autoResizeTextareas(); } catch(e) {}
         // [UX] Atualiza barra de progresso após restaurar campos
         try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e) {}
+        // [UX] Volta para step 1 (cliente) ao editar
+        try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e) {}
         showToast('Relatório carregado para edição. Salve ao finalizar.');
       } catch(e) { console.warn('Erro ao preencher formulário para edição:', e); }
     }).catch(e => console.warn('Erro ao abrir tela novo:', e));
@@ -4590,6 +4805,7 @@ function autoFillCamposAtendimento(){
             try { atualizarDashboard();} catch(e){}
           }
           try { popularSelectClientes(); } catch(e){}
+          try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
           console.log('✅ Re-renderizado após sync do Firestore.');
         } catch(e) { console.warn('Falha ao re-renderizar após sync:', e); }
       }).catch(function(e){ console.warn('Sync falhou:', e); });
@@ -4838,6 +5054,7 @@ function autoFillCamposAtendimento(){
       renderClientes();
       atualizarDashboard();
       aplicarPermissoesConfiguracoes();
+      try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       if (tituloEl) tituloEl.textContent='Painel de Gerenciamento';
 
     } else if (nome === 'cadastros'){
@@ -4862,8 +5079,19 @@ function autoFillCamposAtendimento(){
       popularSelectClientes();
       startRelogioAtendimento();
       // FIX: oferece restaurar rascunho salvo — verificarRascunho era definida mas nunca chamada
-      try{ if (typeof verificarRascunho === 'function') verificarRascunho(); }catch(e){}
-      try{ if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas(); if (typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas(); }catch(e){}
+      try{
+        if (typeof verificarRascunho === 'function') verificarRascunho();
+      }catch(e){}
+      // [FIX] Canvas de assinatura só redimensiona se step 4 estiver visível.
+      // Se estiver oculto (multi-step), o resize ocorre ao navegar para o step 4.
+      try{
+        var _step4El = document.getElementById('form-step-4');
+        var _step4Visivel = _step4El && _step4El.style.display !== 'none';
+        if (_step4Visivel) {
+          if (typeof resizeSignatureCanvas==='function') resizeSignatureCanvas();
+          if (typeof resizeSigTecnicoCanvas==='function') resizeSigTecnicoCanvas();
+        }
+      }catch(e){}
     }
   }
   // [FIX v38] Captura a função local ANTES de window.mostrarTela ser sobrescrito pelo wrapper,
@@ -4932,6 +5160,16 @@ function autoFillCamposAtendimento(){
 
     var telaAlvo = e.state && e.state.tela;
 
+    // 0. Se o modal QR de assinatura estiver aberto, fechar ele
+    var _qrModalBk = document.getElementById('modalQrAssinatura');
+    if (_qrModalBk && _qrModalBk.style.display !== 'none') {
+      var _qrFecharBk = document.getElementById('btnQrSigFechar');
+      if (_qrFecharBk) _qrFecharBk.click();
+      else _qrModalBk.style.display = 'none';
+      history.pushState({ tela: telaAlvo || 'novo' }, '', '');
+      return;
+    }
+
     // 1. Se o modal câmera estiver aberto, fechar ele
     var _camModal = document.getElementById('modalCamera');
     if (_camModal && !_camModal.classList.contains('hidden')) {
@@ -4991,7 +5229,7 @@ function autoFillCamposAtendimento(){
 
   // BUG FIX: limpa _ratPreSalvoId ao abrir novo atendimento para evitar que RAT pré-salva
   // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
-  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; window.mostrarTela('novo').catch(e=>console.warn('Erro ao abrir tela:', e)); };
+  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; window.mostrarTela('novo').then(function(){ try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){} }).catch(e=>console.warn('Erro ao abrir tela:', e)); };
   mMeus.onclick = ()=>window.mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mPainel) mPainel.onclick = ()=>window.mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mCadastros) 
@@ -5200,6 +5438,10 @@ function autoFillCamposAtendimento(){
     e.preventDefault();
     const mostrandoManual = aClienteManual.style.display==='none';
     aClienteManual.style.display = mostrandoManual ? 'block' : 'none';
+    // [UX] Atualiza texto do botão conforme o modo
+    btnClienteNaoLista.innerHTML = mostrandoManual
+      ? '<i class="ri-search-line"></i> Buscar na lista'
+      : '<i class="ri-edit-2-line"></i> Cliente não está na lista';
     // [UX] Esconde/mostra o campo de busca conforme o modo
     var _buscaWrap = document.getElementById('aClienteBuscaWrap');
     if (_buscaWrap) _buscaWrap.style.display = mostrandoManual ? 'none' : '';
@@ -5318,8 +5560,11 @@ function autoFillCamposAtendimento(){
         if (!r) return;
         relatorioSelecionado = r;
         marcarComoVisto(r.id);
-        if (!(window.jspdf && window.jspdf.jsPDF)){ showToast('⚠️ Gerador de PDF (jsPDF) não carregou. Verifique conexão.', 4000); return; }
-        try { await exportarPDF(r); showToast('PDF do relatório gerado.'); try { logInfo('PDF gerado', { numero: r.numero || r.id || 'N/A' }); } catch(e){} renderLista(); } catch(e){ console.error(e); showToast('❌ Não foi possível gerar o PDF deste relatório.', 4000); }
+        try {
+          showToast('⏳ Preparando PDF...', 1500);
+          await _ensureJsPDF();
+          await exportarPDF(r); showToast('PDF do relatório gerado.'); try { logInfo('PDF gerado', { numero: r.numero || r.id || 'N/A' }); } catch(e){} renderLista();
+        } catch(e){ console.error(e); showToast('❌ Não foi possível gerar o PDF deste relatório.', 4000); }
       };
     });
 
@@ -5670,6 +5915,7 @@ function renderUsuarios(){
       saveUsers(usuarios); 
       _syncUsuarioFirestore(user);
       renderUsuarios(); 
+      try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       showToast('Senha resetada com sucesso.');
       try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
     };
@@ -5693,6 +5939,7 @@ function renderUsuarios(){
       usuarios = (Array.isArray(usuarios) ? usuarios : []).filter(x => x && x.username !== user);
       saveUsers(usuarios);
       renderUsuarios();
+      try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       showToast('Usuário removido com sucesso!');
 
       // Remove do Firestore pelo uid (correto)
@@ -5781,6 +6028,7 @@ function renderUsuarios(){
       saveUsers(usuarios);
       _syncUsuarioFirestore(novoUser || u.username);
       renderUsuarios();
+      try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       showToast('Usuário atualizado com sucesso.');
         try { logInfo('Usuário atualizado', { usuario: uname || '' }); } catch(e){}
     };
@@ -6232,10 +6480,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
 
   async function exportarPDF(r){
     try {
-    if (!window.jspdf || !window.jspdf.jsPDF){
-      showToast('❌ Não foi possível carregar a biblioteca de PDF (jsPDF). Verifique sua conexão com a internet e tente novamente.', 5000);
-      return;
- }
+    await _ensureJsPDF();
     // Define o nome que será exibido no PDF como "técnico"
     const nomeTecPdf =
       (r.tecnico && String(r.tecnico).trim()) ||
@@ -6792,23 +7037,39 @@ if (logoBase64) {
   }
 
   function validarObrigatorios(){
-    // Helper: destaca campo inválido e rola até ele
+    // Helper: navega para o step que contém o campo inválido, depois destaca e rola
     function _erroCampo(el, msg) {
       showToast(msg);
-      // Se o elemento alvo é o select oculto do cliente, usa o campo de busca visível
       var _elVisivel = el;
       if (el && el.id === 'aClienteSelect') {
         _elVisivel = document.getElementById('aClienteBusca') || el;
       }
+      // [UX] Navega para o step que contém o campo antes de destacar
+      if (_elVisivel && typeof window._irParaStep === 'function') {
+        var _stepDoEl = (function(node) {
+          while (node && node !== document.body) {
+            if (node.id && node.id.startsWith('form-step-')) {
+              return parseInt(node.id.replace('form-step-', ''));
+            }
+            node = node.parentElement;
+          }
+          return null;
+        })(_elVisivel);
+        if (_stepDoEl && _stepDoEl !== (typeof window._getStepAtual === 'function' ? window._getStepAtual() : 0)) {
+          window._irParaStep(_stepDoEl);
+        }
+      }
       if (_elVisivel) {
-        _elVisivel.style.borderColor = '#dc2626';
-        _elVisivel.style.boxShadow   = '0 0 0 3px rgba(220,38,38,.12)';
-        _elVisivel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        _elVisivel.focus && _elVisivel.focus();
         setTimeout(function() {
-          _elVisivel.style.borderColor = '';
-          _elVisivel.style.boxShadow   = '';
-        }, 3000);
+          _elVisivel.style.borderColor = '#dc2626';
+          _elVisivel.style.boxShadow   = '0 0 0 3px rgba(220,38,38,.12)';
+          _elVisivel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          _elVisivel.focus && _elVisivel.focus();
+          setTimeout(function() {
+            _elVisivel.style.borderColor = '';
+            _elVisivel.style.boxShadow   = '';
+          }, 3000);
+        }, 150);
       }
       return false;
     }
@@ -6967,6 +7228,8 @@ if (logoBase64) {
       // Offline: salva local e em pendentes
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
       pendentes.push(novo); savePendentes(pendentes);
+      // [UX] Atualiza badge de pendentes
+      try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
@@ -7035,6 +7298,15 @@ if (logoBase64) {
       if (!_eraEdicao) ensureNumeroRat();
       // Reinicia relógio
       startRelogioAtendimento();
+      // [UX] Volta ao step 1 para novo atendimento
+      try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){}
+      // [UX] Reseta campo de busca visual do cliente
+      try {
+        var _buscaAps = document.getElementById('aClienteBusca');
+        var _buscaWrapAps = document.getElementById('aClienteBuscaWrap');
+        if (_buscaAps) { _buscaAps.value = ''; _buscaAps.style.borderColor = ''; _buscaAps.style.boxShadow = ''; }
+        if (_buscaWrapAps) _buscaWrapAps.style.display = '';
+      } catch(e){}
     } catch(e){ console.warn('Erro ao preparar próximo atendimento:', e); }
     } catch(e) {
       console.error('Erro ao salvar relatório:', e);
@@ -7222,6 +7494,8 @@ if (logoBase64) {
         // [UX] Ajusta textareas e barra de progresso
         try { if (typeof window._autoResizeTextareas === 'function') window._autoResizeTextareas(); } catch(e){}
         try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e){}
+        // [UX] Volta para step 1 ao restaurar rascunho
+        try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){}
       } catch(e) {
         console.warn('Falha ao restaurar campos do rascunho:', e);
       }
@@ -7518,6 +7792,544 @@ if (logoBase64) {
     };
   })();
 
+  // ═══ MULTI-STEP FORM ════════════════════════════════════════════════════
+  (function() {
+    var TOTAL_STEPS = 5;
+    var _stepAtual = 1;
+
+    var _stepLabels = [
+      '', // index 0 unused
+      'Etapa 1 de 5 — Cliente',
+      'Etapa 2 de 5 — Equipamento',
+      'Etapa 3 de 5 — Serviço',
+      'Etapa 4 de 5 — Fotos e Assinaturas',
+      'Etapa 5 de 5 — Finalizar'
+    ];
+
+    function _irParaStep(n) {
+      if (n < 1 || n > TOTAL_STEPS) return;
+      // Esconde step atual, mostra novo
+      for (var i = 1; i <= TOTAL_STEPS; i++) {
+        var el = document.getElementById('form-step-' + i);
+        if (el) el.style.display = (i === n) ? '' : 'none';
+      }
+      _stepAtual = n;
+      _atualizarNavStep();
+      // Rola para o topo do formulário
+      try {
+        var formEl = document.getElementById('telaNovo');
+        if (formEl) formEl.scrollTo ? formEl.scrollTo(0,0) : null;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch(e) {}
+      // [FIX-CANVAS] Redimensiona canvas de assinatura ao entrar no step 4
+      // (canvas em elemento display:none retorna width=0 no getBoundingClientRect)
+      if (n === 4) {
+        setTimeout(function() {
+          try { if (typeof resizeSignatureCanvas === 'function') resizeSignatureCanvas(); } catch(e) {}
+          try { if (typeof window.resizeSigTecnicoCanvas === 'function') window.resizeSigTecnicoCanvas(); } catch(e) {}
+        }, 80);
+      }
+      // [UX-8] No step 1, mostra sugestão do último cliente atendido
+      if (n === 1) {
+        setTimeout(function() {
+          try {
+            var _selBusca = document.getElementById('aClienteBusca');
+            var _selVal   = document.getElementById('aClienteSelect');
+            var _manEl    = document.getElementById('aClienteManual');
+            var emManual  = _manEl && _manEl.style.display === 'block';
+            // Só sugere se o campo ainda está vazio
+            if (_selBusca && !_selBusca.value && !emManual && _selVal && !_selVal.value) {
+              var _meus = (window.relatorios || []).filter(function(r) {
+                return !r._deleted && r.tecnicoLogin === (window.usuarioLogado && window.usuarioLogado.username);
+              }).sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
+              var _ult = _meus[0];
+              var _sugEl = document.getElementById('_clienteSugestao');
+              if (_ult && _ult.cliente && _sugEl) {
+                _sugEl.style.display = 'flex';
+                _sugEl.querySelector('._sugNome') && (_sugEl.querySelector('._sugNome').textContent = _ult.cliente);
+              } else if (_sugEl) {
+                _sugEl.style.display = 'none';
+              }
+            }
+          } catch(e) {}
+        }, 150);
+      }
+      // Atualiza progresso
+      try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e) {}
+      // Atualiza barra mobile (só visível no step 5)
+      try {
+        var _b = document.getElementById('barraAcoesMobile');
+        if (_b) _b.style.display = (n === 5 && window.innerWidth <= 880 && window.usuarioLogado) ? 'flex' : 'none';
+      } catch(e) {}
+      // Preenche resumo no step 5
+      if (n === 5) {
+        try {
+          var _rc = document.getElementById('step5ResumoContent');
+          if (_rc) {
+            var _cli = (function(){
+              var m = document.getElementById('aClienteManual');
+              if (m && m.style.display==='block' && m.value.trim()) return m.value.trim();
+              var s = document.getElementById('aClienteSelect');
+              return s ? (s.value || '—') : '—';
+            })();
+            var _equip = (document.getElementById('bEquipamento') || {}).value || '—';
+            var _tipo  = (document.getElementById('cTipo') || {}).value || '—';
+            var _stat  = (document.getElementById('cStatus') || {}).value || '—';
+            var _data  = (document.getElementById('aDataHoraBR') || {}).value || '—';
+            var _nFotos = document.querySelectorAll('#bPreview .preview-item, #cPreview .preview-item, #dPreview .preview-item').length;
+            var _temSigCli = !!(window.assinaturaClienteAtual || window.assinaturaTecnicoAtual);
+            var _e5 = function(s){ return (typeof esc === 'function') ? esc(String(s||'')) : String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+            _rc.innerHTML =
+              '<div>👤 <strong>Cliente:</strong> ' + _e5(_cli) + '</div>' +
+              '<div>⚙️ <strong>Equipamento:</strong> ' + _e5(_equip) + '</div>' +
+              '<div>🔧 <strong>Tipo:</strong> ' + _e5(_tipo) + '</div>' +
+              '<div>✅ <strong>Status:</strong> ' + _e5(_stat) + '</div>' +
+              '<div>📅 <strong>Data:</strong> ' + _e5(_data) + '</div>' +
+              '<div>📷 <strong>Fotos:</strong> ' + (_nFotos > 0 ? _nFotos + ' foto(s) anexada(s)' : 'Nenhuma') + '</div>' +
+              '<div>✍️ <strong>Assinatura:</strong> ' + (_temSigCli ? '✔ Capturada' : 'Não capturada') + '</div>';
+          }
+        } catch(e) {}
+      }
+    }
+
+    function _atualizarNavStep() {
+      var prev = document.getElementById('btnStepPrev');
+      var next = document.getElementById('btnStepNext');
+      var lbl  = document.getElementById('stepLabel');
+
+      if (lbl) lbl.textContent = _stepLabels[_stepAtual] || '';
+
+      // Botão anterior
+      if (prev) prev.style.display = (_stepAtual > 1) ? 'inline-flex' : 'none';
+
+      // Botão próximo / finalizar
+      if (next) {
+        if (_stepAtual === TOTAL_STEPS) {
+          next.style.display = 'none'; // step 5 tem seus próprios botões
+        } else {
+          next.style.display = 'inline-flex';
+          next.innerHTML = (_stepAtual === TOTAL_STEPS - 1)
+            ? '<i class="ri-check-line"></i> Finalizar'
+            : 'Próximo <i class="ri-arrow-right-line"></i>';
+        }
+      }
+
+      // Atualiza indicadores de step
+      document.querySelectorAll('.step-btn').forEach(function(btn) {
+        var s = parseInt(btn.getAttribute('data-step'));
+        btn.classList.remove('active', 'done');
+        if (s === _stepAtual) btn.classList.add('active');
+        else if (s < _stepAtual) btn.classList.add('done');
+      });
+
+      // Atualiza linhas entre steps
+      document.querySelectorAll('.step-line').forEach(function(line, idx) {
+        var lineStep = idx + 1; // linha entre step idx+1 e idx+2
+        line.classList.remove('done', 'active');
+        if (lineStep < _stepAtual) line.classList.add('done');
+        else if (lineStep === _stepAtual) line.classList.add('active');
+      });
+    }
+
+    // Botão Próximo
+    var btnNext = document.getElementById('btnStepNext');
+    if (btnNext) {
+      btnNext.addEventListener('click', function() {
+        // Validação leve por step antes de avançar
+        if (_stepAtual === 1) {
+          var sel = document.getElementById('aClienteSelect');
+          var man = document.getElementById('aClienteManual');
+          var busca = document.getElementById('aClienteBusca');
+          var emManual = man && man.style.display === 'block';
+          var temCliente = emManual ? (man && man.value.trim()) : (sel && sel.value);
+          if (!temCliente) {
+            showToast('⚠️ Informe o cliente antes de continuar.');
+            if (busca && !emManual) { busca.focus(); busca.style.borderColor='#dc2626'; busca.style.boxShadow='0 0 0 3px rgba(220,38,38,.12)'; setTimeout(function(){busca.style.borderColor='';busca.style.boxShadow='';},2500); }
+            return;
+          }
+        }
+        if (_stepAtual === 3) {
+          // Valida diagnóstico e ações obrigatórios
+          var diagEl = document.getElementById('cDiagnostico');
+          var acoesEl = document.getElementById('cAcoes');
+          if (diagEl && !diagEl.value.trim()) {
+            showToast('⚠️ Preencha o diagnóstico antes de continuar.');
+            diagEl.style.borderColor='#dc2626'; diagEl.style.boxShadow='0 0 0 3px rgba(220,38,38,.12)';
+            diagEl.scrollIntoView({behavior:'smooth',block:'center'}); diagEl.focus();
+            setTimeout(function(){diagEl.style.borderColor='';diagEl.style.boxShadow='';},2500);
+            return;
+          }
+          if (acoesEl && !acoesEl.value.trim()) {
+            showToast('⚠️ Preencha as ações realizadas antes de continuar.');
+            acoesEl.style.borderColor='#dc2626'; acoesEl.style.boxShadow='0 0 0 3px rgba(220,38,38,.12)';
+            acoesEl.scrollIntoView({behavior:'smooth',block:'center'}); acoesEl.focus();
+            setTimeout(function(){acoesEl.style.borderColor='';acoesEl.style.boxShadow='';},2500);
+            return;
+          }
+        }
+        _irParaStep(_stepAtual + 1);
+      });
+    }
+
+    // Botão Anterior
+    var btnPrev = document.getElementById('btnStepPrev');
+    if (btnPrev) {
+      btnPrev.addEventListener('click', function() {
+        _irParaStep(_stepAtual - 1);
+      });
+    }
+
+    // Clique direto nos indicadores de step
+    document.querySelectorAll('.step-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var s = parseInt(btn.getAttribute('data-step'));
+        // Só permite ir para steps anteriores ou o atual+1
+        if (s <= _stepAtual + 1) _irParaStep(s);
+        else showToast('Complete as etapas anteriores primeiro.');
+      });
+    });
+
+    // Expõe para uso externo (limpar form, editar RAT etc)
+    window._irParaStep = _irParaStep;
+    window._getStepAtual = function() { return _stepAtual; };
+
+    // Inicializa no step 1
+    _irParaStep(1);
+  })();
+
+  // ═══ ASSINATURA VIA QR CODE ══════════════════════════════════════════════
+  // O técnico gera um QR Code → cliente escaneia → assina no celular dele →
+  // a assinatura base64 é enviada via Firestore (doc temporário) → técnico recebe.
+  // Requer internet nos dois lados. Se offline, usa o canvas normal.
+  (function() {
+    var _qrModal    = document.getElementById('modalQrAssinatura');
+    var _qrCanvas   = document.getElementById('qrSigCanvas');
+    var _qrStatus   = document.getElementById('qrSigStatus');
+    var _qrUrl      = document.getElementById('qrSigUrl');
+    var _btnFechar  = document.getElementById('btnQrSigFechar');
+    var _btnUsar    = document.getElementById('btnQrSigUsarManual');
+    var _btnAbrir   = document.getElementById('btnQrAssinatura');
+    var _sigPendente = null;   // assinatura base64 recebida do cliente
+    var _qrListener  = null;   // unsubscribe do Firestore listener
+    var _qrSessaoId  = null;   // ID único desta sessão de assinatura
+    var _qrPollTimer = null;   // fallback polling
+
+    if (!_btnAbrir) return;
+
+    // ── Gerar QR Code via API pública (sem chave, gratuita) ──────────────
+    function _renderQR(text, canvas) {
+      // Usa QR Server API — gratuita, sem chave, sem plano pago
+      return new Promise(function(resolve, reject) {
+        var size = Math.min(220, Math.floor(window.innerWidth * 0.55));
+        var url  = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(text) + '&ecc=M&bgcolor=ffffff&color=1e293b';
+        var img  = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+          canvas.width  = img.width;
+          canvas.height = img.height;
+          var ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          resolve();
+        };
+        img.onerror = function() { reject(new Error('Falha ao carregar QR')); };
+        img.src = url;
+      });
+    }
+
+    // ── URL da página de assinatura ──────────────────────────────────────
+    function _sigUrl(sessaoId) {
+      var base = window.location.href.split('?')[0];
+      return base + '?assinar=' + sessaoId;
+    }
+
+    // ── Abrir modal e iniciar sessão ─────────────────────────────────────
+    _btnAbrir.addEventListener('click', async function() {
+      if (!navigator.onLine) {
+        showToast('📶 QR de assinatura requer internet. Use o canvas acima para assinar offline.', 4000);
+        return;
+      }
+
+      // Gera ID único de sessão
+      var arr = new Uint8Array(12);
+      crypto.getRandomValues(arr);
+      _qrSessaoId = 'sig-' + Array.from(arr).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+      _sigPendente = null;
+
+      // Mostra modal
+      _qrModal.style.display = 'flex';
+      _qrStatus.innerHTML = '<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Gerando QR Code...';
+      if (_btnUsar) _btnUsar.style.display = 'none';
+
+      // Salva sessão no Firestore (doc temporário com TTL implícito de 30min)
+      try {
+        var db = typeof window._getDb === 'function' ? window._getDb() : null;
+        if (db) {
+          await db.collection('onlineEsSigSessoes').doc(_qrSessaoId).set({
+            status:    'aguardando',
+            criadoEm:  new Date().toISOString(),
+            tecnico:   (window.usuarioLogado && window.usuarioLogado.username) || '',
+          });
+        }
+      } catch(e) { console.warn('[QR-SIG] Falha ao criar sessão:', e); }
+
+      // Renderiza QR
+      var url = _sigUrl(_qrSessaoId);
+      try {
+        await _renderQR(url, _qrCanvas);
+        _qrStatus.innerHTML = '<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Aguardando assinatura do cliente...';
+        if (_qrUrl) _qrUrl.textContent = url;
+      } catch(e) {
+        _qrStatus.textContent = '⚠️ Sem internet para gerar o QR. Use o canvas acima.';
+        return;
+      }
+
+      // Ouve o Firestore em tempo real para receber a assinatura
+      _iniciarEscuta();
+    });
+
+    // ── Listener Firestore — recebe assinatura do cliente ────────────────
+    function _iniciarEscuta() {
+      _pararEscuta();
+      try {
+        var db = typeof window._getDb === 'function' ? window._getDb() : null;
+        if (!db) { _iniciarPolling(); return; }
+
+        _qrListener = db.collection('onlineEsSigSessoes').doc(_qrSessaoId)
+          .onSnapshot(function(snap) {
+            if (!snap.exists) return;
+            var data = snap.data();
+            if (data.status === 'assinado' && data.assinatura) {
+              _receberAssinatura(data.assinatura, data.nomeCliente || '');
+            }
+          }, function(e) {
+            console.warn('[QR-SIG] onSnapshot erro:', e);
+            _iniciarPolling();
+          });
+      } catch(e) {
+        console.warn('[QR-SIG] Listener falhou, usando polling:', e);
+        _iniciarPolling();
+      }
+    }
+
+    // ── Fallback: polling a cada 3s se onSnapshot falhar ─────────────────
+    function _iniciarPolling() {
+      _qrPollTimer = setInterval(async function() {
+        try {
+          var db = typeof window._getDb === 'function' ? window._getDb() : null;
+          if (!db) return;
+          var snap = await db.collection('onlineEsSigSessoes').doc(_qrSessaoId).get();
+          if (snap.exists) {
+            var data = snap.data();
+            if (data.status === 'assinado' && data.assinatura) {
+              _receberAssinatura(data.assinatura, data.nomeCliente || '');
+            }
+          }
+        } catch(e) {}
+      }, 3000);
+    }
+
+    function _pararEscuta() {
+      if (_qrListener) { try { _qrListener(); } catch(e){} _qrListener = null; }
+      if (_qrPollTimer) { clearInterval(_qrPollTimer); _qrPollTimer = null; }
+    }
+
+    // ── Receber assinatura ────────────────────────────────────────────────
+    function _receberAssinatura(base64, nomeCliente) {
+      _pararEscuta();
+      _sigPendente = base64;
+
+      _qrStatus.innerHTML = '✅ Assinatura recebida!';
+      _qrStatus.style.color = '#4ade80';
+      if (_btnUsar) _btnUsar.style.display = 'inline-flex';
+
+      // Pré-visualiza no canvas principal (sem confirmar ainda)
+      try {
+        var sigCanvas = document.getElementById('sigCliente');
+        if (sigCanvas) {
+          var img = new Image();
+          img.onload = function() {
+            var ctx = sigCanvas.getContext('2d');
+            ctx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            // Mantém proporção
+            var scale = Math.min(sigCanvas.width / img.width, sigCanvas.height / img.height);
+            var w = img.width * scale, h = img.height * scale;
+            var x = (sigCanvas.width - w) / 2, y = (sigCanvas.height - h) / 2;
+            ctx.drawImage(img, x, y, w, h);
+          };
+          img.src = base64;
+        }
+        // Preenche nome se veio do cliente
+        if (nomeCliente) {
+          var nomeEl = document.getElementById('sigNomeCliente');
+          if (nomeEl && !nomeEl.value) nomeEl.value = nomeCliente;
+          var nomeWrap = document.getElementById('sigNomeWrap');
+          if (nomeWrap) nomeWrap.style.display = 'block';
+        }
+      } catch(e) {}
+
+      showToast('✅ Assinatura do cliente recebida! Clique em "Usar esta assinatura" para confirmar.', 5000);
+    }
+
+    // ── Usar assinatura recebida ──────────────────────────────────────────
+    if (_btnUsar) {
+      _btnUsar.addEventListener('click', function() {
+        if (!_sigPendente) return;
+        window.assinaturaClienteAtual = _sigPendente;
+        // Também marca como confirmada no fluxo normal
+        var statusEl = document.getElementById('sigStatus');
+        if (statusEl) statusEl.textContent = '✔ Assinatura do cliente confirmada via QR Code.';
+        // Limpa sessão no Firestore
+        try {
+          var db = typeof window._getDb === 'function' ? window._getDb() : null;
+          if (db && _qrSessaoId) db.collection('onlineEsSigSessoes').doc(_qrSessaoId).delete().catch(function(){});
+        } catch(e) {}
+        _fecharModal();
+        showToast('✅ Assinatura confirmada e salva!');
+      });
+    }
+
+    // ── Fechar modal ──────────────────────────────────────────────────────
+    function _fecharModal() {
+      _pararEscuta();
+      // [FIX] Deleta doc temporário do Firestore para não acumular lixo
+      try {
+        var _dbQr = typeof window._getDb === 'function' ? window._getDb() : null;
+        if (_dbQr && _qrSessaoId) {
+          _dbQr.collection('onlineEsSigSessoes').doc(_qrSessaoId).delete().catch(function(){});
+        }
+      } catch(e) {}
+      _qrModal.style.display = 'none';
+      _qrStatus.innerHTML = '<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Aguardando assinatura do cliente...';
+      _qrStatus.style.color = '#94a3b8';
+      if (_btnUsar) _btnUsar.style.display = 'none';
+      _sigPendente = null;
+      _qrSessaoId  = null;
+    }
+
+    // [FIX] Para escuta se usuário navegar para outra tela com modal aberto
+    var _origMostrarTela = window.mostrarTela;
+    window.mostrarTela = function() {
+      if (_qrModal && _qrModal.style.display !== 'none') _fecharModal();
+      return _origMostrarTela ? _origMostrarTela.apply(this, arguments) : undefined;
+    };
+
+    if (_btnFechar) _btnFechar.addEventListener('click', function() {
+      // Se assinatura já recebida mas não confirmada, avisa
+      if (_sigPendente) {
+        showToast('⚠️ Assinatura descartada. Use o canvas ou gere um novo QR.', 3500);
+        // Limpa canvas
+        try {
+          var sc = document.getElementById('sigCliente');
+          if (sc) sc.getContext('2d').clearRect(0, 0, sc.width, sc.height);
+        } catch(e) {}
+      }
+      _fecharModal();
+    });
+
+    // Fecha clicando fora do modal
+    if (_qrModal) {
+      _qrModal.addEventListener('click', function(e) {
+        if (e.target === _qrModal) _fecharModal();
+      });
+    }
+  })();
+
+  // ═══ MODO RÁPIDO ════════════════════════════════════════════════════════
+  // Oculta campos avançados/opcionais para agilizar preenchimento em campo.
+  // Campos essenciais: cliente, contato, whatsapp, equipamento, tipo, status, diagnóstico, ações.
+  // Campos avançados: email, endereço, CEP, GPS, tensões, condição, peças, baterias, obs.
+  (function() {
+    var STORAGE_KEY = 'online-es-modo-rapido';
+    var _ativo = false;
+
+    // IDs dos campos avançados cujo .col wrapper será ocultado
+    var _camposAvancados = [
+      // aEmailCliente removido — email é essencial para envio do relatório
+      'aEndereco','aBairro','aCidade','aUF','aCep',
+      'aCoord','aLinkMaps','aLocalizacao',
+      'bTensaoEntrada','bTensaoSaida','bCondicao','bLocal',
+      'cPecas',
+      'dBatQtd','dBatTensao','dObs',
+    ];
+
+    // Seccções inteiras a ocultar (section-card de Baterias e GPS)
+    var _secAvancadas = [
+      'assinaturaClienteBox', // não ocultar — assinatura é essencial
+    ];
+
+    function _marcarCampos() {
+      _camposAvancados.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        // Sobe até o .col ou .row wrapper imediato
+        var wrapper = el.closest ? el.closest('.col, .row, [class*="row"]') : el.parentElement;
+        // Para GPS: sobe até o section-card inteiro (aCoord está num bloco grande)
+        if (id === 'aCoord' || id === 'aLinkMaps' || id === 'aLocalizacao') {
+          var gpsBlock = el.closest ? el.closest('[id*="gps"], [id*="GPS"], .gps-block') : null;
+          wrapper = gpsBlock || el.parentElement;
+        }
+        if (wrapper) wrapper.setAttribute('data-adv', '1');
+      });
+
+      // Oculta section-card D.BATERIAS inteiro
+      var batCard = document.querySelector('#form-step-3 .section-card:nth-of-type(2)');
+      if (batCard) batCard.setAttribute('data-adv', '1');
+
+      // Oculta bloco GPS (row que contém aCoord)
+      var coordEl = document.getElementById('aCoord');
+      if (coordEl) {
+        var gpsRow = coordEl.closest ? coordEl.closest('.row') : coordEl.parentElement && coordEl.parentElement.parentElement;
+        if (gpsRow) gpsRow.setAttribute('data-adv', '1');
+      }
+    }
+
+    function _aplicar() {
+      var form = document.getElementById('telaNovo');
+      if (!form) return;
+      if (_ativo) {
+        form.classList.add('modo-rapido-ativo');
+      } else {
+        form.classList.remove('modo-rapido-ativo');
+      }
+      var btn = document.getElementById('btnModoRapido');
+      if (btn) {
+        btn.classList.toggle('ativo', _ativo);
+        btn.innerHTML = _ativo
+          ? '<i class="ri-flashlight-fill"></i> Completo'
+          : '<i class="ri-flashlight-line"></i> Rápido';
+        btn.title = _ativo ? 'Modo Completo: exibe todos os campos' : 'Modo Rápido: oculta campos opcionais';
+      }
+    }
+
+    function _toggle() {
+      _ativo = !_ativo;
+      try { localStorage.setItem(STORAGE_KEY, _ativo ? '1' : '0'); } catch(e) {}
+      _aplicar();
+      showToast(_ativo
+        ? '⚡ Modo Rápido ativo — campos opcionais ocultados.'
+        : '📋 Modo Completo — todos os campos visíveis.');
+    }
+
+    var btn = document.getElementById('btnModoRapido');
+    if (btn) btn.addEventListener('click', _toggle);
+
+    // Restaura estado salvo
+    try {
+      _ativo = localStorage.getItem(STORAGE_KEY) === '1';
+    } catch(e) {}
+
+    // Marca campos e aplica após DOM estável
+    setTimeout(function() {
+      _marcarCampos();
+      _aplicar();
+    }, 600);
+
+    window._modoRapidoAtivo = function() { return _ativo; };
+    window._aplicarModoRapido = _aplicar;
+  })();
+
   // ═══ CHIPS DE AÇÕES RÁPIDAS ═══════════════════════════════════════════
   (function() {
     document.querySelectorAll('.chips-rapidos').forEach(function(container) {
@@ -7566,6 +8378,7 @@ if (logoBase64) {
 
     function _calcProgress() {
       var preenchidos = 0;
+      var vazios = 0;
       var clienteManualAtivo = (function() {
         var cm = document.getElementById('aClienteManual');
         return cm && cm.style.display === 'block';
@@ -7573,7 +8386,6 @@ if (logoBase64) {
 
       _campos.forEach(function(c) {
         var id = c[0], peso = c[1];
-        // Se está em modo manual, ignora o select e vice-versa
         if (id === 'aClienteSelect' && clienteManualAtivo) return;
         if (id === 'aClienteManual' && !clienteManualAtivo) return;
         var el = document.getElementById(id);
@@ -7581,6 +8393,8 @@ if (logoBase64) {
         var val = el.value ? el.value.trim() : '';
         if (val && val !== '' && val !== 'Selecione um cliente' && val !== 'Selecione') {
           preenchidos += peso;
+        } else {
+          vazios++;
         }
       });
 
@@ -7589,17 +8403,22 @@ if (logoBase64) {
       var lbl = document.getElementById('formProgressPct');
       if (!bar || !lbl) return;
       bar.style.width = pct + '%';
-      lbl.textContent = pct + '%';
-      // Muda cor conforme progresso
-      if (pct >= 80) {
-        bar.style.background = 'linear-gradient(90deg,#16a34a,#15803d)';
+
+      // [UX] Mostra "faltam N campos" ou "100% completo"
+      if (pct >= 100) {
+        lbl.textContent = '✔ Completo';
         lbl.style.color = '#16a34a';
-      } else if (pct >= 40) {
-        bar.style.background = 'linear-gradient(90deg,#f97316,#ea580c)';
-        lbl.style.color = '#f97316';
+        bar.style.background = 'linear-gradient(90deg,#16a34a,#15803d)';
+      } else if (vazios > 0) {
+        lbl.textContent = vazios + ' campo' + (vazios > 1 ? 's' : '') + ' faltando';
+        lbl.style.color = pct >= 60 ? '#f97316' : '#dc2626';
+        bar.style.background = pct >= 60
+          ? 'linear-gradient(90deg,#f97316,#ea580c)'
+          : 'linear-gradient(90deg,#dc2626,#b91c1c)';
       } else {
-        bar.style.background = 'linear-gradient(90deg,#f97316,#ea580c)';
+        lbl.textContent = pct + '%';
         lbl.style.color = '#f97316';
+        bar.style.background = 'linear-gradient(90deg,#f97316,#ea580c)';
       }
     }
 
@@ -7696,25 +8515,60 @@ if (logoBase64) {
       }
     } finally {
       window._syncPendentesRunning = false;
+      // [UX] Atualiza badge de pendentes após sincronização
+      try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
     }
   }
   // BUG FIX: listeners 'online' unificados em um só para evitar syncPendentes duplo
   // BUG FIX: atualiza badge Online/Offline dinamicamente
   function _atualizarBadgeOnline() {
     var b = document.getElementById('badgeOnline');
-    if (!b) return;
-    if (navigator.onLine) {
-      b.textContent = '● Online';
-      b.style.background = 'rgba(34,197,94,.15)';
-      b.style.color = '#bbf7d0';
-      b.style.borderColor = '';
-    } else {
-      b.textContent = '○ Offline';
-      b.style.background = 'rgba(248,113,113,.15)';
-      b.style.color = '#fca5a5';
-      b.style.border = '1px solid rgba(248,113,113,.3)';
+    if (b) {
+      if (navigator.onLine) {
+        b.textContent = '● Online';
+        b.style.background = 'rgba(34,197,94,.15)';
+        b.style.color = '#bbf7d0';
+        b.style.border = '';
+      } else {
+        b.textContent = '○ Offline';
+        b.style.background = 'rgba(248,113,113,.15)';
+        b.style.color = '#fca5a5';
+        b.style.border = '1px solid rgba(248,113,113,.3)';
+      }
     }
+    // [UX] Badge de pendentes — mostra quantas RATs aguardam envio
+    _atualizarBadgePendentes();
   }
+
+  function _atualizarBadgePendentes() {
+    var bp = document.getElementById('badgePendentes');
+    if (!bp) return;
+    try {
+      var _n = (typeof loadPendentes === 'function' ? loadPendentes() : pendentes || []).length;
+      if (_n > 0) {
+        bp.style.display = '';
+        bp.textContent = '⏳ ' + _n + ' pendente' + (_n > 1 ? 's' : '');
+        bp.title = _n + ' RAT' + (_n > 1 ? 's' : '') + ' salva' + (_n > 1 ? 's' : '') + ' localmente aguardando envio ao servidor';
+      } else {
+        bp.style.display = 'none';
+      }
+    } catch(e) { bp.style.display = 'none'; }
+  }
+
+  // Clique no badge de pendentes → tenta sincronizar agora
+  var _bp = document.getElementById('badgePendentes');
+  if (_bp) {
+    _bp.addEventListener('click', function() {
+      if (!navigator.onLine) {
+        showToast('📶 Sem internet. As RATs serão enviadas quando a conexão voltar.', 4000);
+        return;
+      }
+      showToast('🔄 Sincronizando relatórios pendentes...', 2000);
+      syncPendentes();
+    });
+  }
+
+  window._atualizarBadgePendentes = _atualizarBadgePendentes;
   window.addEventListener('offline', _atualizarBadgeOnline);
   window.addEventListener('online', function(){
     _atualizarBadgeOnline();
@@ -7753,7 +8607,7 @@ if (logoBase64) {
   // HELPER: gera Blob do PDF (sem upload) — para Web Share API
   // ══════════════════════════════════════════════════════════
   async function _gerarPdfBlob(r) {
-    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não carregado.');
+    await _ensureJsPDF();
     const rSil = Object.assign({}, r, { _somenteMemoria: true });
     await exportarPDF(rSil);
     const b64 = window._lastPdfBase64;
@@ -8035,6 +8889,8 @@ if (logoBase64) {
       // [UX] Reseta barra de progresso e chips usados
       try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e){}
       try { document.querySelectorAll('.chip-acao.usado').forEach(function(c){ c.classList.remove('usado'); }); } catch(e){}
+      // [UX] Volta para o step 1
+      try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){}
       showToast('Formulário limpo.');
     } catch(e) {
       console.warn('Erro ao limpar formulário:', e);
@@ -8042,6 +8898,54 @@ if (logoBase64) {
   }
 
   if (btnLimparFormulario) btnLimparFormulario.onclick = ()=>{ limparFormularioNovoAtendimento(); };
+
+  // [UX-8] "Usar este cliente" — preenche só os campos de cliente com o último atendimento
+  (function() {
+    var btn = document.getElementById('_btnUsarUltimoCliente');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      try {
+        var todos = (typeof loadRelatorios === 'function' ? loadRelatorios() : null) || window.relatorios || [];
+        var login = usuarioLogado ? (usuarioLogado.username || '') : '';
+        var meus = todos.filter(function(r){ return !r._deleted && (r.tecnicoLogin === login || r.tecnico === (usuarioLogado && (usuarioLogado.fullName || usuarioLogado.username))); });
+        meus.sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
+        var ult = meus[0] || ultimoRelatorioDoTecnico;
+        if (!ult) { showToast('Nenhum atendimento anterior encontrado.'); return; }
+
+        var setVal = function(id, val) { var el = document.getElementById(id); if (el && val) el.value = val; };
+
+        // Preenche campos de cliente
+        if (ult.clienteManual && aClienteManual) {
+          var _bw = document.getElementById('aClienteBuscaWrap');
+          if (_bw) _bw.style.display = 'none';
+          aClienteManual.style.display = 'block';
+          aClienteManual.value = ult.clienteManual || ult.cliente || '';
+        } else if (aClienteSelect) {
+          aClienteSelect.value = ult.cliente || '';
+          var _bs = document.getElementById('aClienteBusca');
+          if (_bs) _bs.value = ult.cliente || '';
+          aClienteSelect.dispatchEvent(new Event('change'));
+        }
+        setVal('aContato',      ult.contato);
+        setVal('aTelefone',     ult.telefone);
+        setVal('aWhats',        ult.whatsapp);
+        setVal('aEmailCliente', ult.emailCliente);
+        setVal('aEndereco',     ult.endereco);
+        setVal('aBairro',       ult.bairro);
+        setVal('aCidade',       ult.cidade);
+        setVal('aUF',           ult.uf);
+        setVal('aCep',          ult.cepCliente);
+        setVal('aCnpj',         ult.cnpjCliente);
+
+        // Esconde a sugestão após usar
+        var sug = document.getElementById('_clienteSugestao');
+        if (sug) sug.style.display = 'none';
+
+        showToast('✅ Dados do cliente preenchidos automaticamente!');
+        try { if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario(); } catch(e) {}
+      } catch(e) { console.warn('_btnUsarUltimoCliente:', e); }
+    });
+  })();
 
   // FIX: btnDuplicarAnterior — pré-preenche o formulário com dados do último RAT
   // do técnico logado (cliente, equipamento, endereço), sem copiar número, data e assinaturas.
@@ -8769,10 +9673,12 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
       if(m==='tecnico'){
         const t = buscaTecnico.value;
-        data = data.filter(r=> (r.tecnico||'')===t);
+        // [FIX] Valor vazio = "Todos os técnicos" — não filtra
+        if (t) data = data.filter(r=> (r.tecnico||'')===t);
       }else if(m==='empresa'){
         const e = buscaEmpresa.value;
-        data = data.filter(r=> (r.cliente||'')===e);
+        // [FIX] Valor vazio = "Todas as empresas" — não filtra
+        if (e) data = data.filter(r=> (r.cliente||'')===e);
       }
 
       renderListaBusca(data);
@@ -8783,6 +9689,11 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     listaBusca.innerHTML='';
     if(!lista.length){ listaBusca.innerHTML='<p style="font-size:.72rem;color:#0f172a;">Nenhum relatório encontrado para o filtro informado.</p>'; return; }
     lista.sort((a,b)=>new Date(b.dataHoraIso||b.dataHora)-new Date(a.dataHoraIso||a.dataHora));
+    // [UX] Contador de resultados
+    var countEl = document.createElement('p');
+    countEl.style.cssText = 'font-size:.72rem;color:#64748b;margin:0 0 8px;font-weight:600;';
+    countEl.textContent = lista.length + ' relatório(s) encontrado(s)';
+    listaBusca.appendChild(countEl);
     lista.forEach(r=>{
       const card=document.createElement('div');
       const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
@@ -8798,16 +9709,53 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
           <span class="badge-status ${statusClass}">${esc(r.status)}</span>
         </div>
         <div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-          <button class="btn small" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Visualizar em tela</button>
-          <button class="btn small" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
+          <button class="btn small" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Ver</button>
+          <button class="btn small" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> PDF</button>
+          ${r.whatsapp||r.telefone ? `<button class="btn small" data-busca-whats="${esc(r.id)}" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>` : ''}
+          ${r.emailCliente ? `<button class="btn small" data-busca-email="${esc(r.id)}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>` : ''}
+          <button class="btn small" data-busca-editar="${esc(r.id)}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
         </div>`;
       listaBusca.appendChild(card);
     });
     listaBusca.querySelectorAll('[data-ver]').forEach(b=> b.onclick=()=>visualizarRelatorio(b.getAttribute('data-ver')));
     listaBusca.querySelectorAll('[data-pdf]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-pdf'); const r=relatorios.find(x=>x.id===id); if(!r) return;
-      if (!(window.jspdf && window.jspdf.jsPDF)){ showToast('⚠️ Gerador de PDF (jsPDF) não carregou.', 4000); return; }
-      try { await exportarPDF(r); } catch(e){ console.warn('Falha ao gerar PDF:', e); }
+      if (!(window.jspdf && window.jspdf.jsPDF)){ showToast('⏳ Preparando PDF...', 1500); }
+      try { await _ensureJsPDF(); await exportarPDF(r); } catch(e){ console.warn('Falha ao gerar PDF:', e); showToast('❌ Não foi possível gerar o PDF.', 4000); }
+    });
+    // WhatsApp com link do portal
+    listaBusca.querySelectorAll('[data-busca-whats]').forEach(b=> b.onclick=async ()=>{
+      const id=b.getAttribute('data-busca-whats'); const r=relatorios.find(x=>x.id===id); if(!r) return;
+      var num=((r.whatsapp||r.telefone||'').replace(/\D/g,'')).trim();
+      if(num.length<=11) num='55'+num;
+      var pUrl=null;
+      if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
+        try{ showToast('🔗 Gerando link...',2000); const tok=await window._gerarTokenPortal(r); if(tok&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok); }catch(e){}
+      }
+      const msg=pUrl
+        ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente||''}*, RAT *${r.numero||''}*.\n\n🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n${pUrl}\n\nQualquer dúvida estamos à disposição!`
+        : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *${r.numero||''}* – ${r.cliente||''}.`;
+      window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank','noopener,noreferrer');
+    });
+    // E-mail com link do portal
+    listaBusca.querySelectorAll('[data-busca-email]').forEach(b=> b.onclick=async ()=>{
+      const id=b.getAttribute('data-busca-email'); const r=relatorios.find(x=>x.id===id); if(!r) return;
+      const email=(r.emailCliente||'').trim(); if(!email) return;
+      var pUrl=null;
+      if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
+        try{ showToast('🔗 Gerando link...',2000); const tok=await window._gerarTokenPortal(r); if(tok&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok); }catch(e){}
+      }
+      const assunto='Online-ES – Relatório Técnico de Atendimento nº '+(r.numero||'');
+      const linhas=['Olá'+(r.nomeAssinaturaCliente?', '+r.nomeAssinaturaCliente:'')+'!','','Segue o Relatório Técnico referente à visita da Online-ES'+(r.cliente?' na empresa '+r.cliente:'')+'.',''
+        ,'• Relatório nº: '+(r.numero||''),'• Data: '+(r.dataHoraBr||r.dataHoraBR||''),'• Técnico: '+(r.tecnico||''),''
+        ,...(pUrl?['🔗 Acesse e baixe seu Relatório Técnico (disponível por 30 dias):',pUrl,'']:[])
+        ,'Fico à disposição.','','Atenciosamente,','Online-ES – Eletroeletrônica'];
+      window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(assunto)+'&body='+encodeURIComponent(linhas.join('\n')),'_blank','noopener,noreferrer');
+    });
+    // Editar
+    listaBusca.querySelectorAll('[data-busca-editar]').forEach(b=> b.onclick=()=>{
+      const id=b.getAttribute('data-busca-editar'); const r=relatorios.find(x=>x.id===id); if(!r) return;
+      if(typeof editarRelatorio==='function') editarRelatorio(r);
     });
   }
 
@@ -9565,8 +10513,9 @@ window.setCustomLogoBase64 = function(b64){
         }
         card.addEventListener('click', function() {
           if (c.tela === 'novo') { window._editandoRelatorioId = null; window._ratPreSalvoId = null; }
-          if (typeof mostrarTela === 'function') mostrarTela(c.tela);
-          // Fecha sidebar se aberta
+          if (typeof mostrarTela === 'function') mostrarTela(c.tela).then(function(){
+            if (c.tela === 'novo') { try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){} }
+          }).catch(function(){});
           var sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
           var so = document.getElementById('sidebarOverlay'); if (so) so.style.display='none';
         });
@@ -9869,6 +10818,7 @@ window.AppStorage = AppStorage;
 
         try{
           if (typeof renderUsuarios === 'function') renderUsuarios();
+          if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
         }catch(e){ console.warn('Falha ao renderizar usuários:', e); }
 
         showToast('Usuário adicionado. No primeiro login definirá a senha.');
@@ -10396,8 +11346,8 @@ async function renderMeus(){
         var id = btn.getAttribute('data-meus-pdf');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if(!r2) return;
-        if(!(window.jspdf && window.jspdf.jsPDF)){ showToast('⚠️ Gerador de PDF não carregou. Verifique conexão.', 4000); return; }
-        try{ window.relatorioSelecionado = r2; await exportarPDF(r2); if(typeof showToast==='function') showToast('PDF gerado.'); }
+        if(!(window.jspdf && window.jspdf.jsPDF)){ showToast('⏳ Preparando PDF...', 1500); }
+        try{ window.relatorioSelecionado = r2; await _ensureJsPDF(); await exportarPDF(r2); if(typeof showToast==='function') showToast('PDF gerado.'); }
         catch(err){ console.error(err); showToast('❌ Não foi possível gerar o PDF.', 4000); }
       };
     });
@@ -10571,8 +11521,10 @@ document.addEventListener('click', function(ev){
       if (isNaN(c)) c = 0;
       c++;
       localStorage.setItem(key, String(c));
-      // Sufixo aleatório de 4 chars garante unicidade mesmo em multi-aba
-      var rnd = Math.floor(Math.random() * 9000) + 1000;
+      // Sufixo aleatório de 4 dígitos — usa CSPRNG para evitar colisões em multi-aba
+      var _rndBuf = new Uint16Array(1);
+      crypto.getRandomValues(_rndBuf);
+      var rnd = 1000 + (_rndBuf[0] % 9000);
       return 'RAT-' + dd + mm + yyyy + '-' + String(c).padStart(4,'0') + '-' + rnd;
     }catch(e){
       // Último recurso: timestamp completo — garantidamente único
@@ -10743,6 +11695,7 @@ document.addEventListener('click', function(ev){
   }
 
   function obterLogs(){
+    // Retorna logs do localStorage (fallback imediato)
     let logs = [];
     try{
       if (typeof loadLogs === 'function'){
@@ -10751,11 +11704,34 @@ document.addEventListener('click', function(ev){
         const raw = localStorage.getItem('online-es-logs-v1');
         logs = raw ? JSON.parse(raw) : [];
       }
-    }catch(e){
-      logs = [];
-    }
+    }catch(e){ logs = []; }
     if (!Array.isArray(logs)) logs = [];
     return logs.slice().reverse();
+  }
+
+  // [AUDIT] Busca logs do Firestore com filtro de role
+  // Admin vê tudo; Supervisor vê apenas supervisor e tecnico (não vê admin)
+  async function obterLogsFirestore(){
+    try {
+      var db = typeof window._getDb === 'function' ? window._getDb() : null;
+      if (!db || !navigator.onLine) return null;
+      var role = window.usuarioLogado && window.usuarioLogado.role;
+      var query = db.collection('onlineEsLogs').orderBy('timestamp','desc').limit(500);
+      var snap = await query.get();
+      var todos = [];
+      snap.forEach(function(d){ todos.push(d.data()); });
+      // Supervisor: filtra fora ações de admin
+      if (role !== 'admin') {
+        todos = todos.filter(function(l){
+          var r = l.userRole || '';
+          return r !== 'admin'; // supervisor vê supervisor + tecnico + sem role
+        });
+      }
+      return todos;
+    } catch(e) {
+      console.warn('[Audit] Firestore fetch falhou:', e);
+      return null;
+    }
   }
 
   function nomeUsuarioLog(l){
@@ -10788,8 +11764,29 @@ document.addEventListener('click', function(ev){
     }
   }
 
-  function aplicarFiltro(){
-    const logs = obterLogs();
+  async function aplicarFiltro(){
+    // [AUDIT] Tenta buscar do Firestore primeiro; fallback para localStorage
+    var logs;
+    var btnBuscarEl = document.getElementById('btnAuditBuscar');
+    var _orig = btnBuscarEl ? btnBuscarEl.innerHTML : '';
+    if (btnBuscarEl) { btnBuscarEl.disabled = true; btnBuscarEl.innerHTML = '<i class="ri-loader-4-line"></i> Buscando...'; }
+    try {
+      var fsLogs = await obterLogsFirestore();
+      if (fsLogs && fsLogs.length > 0) {
+        logs = fsLogs;
+      } else {
+        // Fallback local, mas aplica filtro de role manualmente
+        logs = obterLogs();
+        var roleAtual = window.usuarioLogado && window.usuarioLogado.role;
+        if (roleAtual !== 'admin') {
+          logs = logs.filter(function(l){ return (l.userRole || '') !== 'admin'; });
+        }
+      }
+    } catch(e) {
+      logs = obterLogs();
+    } finally {
+      if (btnBuscarEl) { btnBuscarEl.disabled = false; btnBuscarEl.innerHTML = _orig || '<i class="ri-filter-3-line"></i> Filtrar'; }
+    }
 
     const ini = campoDataIni && campoDataIni.value ? parseDataBR(campoDataIni.value) : null;
     const fim = campoDataFim && campoDataFim.value ? parseDataBR(campoDataFim.value) : null;
@@ -10824,8 +11821,15 @@ document.addEventListener('click', function(ev){
       return true;
     });
 
+    carregarUsuariosFiltro(logs); // popula select com usuarios do resultado completo
     renderTabela(filtrados);
   }
+
+  var _ehAdmin = window.usuarioLogado && window.usuarioLogado.role === 'admin';
+  // Mostra coluna Perfil apenas para admin
+  var _colPerfil = document.getElementById('auditColPerfil');
+  if (_colPerfil) _colPerfil.style.display = _ehAdmin ? '' : 'none';
+  var _numCols = _ehAdmin ? 5 : 4;
 
   var _tabelaLogsCache = [];
 
@@ -10836,7 +11840,7 @@ document.addEventListener('click', function(ev){
     if (!lista.length){
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 4;
+      td.colSpan = _numCols;
       td.textContent = 'Nenhum registro encontrado para o filtro informado.';
       td.style.fontSize = '.78rem';
       td.style.color = '#64748b';
@@ -10859,10 +11863,23 @@ document.addEventListener('click', function(ev){
       tdData.textContent = dataHoraBR(l.timestamp || l.data || '');
       tdUser.textContent = nomeUsuarioLog(l) || '-';
       tdTipo.textContent = (l.tipo || '').toUpperCase();
-      tdMsg.textContent  = l.mensagem || '-' ;
+      tdMsg.textContent  = l.mensagem || '-';
 
       tr.appendChild(tdData);
       tr.appendChild(tdUser);
+
+      // Coluna Perfil — só para admin
+      if (_ehAdmin) {
+        const tdRole = document.createElement('td');
+        var roleLabel = l.userRole || '';
+        tdRole.textContent = roleLabel === 'admin' ? '🔴 Admin'
+          : roleLabel === 'supervisor' ? '🟡 Supervisor'
+          : roleLabel === 'tecnico' ? '🔵 Técnico'
+          : roleLabel || '-';
+        tdRole.style.fontSize = '.72rem';
+        tr.appendChild(tdRole);
+      }
+
       tr.appendChild(tdTipo);
       tr.appendChild(tdMsg);
 
@@ -10872,7 +11889,12 @@ document.addEventListener('click', function(ev){
 
   function exportarCSV(){
     const logs = obterLogs();
-    if (!logs.length){
+    // [AUDIT] Aplica filtro de role no CSV também
+    var roleAtual = window.usuarioLogado && window.usuarioLogado.role;
+    var logsVisiveis = (roleAtual === 'admin')
+      ? logs
+      : logs.filter(function(l){ return (l.userRole || '') !== 'admin'; });
+    if (!logsVisiveis.length){
       showToast('⚠️ Não há registros para exportar.', 3000);
       return;
     }
@@ -10882,13 +11904,14 @@ document.addEventListener('click', function(ev){
       if (/^[=+\-@\t]/.test(s)) s = "'" + s; // prefixo ' neutraliza fórmulas no Excel/Sheets
       return s;
     }
-    const linhas = ['timestamp;usuario;tipo;mensagem;detalhes'];
-    logs.forEach(l => {
+    const linhas = ['timestamp;usuario;role;tipo;mensagem;detalhes'];
+    logsVisiveis.forEach(l => {
       const uNome = nomeUsuarioLog(l);
       const detalhesStr = typeof l.detalhes === 'string' ? l.detalhes : JSON.stringify(l.detalhes || {});
       linhas.push([
         csvSafe(l.timestamp || ''),
         csvSafe(uNome || ''),
+        csvSafe(l.userRole || ''),
         csvSafe(l.tipo || ''),
         csvSafe(l.mensagem || ''),
         csvSafe(detalhesStr)
@@ -10926,7 +11949,7 @@ document.addEventListener('click', function(ev){
     const detTr = document.createElement('tr');
     detTr.className = 'audit-details-row';
     const td = document.createElement('td');
-    td.colSpan = 4;
+    td.colSpan = _numCols;
     td.style.background = '#f8fafc';
     td.style.fontSize = '.75rem';
     td.style.padding = '8px 10px';
@@ -10937,6 +11960,7 @@ document.addEventListener('click', function(ev){
       <div style="display:flex;flex-direction:column;gap:4px;">
         <div><strong>Timestamp:</strong> ${esc(l.timestamp || '-')}</div>
         <div><strong>Usuário:</strong> ${esc(nomeUsuarioLog(l) || '-')}</div>
+        <div><strong>Perfil:</strong> ${esc(l.userRole || '(não registrado)')}</div>
         <div><strong>Tipo:</strong> ${esc((l.tipo || '').toUpperCase())}</div>
         <div><strong>Mensagem:</strong> ${esc(l.mensagem || '-')}</div>
         <div><strong>Detalhes (JSON):</strong></div>
@@ -10956,15 +11980,36 @@ document.addEventListener('click', function(ev){
     exportarCSV();
   });
   if (btnLimpar){
+    // [AUDIT] Limpar logs: apenas admin pode fazer isso
+    if (window.usuarioLogado && window.usuarioLogado.role !== 'admin') {
+      btnLimpar.style.display = 'none'; // esconde o botão para supervisor/técnico
+    }
     btnLimpar.addEventListener('click', async function(ev){
       ev.preventDefault();
-      if (!await showConfirm('Tem certeza que deseja LIMPAR todos os logs de auditoria?\nEssa ação não pode ser desfeita.')) return;
+      if (!window.usuarioLogado || window.usuarioLogado.role !== 'admin') {
+        showToast('⚠️ Apenas o Administrador pode limpar os logs de auditoria.', 3500);
+        return;
+      }
+      if (!await showConfirm('Tem certeza que deseja LIMPAR todos os logs de auditoria?\nEssa ação remove os registros locais e do servidor.\nEssa ação não pode ser desfeita.')) return;
       try {
         localStorage.removeItem('online-es-logs-v1');
         if (typeof saveLogs === 'function') saveLogs([]);
       } catch(e){}
+      // [AUDIT] Limpa também no Firestore (batch delete - máx 500 por vez)
+      try {
+        var db = typeof window._getDb === 'function' ? window._getDb() : null;
+        if (db && navigator.onLine) {
+          var snap = await db.collection('onlineEsLogs').limit(500).get();
+          if (!snap.empty) {
+            var batch = db.batch();
+            snap.docs.forEach(function(d){ batch.delete(d.ref); });
+            await batch.commit();
+          }
+        }
+      } catch(eFb) { console.warn('[Audit] Falha ao limpar Firestore:', eFb); }
       renderTabela([]);
       if (typeof showToast === 'function') showToast('Logs de auditoria limpos com sucesso.');
+      try { logInfo('Logs de auditoria limpos pelo administrador', {}); } catch(e){}
     });
   }
 
@@ -11849,20 +12894,19 @@ async function fazerLogin(){
 (function() {
   if (!('serviceWorker' in navigator)) return;
 
-  var SW_VERSION = 'onlinees-v3';
+  var SW_VERSION = 'onlinees-v4';
   var CACHE_ASSETS = [
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
     'https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
-    'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
+    // [LAZY] jsPDF e Chart.js removidos do pré-cache: carregados sob demanda.
   ];
 
   var swCode = `
-    var CACHE = 'onlinees-v3';
-    var ASSETS = ["https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js","https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css","https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js","https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"];
+    var CACHE = 'onlinees-v4';
+    // [LAZY] jsPDF e Chart.js removidos do pré-cache do SW — carregados sob demanda.
+    var ASSETS = ["https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js","https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js","https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"];
 
     self.addEventListener('install', function(e) {
       e.waitUntil(
@@ -11925,7 +12969,7 @@ async function fazerLogin(){
       .then(function(reg) {
         URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
         console.log('✅ Service Worker registrado (PWA offline ativo).');
-        caches.open('onlinees-v3').then(function(cache) {
+        caches.open('onlinees-v4').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
         });
       })
@@ -12372,13 +13416,11 @@ async function fazerLogin(){
     function _atualizarBarra() {
       var telaNovo = document.getElementById('telaNovo');
       if (!telaNovo) return;
-      // [FIX-BARRA] Condições para exibir a barra:
-      // 1. Usuário autenticado (window.usuarioLogado definido)
-      // 2. telaNovo explicitamente visível (display 'block' ou 'flex', nunca '' vazio)
-      // 3. Tela mobile (≤ 880px)
       var logado = !!window.usuarioLogado;
       var telaVisivel = telaNovo.style.display !== '' && telaNovo.style.display !== 'none';
-      barra.style.display = (logado && telaVisivel && window.innerWidth <= 880) ? 'flex' : 'none';
+      // [UX] Barra mobile só aparece no step 5 (Finalizar)
+      var noStep5 = (typeof window._getStepAtual === 'function') ? window._getStepAtual() === 5 : true;
+      barra.style.display = (logado && telaVisivel && window.innerWidth <= 880 && noStep5) ? 'flex' : 'none';
     }
     var observer = new MutationObserver(_atualizarBarra);
     var telaNovo = document.getElementById('telaNovo');
@@ -12471,16 +13513,38 @@ function _db(){return window.db||(window.firebase&&window.firebase.firestore?win
 
 // ── Gerar token ──────────────────────────────────────────
 window._gerarTokenPortal = async function(rat){
-  if(rat.portalToken) return rat.portalToken;
+  if(rat.portalToken) {
+    // Já tem token — garante que está salvo no Firestore (pode ter falhado antes)
+    try{
+      var db=_db();
+      if(db&&window._firebaseAuth&&window._firebaseAuth.currentUser){
+        var docIdExist=rat._firestoreId||rat.id;
+        await db.collection('onlineEsRelatorios').doc(docIdExist).set(
+          {portalToken:rat.portalToken, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
+          {merge:true}
+        );
+      }
+    }catch(e){console.warn('[Portal] re-save token:',e);}
+    return rat.portalToken;
+  }
   var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   var arr=new Uint8Array(20); crypto.getRandomValues(arr); // [B-04] 20 bytes ≈ 115 bits de entropia
   var token=Array.from(arr).map(function(b){return chars[b%chars.length];}).join('');
   rat.portalToken=token;
   rat.portalTokenCriado=new Date().toISOString();
-  // Salva local
+  // Salva local — atualiza TANTO o objeto passado quanto o array global
   try{
     var lista=typeof loadRelatorios==='function'?loadRelatorios():(window.relatorios||[]);
-    lista=lista.map(function(r){return r.id===rat.id?Object.assign({},r,{portalToken:token,portalTokenCriado:rat.portalTokenCriado}):r;});
+    var encontrado=false;
+    lista=lista.map(function(r){
+      if(r.id===rat.id){
+        encontrado=true;
+        return Object.assign({},r,{portalToken:token,portalTokenCriado:rat.portalTokenCriado});
+      }
+      return r;
+    });
+    // Se RAT ainda não está no array (nova, não salva), adiciona
+    if(!encontrado) lista.push(Object.assign({},rat));
     if(typeof saveRelatorios==='function') saveRelatorios(lista);
     window.relatorios=lista;
   }catch(e){console.warn('[Portal] save local:',e);}
@@ -12489,8 +13553,6 @@ window._gerarTokenPortal = async function(rat){
     var db=_db();
     if(db&&window._firebaseAuth&&window._firebaseAuth.currentUser){
       var docId=rat._firestoreId||rat.id;
-      // [FIX-PORTAL-UPDATE] Usa set({merge:true}) em vez de update() para suportar
-      // tanto documentos novos (update() falha se o doc não existe) quanto existentes.
       await db.collection('onlineEsRelatorios').doc(docId).set(
         {portalToken:token, portalTokenCriado:rat.portalTokenCriado},
         {merge:true}
@@ -12639,8 +13701,35 @@ async function _renderPortal(token){
   var btnPdf=document.getElementById('portalBtnPdf');
   if(btnPdf) btnPdf.onclick=function(){
     var _pt=function(m){if(typeof showToast==='function'){showToast(m,4000);}else{var _t=document.getElementById('toast');if(_t){_t.textContent=m;_t.style.display='block';setTimeout(function(){_t.style.display='none';},4000);}}};
-    if(!window.jspdf||!window.jspdf.jsPDF){_pt('⏳ Aguarde o carregamento do PDF.');return;}
-    try{(async function(){try{await window.exportarPDF(Object.assign({},rat));}catch(e){_pt('❌ Não foi possível gerar o PDF. Verifique se o relatório está completo e tente novamente.');console.error('[PDF]',e);}})();}catch(e){_pt('❌ Não foi possível gerar o PDF. Verifique sua conexão e tente novamente.');console.error('[PDF]',e);}
+    if(!window.jspdf||!window.jspdf.jsPDF){ _pt('⏳ Carregando gerador de PDF...'); }
+    // Verifica se as imagens são [local] (ficaram no dispositivo do técnico)
+    var _temImgLocal = (
+      ([].concat(rat.imgsEquip||[]).concat(rat.imgsServico||[]).concat(rat.imgsBaterias||[]))
+        .some(function(s){ return s === '[local]' || s === '[comprimido]'; })
+    );
+    var _temImgReal = (
+      ([].concat(rat.imgsEquip||[]).concat(rat.imgsServico||[]).concat(rat.imgsBaterias||[]))
+        .some(function(s){ return s && s.startsWith('data:'); })
+    );
+    if(_temImgLocal && !_temImgReal){
+      _pt('📄 PDF gerado! As fotos ficam salvas no dispositivo do técnico e não estarão no PDF.');
+    }
+    try{(async function(){
+      btnPdf.disabled=true;
+      btnPdf.innerHTML='<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Gerando PDF...';
+      try{
+        await window.exportarPDF(Object.assign({},rat));
+      }catch(e){
+        _pt('❌ Não foi possível gerar o PDF. Verifique se o relatório está completo e tente novamente.');
+        console.error('[PDF]',e);
+      } finally {
+        btnPdf.disabled=false;
+        btnPdf.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF completo';
+      }
+    })();}catch(e){
+      _pt('❌ Não foi possível gerar o PDF.');
+      console.error('[PDF]',e);
+    }
   };
   el.querySelectorAll('[data-ptoken]').forEach(function(btn){
     btn.onclick=function(){
@@ -12803,10 +13892,131 @@ function _injetarPainel(){
 }
 
 // ── Init ─────────────────────────────────────────────────
+// ── Página de assinatura do cliente (QR Code) ────────────────────────────
+// Abre quando URL contém ?assinar=SESSAO_ID
+// O cliente vê um canvas limpo, assina com o dedo e envia.
+function _verificarUrlAssinar() {
+  var sessaoId = new URLSearchParams(window.location.search).get('assinar');
+  if (!sessaoId || !/^sig-[a-f0-9]{24}$/.test(sessaoId)) return false;
+
+  // Esconde o app e mostra a tela de assinatura do cliente
+  document.body.innerHTML = '';
+  document.body.style.cssText = 'margin:0;padding:0;background:#0f172a;font-family:system-ui,sans-serif;color:#f1f5f9;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;box-sizing:border-box;';
+
+  document.body.innerHTML = `
+  <div style="width:100%;max-width:420px;padding:24px 16px 32px;box-sizing:border-box;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:2rem;margin-bottom:6px;">✍️</div>
+      <h2 style="margin:0 0 4px;font-size:1.15rem;color:#f1f5f9;">Assinatura Digital</h2>
+      <p style="margin:0;font-size:.82rem;color:#94a3b8;line-height:1.5;">Assine com o dedo no espaço abaixo e toque em <strong style="color:#f97316;">Confirmar</strong></p>
+    </div>
+    <canvas id="sigClienteQR" style="width:100%;touch-action:none;border-radius:14px;background:#fff;display:block;cursor:crosshair;" height="220"></canvas>
+    <div style="margin-top:10px;">
+      <label style="font-size:.78rem;color:#94a3b8;display:block;margin-bottom:4px;">Nome completo (opcional)</label>
+      <input id="sigQrNome" type="text" autocomplete="name" autocapitalize="words" placeholder="Seu nome completo"
+        style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(148,163,184,.3);background:rgba(255,255,255,.07);color:#f1f5f9;font-size:.9rem;box-sizing:border-box;outline:none;">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button id="sigQrLimpar" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(148,163,184,.3);background:rgba(255,255,255,.07);color:#94a3b8;font-size:.9rem;cursor:pointer;">🗑 Limpar</button>
+      <button id="sigQrConfirmar" style="flex:2;padding:13px;border-radius:12px;border:none;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(249,115,22,.4);">✔ Confirmar assinatura</button>
+    </div>
+    <div id="sigQrMsg" style="margin-top:14px;text-align:center;font-size:.82rem;min-height:22px;"></div>
+  </div>`;
+
+  var canvas   = document.getElementById('sigClienteQR');
+  var ctx      = canvas.getContext('2d');
+  // [FIX] Define propriedades imediatamente (resize pode demorar 50ms)
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth   = 2.5;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  var drawing  = false;
+  var lastX    = 0, lastY = 0;
+  var hasDrawn = false;
+
+  // Ajusta canvas ao tamanho real
+  function _resize() {
+    var w = canvas.offsetWidth;
+    var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    canvas.width  = w;
+    canvas.height = 220;
+    ctx.putImageData(img, 0, 0);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth   = 2.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+  }
+  setTimeout(_resize, 50);
+
+  function _pos(e) {
+    var r = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / r.width;
+    var scaleY = canvas.height / r.height;
+    var src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
+  }
+
+  canvas.addEventListener('mousedown',  function(e){ drawing=true; var p=_pos(e); lastX=p.x; lastY=p.y; ctx.beginPath(); ctx.moveTo(p.x,p.y); });
+  canvas.addEventListener('mousemove',  function(e){ if(!drawing) return; var p=_pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); lastX=p.x; lastY=p.y; hasDrawn=true; });
+  canvas.addEventListener('mouseup',    function(){ drawing=false; });
+  canvas.addEventListener('touchstart', function(e){ e.preventDefault(); drawing=true; var p=_pos(e); lastX=p.x; lastY=p.y; ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
+  canvas.addEventListener('touchmove',  function(e){ e.preventDefault(); if(!drawing) return; var p=_pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); lastX=p.x; lastY=p.y; hasDrawn=true; }, {passive:false});
+  canvas.addEventListener('touchend',   function(){ drawing=false; });
+
+  document.getElementById('sigQrLimpar').addEventListener('click', function() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasDrawn = false;
+    document.getElementById('sigQrMsg').textContent = '';
+  });
+
+  document.getElementById('sigQrConfirmar').addEventListener('click', async function() {
+    if (!hasDrawn) {
+      document.getElementById('sigQrMsg').innerHTML = '<span style="color:#f87171;">⚠️ Assine antes de confirmar.</span>';
+      return;
+    }
+    var btn = document.getElementById('sigQrConfirmar');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    document.getElementById('sigQrMsg').innerHTML = '<span style="color:#94a3b8;">Enviando assinatura...</span>';
+
+    var base64 = canvas.toDataURL('image/png');
+    var nome   = (document.getElementById('sigQrNome').value || '').trim();
+
+    // Salva no Firestore
+    try {
+      var firebase = window.firebase;
+      if (!firebase) {
+        // Aguarda Firebase carregar (máx 8s)
+        for (var i = 0; i < 16; i++) {
+          await new Promise(function(r){ setTimeout(r, 500); });
+          if (window.firebase) { firebase = window.firebase; break; }
+        }
+      }
+      if (!firebase) throw new Error('Firebase não disponível');
+      var db = firebase.firestore();
+      await db.collection('onlineEsSigSessoes').doc(sessaoId).update({
+        status:      'assinado',
+        assinatura:  base64,
+        nomeCliente: nome,
+        assinadoEm:  new Date().toISOString(),
+      });
+      document.getElementById('sigQrMsg').innerHTML = '<span style="color:#4ade80;font-size:1rem;font-weight:700;">✅ Assinatura enviada com sucesso!</span>';
+      btn.textContent = '✔ Enviado';
+      btn.style.background = 'linear-gradient(90deg,#16a34a,#15803d)';
+    } catch(e) {
+      console.error('[QR-SIG] Falha ao enviar:', e);
+      document.getElementById('sigQrMsg').innerHTML = '<span style="color:#f87171;">❌ Falha ao enviar. Verifique sua internet e tente novamente.</span>';
+      btn.disabled = false;
+      btn.textContent = '✔ Confirmar assinatura';
+    }
+  });
+
+  return true;
+}
+
 function _init(){
-  if(_verificarUrl()) return; // modo portal público
-  // modo interno — apenas injeta botões no painel
-  // (hooks de email/WhatsApp foram integrados diretamente nos handlers originais)
+  if(_verificarUrlAssinar()) return; // página de assinatura QR
+  if(_verificarUrl()) return;        // portal público do cliente
   _injetarPainel();
 }
 
