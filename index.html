@@ -2244,7 +2244,7 @@ html[data-role="technician"] nav button {
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn small" id="btnBackup"><i class="ri-download-2-line"></i> Fazer backup agora</button>
-            <button class="btn small" id="btnDiagFirebase" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">
+            <button class="btn small" id="btnDiagFirebase" style="display:none;background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">
               <i class="ri-stethoscope-line"></i> Diagnóstico Banco
             </button>
             <div id="diagFirebaseResult" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:.78rem;background:#f8fafc;border:1px solid #e2e8f0;white-space:pre-line;font-family:monospace;max-height:300px;overflow-y:auto;"></div>
@@ -5202,11 +5202,20 @@ function autoFillCamposAtendimento(){
         if (_inactTimer) clearTimeout(_inactTimer);
         _inactTimer = setTimeout(function() {
           if (!window.usuarioLogado) return; // já deslogado
-          // [FIX-INACT] Salva rascunho antes de deslogar por inatividade
+          // [FIX-v39] Salva rascunho antes de deslogar por inatividade,
+          // excluindo imagens/assinaturas base64 — o JSON completo pode ter MBs,
+          // travando a thread principal e excedendo a quota do localStorage.
           try {
             if (typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
               var _r = montarRelatorioAtual();
-              if (_r && _r.cliente) localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_r));
+              if (_r && _r.cliente) {
+                var _rSemImg = Object.assign({}, _r);
+                _rSemImg.imgsEquip = []; _rSemImg.imgsServico = []; _rSemImg.imgsBaterias = [];
+                _rSemImg.vidsEquip = []; _rSemImg.vidsServico = []; _rSemImg.vidsBaterias = [];
+                _rSemImg.assinaturaCliente = null; _rSemImg.assinaturaTecnicoImg = null;
+                _rSemImg._rascunho = true; _rSemImg._rascunhoData = new Date().toISOString();
+                localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_rSemImg));
+              }
             }
           } catch(e) {}
           showToast('⏱️ Sessão encerrada por inatividade. Rascunho salvo. Faça login novamente.', 4000);
@@ -5259,6 +5268,11 @@ function autoFillCamposAtendimento(){
     if (!btnDiag || !diagResult) return;
 
     btnDiag.onclick = async function() {
+      // [SEC-v39] Guard de segurança: bloqueia execução mesmo se chamado via console
+      if (!window.usuarioLogado || window.usuarioLogado.role !== 'admin') {
+        showToast('⚠️ Acesso restrito ao Administrador.', 3000);
+        return;
+      }
       diagResult.style.display = 'block';
       diagResult.style.background = '#f8fafc';
       diagResult.textContent = '🔍 Iniciando diagnóstico...';
@@ -7659,7 +7673,18 @@ if (logoBase64) {
       try { clearSignature(); } catch(e){}
       try {
         var _sigTec = document.getElementById('sigTecnico');
-        if (_sigTec) { var _ctx = _sigTec.getContext('2d'); _ctx.clearRect(0,0,_sigTec.width,_sigTec.height); }
+        if (_sigTec) {
+          // [FIX-v39] clearRect sem fillRect branco deixa canvas transparente;
+          // sem reaplica scale o próximo traço fica deslocado em telas DPI>1.
+          var _ctx = _sigTec.getContext('2d');
+          var _rr = window.devicePixelRatio || 1;
+          _ctx.setTransform(1,0,0,1,0,0);
+          _ctx.clearRect(0,0,_sigTec.width,_sigTec.height);
+          _ctx.fillStyle = '#ffffff';
+          _ctx.fillRect(0,0,_sigTec.width,_sigTec.height);
+          _ctx.scale(_rr, _rr);
+          _ctx.lineWidth = 2.4; _ctx.lineCap = 'round'; _ctx.lineJoin = 'round';
+        }
       } catch(e){}
       assinaturaClienteAtual = null;
       window.assinaturaClienteAtual = null;
@@ -7676,6 +7701,10 @@ if (logoBase64) {
       if (!_eraEdicao) ensureNumeroRat();
       // Reinicia relógio
       startRelogioAtendimento();
+      // [FIX-v39] Reinicia auto-save para o próximo atendimento.
+      // _pararAutoSave() foi chamado ao salvar — sem reiniciar, o auto-save
+      // fica morto pelo resto da sessão após o 1º save.
+      try { if (typeof window._iniciarAutoSave === 'function') window._iniciarAutoSave(); } catch(e){}
       // [UX] Volta ao step 1 para novo atendimento
       try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){}
       // [UX] Reseta campo de busca visual do cliente
@@ -7940,12 +7969,18 @@ if (logoBase64) {
         }
       } catch(e) { /* silencioso */ }
     }
-    // Inicia auto-save 10s após login, depois a cada 60s
+    // Inicia auto-save 10s após login, depois a cada 30s
     setTimeout(function() {
       _autoSaveTimer = setInterval(_autoSaveRascunho, 30000); // [UX] 30s — era 60s, muito lento
     }, 10000);
     // Expõe para limpar ao salvar manualmente
     window._pararAutoSave = function() { if (_autoSaveTimer) { clearInterval(_autoSaveTimer); _autoSaveTimer = null; } };
+    // [FIX-v39] Expõe para reiniciar após salvar — sem isso o auto-save fica morto
+    // para toda a sessão após o primeiro save manual.
+    window._iniciarAutoSave = function() {
+      window._pararAutoSave(); // garante que não há timer duplicado
+      _autoSaveTimer = setInterval(_autoSaveRascunho, 30000);
+    };
 
     // [BUG-4] Auto-save imediato quando o app vai para background (visibilitychange).
     // Cobre: tela desligando, troca de app, aba perdendo foco, bateria acabando.
@@ -8370,9 +8405,47 @@ if (logoBase64) {
     document.querySelectorAll('.step-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var s = parseInt(btn.getAttribute('data-step'));
-        // Só permite ir para steps anteriores ou o atual+1
-        if (s <= _stepAtual + 1) _irParaStep(s);
-        else showToast('Complete as etapas anteriores primeiro.');
+        // [FIX-v39] Indicador avançando 1 step também precisa validar,
+        // igual ao botão "Próximo" — antes, o técnico podia pular a
+        // validação do step atual clicando direto no indicador.
+        if (s === _stepAtual + 1) {
+          // Reutiliza a mesma lógica de validação do btnStepNext
+          if (_stepAtual === 1) {
+            var sel = document.getElementById('aClienteSelect');
+            var man = document.getElementById('aClienteManual');
+            var busca = document.getElementById('aClienteBusca');
+            var emManual = man && man.style.display === 'block';
+            var temCliente = emManual ? (man && man.value.trim()) : (sel && sel.value);
+            if (!temCliente) {
+              showToast('⚠️ Informe o cliente antes de continuar.');
+              if (busca && !emManual) { busca.focus(); busca.style.borderColor='#dc2626'; busca.style.boxShadow='0 0 0 3px rgba(220,38,38,.12)'; setTimeout(function(){busca.style.borderColor='';busca.style.boxShadow='';},2500); }
+              return;
+            }
+          }
+          if (_stepAtual === 3) {
+            var diagEl = document.getElementById('cDiagnostico');
+            var acoesEl = document.getElementById('cAcoes');
+            if (diagEl && !diagEl.value.trim()) {
+              showToast('⚠️ Preencha o diagnóstico antes de continuar.');
+              diagEl.style.borderColor='#dc2626'; diagEl.style.boxShadow='0 0 0 3px rgba(220,38,38,.12)';
+              diagEl.scrollIntoView({behavior:'smooth',block:'center'}); diagEl.focus();
+              setTimeout(function(){diagEl.style.borderColor='';diagEl.style.boxShadow='';},2500);
+              return;
+            }
+            if (acoesEl && !acoesEl.value.trim()) {
+              showToast('⚠️ Preencha as ações realizadas antes de continuar.');
+              acoesEl.style.borderColor='#dc2626'; acoesEl.style.boxShadow='0 0 0 3px rgba(220,38,38,.12)';
+              acoesEl.scrollIntoView({behavior:'smooth',block:'center'}); acoesEl.focus();
+              setTimeout(function(){acoesEl.style.borderColor='';acoesEl.style.boxShadow='';},2500);
+              return;
+            }
+          }
+          _irParaStep(s);
+        } else if (s < _stepAtual) {
+          _irParaStep(s); // voltar não precisa de validação
+        } else if (s > _stepAtual + 1) {
+          showToast('Complete as etapas anteriores primeiro.');
+        }
       });
     });
 
@@ -8871,7 +8944,9 @@ if (logoBase64) {
     window._syncPendentesRunning = true;
     try {
       var lista = pendentes.slice();
-      if (!lista.length) return;
+      // [FIX-v39] return dentro do try pulava o finally → _syncPendentesRunning
+      // ficava true para sempre quando lista estava vazia, bloqueando syncs futuras.
+      if (!lista.length) return; // finally ainda executa ao sair do try com return
       var alterou = 0;
       var falhos = [];
       // [OFFLINE] Mostra progresso quando há múltiplas RATs
@@ -9257,14 +9332,25 @@ if (logoBase64) {
       try { clearSignature(); } catch(e){}
       try {
         var sigTec = document.getElementById('sigTecnico');
-        if (sigTec) { var ctx = sigTec.getContext('2d'); ctx.clearRect(0,0,sigTec.width,sigTec.height); }
+        if (sigTec) {
+          // [FIX-v39] Mesma correção do pós-salvar: fundo branco + scale correto
+          var ctx = sigTec.getContext('2d');
+          var _rLF = window.devicePixelRatio || 1;
+          ctx.setTransform(1,0,0,1,0,0);
+          ctx.clearRect(0,0,sigTec.width,sigTec.height);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0,0,sigTec.width,sigTec.height);
+          ctx.scale(_rLF, _rLF);
+          ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        }
       } catch(e){}
       assinaturaClienteAtual = null;
       window.assinaturaClienteAtual = null;
       assinaturaTecnicoAtual = null;
       window.assinaturaTecnicoAtual = null;
       // Select cliente e manual
-      if (aClienteSelect) { aClienteSelect.value = ''; }
+      // [FIX-v39] .value='' não reseta select em todos os browsers; selectedIndex=0 é correto
+      if (aClienteSelect) { aClienteSelect.selectedIndex = 0; }
       // [UX] Limpa e reexibe campo de busca visual, esconde modo manual
       var _buscaClear = document.getElementById('aClienteBusca');
       var _buscaWrapClear = document.getElementById('aClienteBuscaWrap');
@@ -10318,10 +10404,22 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
   // CONFIGURAÇÕES DO SISTEMA - permissões + backup/restore
 function aplicarPermissoesConfiguracoes(){
+  const role = (window.usuarioLogado && window.usuarioLogado.role) || '';
+  const ehAdmin = role === 'admin';
+  const ehSupOuAdmin = ehAdmin || role === 'supervisor';
+
   const btnBackup = document.getElementById('btnBackup');
   const btnRestaurarWrap = document.getElementById('btnRestaurarWrap');
+  const btnDiag = document.getElementById('btnDiagFirebase');
+  const diagResult = document.getElementById('diagFirebaseResult');
+
   if (btnBackup) btnBackup.style.display = 'inline-flex';
   if (btnRestaurarWrap) btnRestaurarWrap.style.display = 'inline-flex';
+
+  // [SEC-v39] Diagnóstico do banco visível apenas para administrador.
+  // Expõe detalhes de conectividade, tokens e coleções do Firestore.
+  if (btnDiag) btnDiag.style.display = ehAdmin ? 'inline-flex' : 'none';
+  if (diagResult && !ehAdmin) diagResult.style.display = 'none';
 }
   async function gerarBackupJSON(){
     const prefix = 'online-es-';
@@ -12381,6 +12479,11 @@ document.addEventListener('click', function(ev){
       return;
     }
 
+    // [FIX-v39] DocumentFragment evita reflow a cada appendChild.
+    // Sem ele, 500 inserções individuais causam 500 recálculos de layout,
+    // podendo congelar a aba de auditoria por 1-2s em devices lentos.
+    var frag = document.createDocumentFragment();
+
     lista.forEach((l, idx) => {
       const tr = document.createElement('tr');
       tr.className = 'audit-row';
@@ -12414,8 +12517,10 @@ document.addEventListener('click', function(ev){
       tr.appendChild(tdTipo);
       tr.appendChild(tdMsg);
 
-      tabelaBody.appendChild(tr);
+      frag.appendChild(tr);
     });
+
+    tabelaBody.appendChild(frag);
   }
 
   function exportarCSV(){
