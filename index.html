@@ -142,6 +142,9 @@
     .topbar h1{font-size:1.4rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
     .topbar small{font-size:1rem;color:#cbd5e1;font-weight:500}
     .topbar-right{display:flex;gap:10px;align-items:center}
+    /* [NAV-BACK] Botão voltar — mesmo estilo do sidebar-toggle */
+    #btnVoltarTela{background:rgba(15,23,42,.12);border:1px solid rgba(148,163,184,.24);color:#e2e8f0;border-radius:12px;width:32px;height:32px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;flex-shrink:0;transition:background .15s;}
+    #btnVoltarTela:active{background:rgba(249,115,22,.25);}
     .badge-online{background:rgba(34,197,94,.15);color:#bbf7d0;font-size:.6rem;border-radius:999px;padding:3px 9px;transition:background .3s,color .3s;font-weight:600;}
     .main{padding:14px 14px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
     .panel{background:rgba(15,23,42,.35);border:1px solid rgba(148,163,184,.05);border-radius:16px;padding:14px 14px 6px;box-shadow:0 10px 40px rgba(0,0,0,.12);backdrop-filter:blur(12px);animation:fadeIn .25s ease}
@@ -1330,6 +1333,11 @@ html[data-role="technician"] nav button {
     <div class="topbar">
       <button class="sidebar-toggle" id="btnToggleSidebar">
         <i class="ri-menu-3-line"></i>
+      </button>
+      <!-- [NAV-BACK] Botão Voltar — aparece quando há tela anterior no histórico interno -->
+      <button id="btnVoltarTela" aria-label="Voltar para a tela anterior"
+        style="display:none;background:rgba(15,23,42,.12);border:1px solid rgba(148,163,184,.24);color:#e2e8f0;border-radius:12px;width:32px;height:32px;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;flex-shrink:0;">
+        <i class="ri-arrow-left-line"></i>
       </button>
       <div>
         <h1 id="tituloTela">Novo Atendimento</h1>
@@ -5190,6 +5198,10 @@ function autoFillCamposAtendimento(){
     // Sync já é chamado acima para todos os perfis
 
     }
+    // [NAV-BACK] Reseta stack de navegação ao entrar no sistema
+    window._telaStack = [];
+    try { if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
+
     console.log('🚀 entrarSistema: FIM - sistema carregado.');
     try { showToast('Bem-vindo, ' + (user.fullName || user.username) + '!'); } catch(e){}
 
@@ -5506,6 +5518,16 @@ function autoFillCamposAtendimento(){
         if (ov) ov.style.display = 'none';
       } catch(e) {}
     }
+    // [NAV-BACK] Mantém stack interno de navegação para o botão Voltar visual.
+    // Não empurra duplicatas consecutivas nem quando voltando pelo próprio botão.
+    if (!window._navegandoPopstate && !window._navegandoBack) {
+      var _stackAtual = window._telaStack || [];
+      var _telaUltima = _stackAtual.length ? _stackAtual[_stackAtual.length - 1] : null;
+      if (_telaUltima !== nome) {
+        window._telaStack = _stackAtual.concat([nome]);
+      }
+      try { if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
+    }
     // [FIX-BACK] Empurra estado no histórico do browser para que o botão voltar
     // do Android intercepte a navegação dentro do app em vez de sair/fazer logout.
     // Não empurra se a navegação veio do próprio popstate (evita loop de histórico).
@@ -5522,6 +5544,40 @@ function autoFillCamposAtendimento(){
     try { _atualizarBnavAtivo(nome); } catch(e) {}
     return p;
   };
+
+  // [NAV-BACK] Stack interno de telas e lógica do botão Voltar visual no topbar.
+  window._telaStack = [];
+
+  function _atualizarBotaoVoltar() {
+    var btn = document.getElementById('btnVoltarTela');
+    if (!btn) return;
+    var stack = window._telaStack || [];
+    // Mostra botão se há pelo menos 2 telas no stack (tela atual + pelo menos uma anterior)
+    btn.style.display = (stack.length >= 2) ? 'inline-flex' : 'none';
+  }
+  window._atualizarBotaoVoltar = _atualizarBotaoVoltar;
+
+  var _btnVoltarTela = document.getElementById('btnVoltarTela');
+  if (_btnVoltarTela) {
+    _btnVoltarTela.onclick = function() {
+      var stack = window._telaStack || [];
+      if (stack.length < 2) return;
+      // Remove a tela atual do stack e navega para a anterior
+      var novoStack = stack.slice(0, stack.length - 1);
+      var telaAnterior = novoStack[novoStack.length - 1];
+      window._telaStack = novoStack;
+      window._navegandoBack = true;
+      try {
+        if (telaAnterior === '__home__' && typeof window._mostrarHomeScreen === 'function') {
+          window._mostrarHomeScreen();
+        } else {
+          window.mostrarTela(telaAnterior);
+        }
+      } catch(e) {}
+      window._navegandoBack = false;
+      _atualizarBotaoVoltar();
+    };
+  }
 
   // [FIX-BACK] Handler do botão físico/gesto Voltar no Android.
   // Intercepta o popstate e decide o que fazer:
@@ -5574,6 +5630,16 @@ function autoFillCamposAtendimento(){
     // 3. Se tem tela de destino no estado, navegar para ela
     if (telaAlvo && typeof window.mostrarTela === 'function') {
       window._navegandoPopstate = true;
+      // [NAV-BACK] Sincroniza o stack interno com o histórico do browser
+      try {
+        var _stackPop = window._telaStack || [];
+        var _idxPop = _stackPop.lastIndexOf(telaAlvo);
+        if (_idxPop >= 0) {
+          // Volta ao ponto da tela no stack
+          window._telaStack = _stackPop.slice(0, _idxPop + 1);
+        }
+        if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar();
+      } catch(e) {}
       try {
         if (telaAlvo === '__home__' && typeof window._mostrarHomeScreen === 'function') {
           window._mostrarHomeScreen();
@@ -5683,6 +5749,9 @@ function autoFillCamposAtendimento(){
     try { window._ratPreSalvoId          = null; } catch(e){}
     try { window._ratNumeroBloqueado     = false; } catch(e){}
     try { window._snapshotSaving         = false; } catch(e){}
+
+    // [NAV-BACK] Reseta stack de navegação ao deslogar
+    try { window._telaStack = []; if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
 
     app.style.display='none';
     var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden';
@@ -11227,6 +11296,13 @@ window.setCustomLogoBase64 = function(b64){
     _atualizarBnavAtivo('__home__');
     // Rola para o topo
     try { window.scrollTo(0,0); } catch(e){}
+    // [NAV-BACK] Atualiza stack de navegação para home
+    if (!window._navegandoPopstate && !window._navegandoBack) {
+      var _stackH = window._telaStack || [];
+      var _ultimaH = _stackH.length ? _stackH[_stackH.length - 1] : null;
+      if (_ultimaH !== '__home__') window._telaStack = _stackH.concat(['__home__']);
+      try { if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
+    }
     // [FIX-BACK] Registra home no histórico para o botão voltar funcionar
     try {
       if (!window._navegandoPopstate) {
