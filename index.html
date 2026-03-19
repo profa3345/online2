@@ -5965,6 +5965,8 @@ function autoFillCamposAtendimento(){
 
     if (!data.length){ listaRelatorios.innerHTML='<p style="font-size:.72rem;color:#0f172a;">Nenhum relatório encontrado.</p>'; return; }
 
+    // [FIX-v39] DocumentFragment — evita reflow a cada card inserido
+    var _listaFrag = document.createDocumentFragment();
     data.forEach(r=>{
       const div=document.createElement('div');
       const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
@@ -5999,8 +6001,9 @@ function autoFillCamposAtendimento(){
           ${(r.vidsServico||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<video src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`:''}).join('')}
           ${(r.vidsBaterias||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<video src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;"></video>`:''}).join('')}
         </div>`:''}`;
-      listaRelatorios.appendChild(div);
+      _listaFrag.appendChild(div);
     });
+    listaRelatorios.appendChild(_listaFrag);
 
     listaRelatorios.querySelectorAll('[data-ver]').forEach(btn=>{
       btn.onclick = ()=>{ const id=btn.getAttribute('data-ver'); visualizarRelatorio(id); };
@@ -11902,12 +11905,23 @@ async function renderMeus(){
     // Registra handler de busca uma única vez (evita duplicatas)
     if (_buscaEl && !_buscaEl._meusHandlerSet) {
       _buscaEl._meusHandlerSet = true;
-      _buscaEl.addEventListener('input', function() { renderMeus().catch(function(){}); });
+      // [FIX-v39] Debounce de 300ms + usa dados em memória para busca.
+      // Sem debounce, cada tecla disparava uma nova chamada ao Firestore.
+      // Agora: só o render DOM é chamado (sem novo .get() no Firestore),
+      // usando window.relatorios como cache já carregado na abertura da tela.
+      var _meusBuscaTimer = null;
+      _buscaEl.addEventListener('input', function() {
+        clearTimeout(_meusBuscaTimer);
+        _meusBuscaTimer = setTimeout(function() {
+          // Renderiza usando cache local — não chama Firestore na busca
+          _renderMeusComCache().catch(function(){});
+        }, 300);
+      });
       if (_buscaLimparEl) {
         _buscaLimparEl.addEventListener('click', function() {
           _buscaEl.value = '';
           _buscaEl.focus();
-          renderMeus().catch(function(){});
+          _renderMeusComCache().catch(function(){});
         });
       }
     }
@@ -11940,6 +11954,11 @@ async function renderMeus(){
       aviso.textContent = 'Nenhum relatório especificamente vinculado a este técnico foi encontrado. Listando todos os relatórios deste dispositivo (mais recentes primeiro).';
       lista.appendChild(aviso);
     }
+    // [FIX-v39] Limpa a lista ANTES de renderizar — sem isso, cada chamada a renderMeus()
+    // acumula cards duplicados (ex: ao navegar para a tela e voltar repetidamente).
+    // Também usa DocumentFragment para evitar reflow a cada card inserido.
+    lista.innerHTML = '';
+    var _meusFragment = document.createDocumentFragment();
     filtrados.forEach(function(r){
       var card = document.createElement('div');
       card.className = 'relatorio-card';
@@ -11977,8 +11996,9 @@ async function renderMeus(){
           '<button class="btn small" data-meus-pdf="'+ _e(r.id) +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
         '</div>';
       card.onclick = null; // botões individuais tratam o clique
-      lista.appendChild(card);
+      _meusFragment.appendChild(card);
     });
+    lista.appendChild(_meusFragment);
 
     // BUG FIX: event handlers para os botões dos cards de Meus Atendimentos
     lista.querySelectorAll('[data-meus-ver]').forEach(function(btn){
@@ -12107,7 +12127,86 @@ async function renderMeus(){
   }
 }
 
-// Renderização de usuários com destaque para inativos
+// [FIX-v39] Render de Meus Atendimentos usando cache local (para busca com debounce).
+// Não consulta o Firestore — usa window.relatorios já carregado pela chamada inicial.
+async function _renderMeusComCache() {
+  var lista = document.getElementById('listaMeus');
+  if (!lista) return;
+  var todos = window.relatorios || (typeof loadLocalReports === 'function' ? loadLocalReports() : []) || [];
+  var user = window.usuarioLogado || {};
+  var nome = (user.fullName || user.nome || '').toLowerCase();
+  var login = (user.username || user.usuario || '').toLowerCase();
+  var filtrados = todos.filter(function(r) {
+    if (r._deleted) return false;
+    var tecNome = (r.tecnico || r.nomeTecnico || '').toLowerCase();
+    var tecLogin = (r.tecnicoLogin || r.username || r.tecnicoUser || '').toLowerCase();
+    if (nome && tecNome === nome) return true;
+    if (login && tecLogin === login) return true;
+    return false;
+  });
+  if (!filtrados.length && (user.role === 'admin' || user.role === 'supervisor')) {
+    filtrados = todos.filter(function(r) { return !r._deleted; });
+  }
+  filtrados.sort(function(a,b){
+    var da = new Date(a.dataHoraIso || a.dataHora || 0).getTime();
+    var db2 = new Date(b.dataHoraIso || b.dataHora || 0).getTime();
+    return (isNaN(db2)?0:db2) - (isNaN(da)?0:da);
+  });
+  var _buscaEl = document.getElementById('meusBusca');
+  var _buscaLimparEl = document.getElementById('meusBuscaLimpar');
+  var _termoBusca = (_buscaEl ? (_buscaEl.value || '').trim().toLowerCase() : '');
+  if (_termoBusca) {
+    filtrados = filtrados.filter(function(r) {
+      var haystack = [r.numero, r.cliente, r.equipamento, r.serie, r.tecnico, r.dataHoraBr, r.status]
+        .map(function(v){ return String(v||'').toLowerCase(); }).join(' ');
+      return haystack.indexOf(_termoBusca) > -1;
+    });
+  }
+  if (_buscaLimparEl) _buscaLimparEl.style.display = _termoBusca ? 'block' : 'none';
+  var _contadorEl = document.getElementById('meusContador');
+  if (_contadorEl) {
+    var _total = todos.filter(function(r){ return !r._deleted; }).length;
+    _contadorEl.textContent = _termoBusca
+      ? 'Mostrando ' + filtrados.length + ' de ' + _total + ' relatório(s)'
+      : filtrados.length + ' relatório(s) encontrado(s)';
+  }
+  if (!filtrados.length) {
+    lista.innerHTML = _termoBusca
+      ? '<p style="font-size:.78rem;color:#475569;">Nenhum resultado para "<strong>' + (window.esc ? window.esc(_termoBusca) : _termoBusca) + '</strong>".</p>'
+      : '<p style="font-size:.78rem;color:#475569;">Não há relatórios salvos localmente.</p>';
+    return;
+  }
+  // Re-renderiza apenas os cards com os dados já em memória
+  lista.innerHTML = '';
+  var _frag = document.createDocumentFragment();
+  var _e = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  filtrados.forEach(function(r) {
+    var card = document.createElement('div');
+    card.className = 'relatorio-card';
+    var status = r.status || 'Concluído';
+    var sc = status === 'Concluído' ? 'status-ok' : (status.includes('pendência') ? 'status-warn' : 'status-bad');
+    var dataBr = r.dataHoraBr || r.dataHoraBR || r.dataBr || '';
+    if (dataBr && dataBr.indexOf('T') > -1) { try { var d = new Date(dataBr); if (!isNaN(d)) dataBr = d.toLocaleString('pt-BR'); } catch(e){} }
+    card.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'+
+        '<div><strong>'+_e(r.numero||'')+'</strong><br>'+
+        '<span style="font-size:.75rem;color:#1f2937;">'+_e(r.cliente||'')+'</span></div>'+
+        '<span class="badge-status '+sc+'">'+_e(status)+'</span>'+
+      '</div>'+
+      '<div style="font-size:.72rem;color:#4b5563;margin-top:4px;">'+_e(dataBr)+'</div>'+
+      '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
+        '<button class="btn small" data-meus-ver="'+_e(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
+        '<button class="btn small" data-meus-editar="'+_e(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
+        '<button class="btn small" data-meus-pdf="'+_e(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+      '</div>';
+    // Handlers
+    card.querySelector('[data-meus-ver]').onclick = function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (r2 && typeof abrirRelatorioOverlay === 'function') abrirRelatorioOverlay(r2); };
+    card.querySelector('[data-meus-editar]').onclick = async function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (!r2) return; if (!await showConfirm('Editar o relatório Nº ' + (r2.numero||'') + '?')) return; if (typeof editarRelatorio === 'function') editarRelatorio(r2); };
+    card.querySelector('[data-meus-pdf]').onclick = async function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (!r2) return; try { await _ensureJsPDF(); await exportarPDF(r2); } catch(e) { showToast('❌ Não foi possível gerar o PDF.', 4000); } };
+    _frag.appendChild(card);
+  });
+  lista.appendChild(_frag);
+}
 if(typeof renderUsuarios === 'function'){
   window.renderUsuarios = (function(orig){
     return function(){
@@ -13490,9 +13589,19 @@ async function fazerLogin(){
     btnEntrar.disabled = true;
     var _labelOrig = btnEntrar.innerHTML;
     btnEntrar.innerHTML = '<i class="ri-loader-4-line"></i> Entrando…';
+    // [FIX-v39] Timeout de 15s — sem ele, se signInWithEmailAndPassword ou as consultas
+    // REST do Firestore travarem (rede lenta/instável), o botão Entrar fica desabilitado
+    // para sempre e o técnico não consegue tentar novamente sem recarregar a página.
+    var _loginTimeout = setTimeout(function() {
+      btnEntrar.disabled = false;
+      btnEntrar.innerHTML = _labelOrig;
+      var _me = document.getElementById('msgErro');
+      if (_me) { _me.style.display = 'block'; _me.textContent = 'Tempo esgotado. Verifique sua conexão e tente novamente.'; }
+    }, 15000);
     fazerLogin()
       .catch(_onLoginError)
       .finally(function() {
+        clearTimeout(_loginTimeout);
         btnEntrar.disabled = false;
         btnEntrar.innerHTML = _labelOrig;
       });
