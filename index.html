@@ -5288,6 +5288,8 @@ function autoFillCamposAtendimento(){
         <div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
           <button class="btn small" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Visualizar</button>
           <button class="btn small" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
+          ${r.whatsapp || r.telefone ? `<button class="btn small" data-painel-whats="${esc(r.id)}" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>` : ''}
+          ${r.emailCliente ? `<button class="btn small" data-painel-email="${esc(r.id)}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>` : ''}
           <button class="btn small" data-editar-rat="${esc(r.id)}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
           ${isSupervisorOrAdmin(usuarioLogado) ? `<button class="btn small" data-deletar-rat="${esc(r.id)}" style="background:#fff1f2;color:#dc2626;border-color:#fecaca;"><i class="ri-delete-bin-2-line"></i> Excluir</button>` : ''}
         </div>
@@ -5333,6 +5335,78 @@ function autoFillCamposAtendimento(){
         const r = relatorios.find(x => x.id === id);
         if (!r) return;
         editarRelatorio(r);
+      };
+    });
+
+    // WhatsApp com link do portal — Painel supervisor
+    listaRelatorios.querySelectorAll('[data-painel-whats]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.getAttribute('data-painel-whats');
+        const r = relatorios.find(x => x.id === id);
+        if (!r) return;
+        var num = ((r.whatsapp || r.telefone || '').replace(/\D/g,'')).trim();
+        if (!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
+        if (num.length <= 11) num = '55' + num;
+        var portalUrlP = null;
+        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+          try {
+            showToast('🔗 Gerando link...', 2000);
+            const tok = await window._gerarTokenPortal(r);
+            if (tok && typeof window._urlPortal === 'function') portalUrlP = window._urlPortal(tok);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
+              salvarRelatorioNoFirestore(r).catch(()=>{});
+          } catch(e){ console.warn('[Painel/WhatsApp]', e); }
+        }
+        const msg = portalUrlP
+          ? `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *${r.cliente||''}*, RAT *${r.numero||''}*.\n\n🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n${portalUrlP}\n\nQualquer dúvida estamos à disposição!`
+          : `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *${r.numero||''}* – ${r.cliente||''}.`;
+        window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+        showToast('✅ WhatsApp aberto!' + (portalUrlP ? ' Link do portal incluído.' : ''), 4000);
+      };
+    });
+
+    // E-mail com link do portal — Painel supervisor
+    listaRelatorios.querySelectorAll('[data-painel-email]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.getAttribute('data-painel-email');
+        const r = relatorios.find(x => x.id === id);
+        if (!r) return;
+        const email = (r.emailCliente || '').trim();
+        if (!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
+        var portalUrlE = null;
+        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+          try {
+            showToast('🔗 Gerando link...', 2000);
+            const tok = await window._gerarTokenPortal(r);
+            if (tok && typeof window._urlPortal === 'function') portalUrlE = window._urlPortal(tok);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
+              salvarRelatorioNoFirestore(r).catch(()=>{});
+          } catch(e){ console.warn('[Painel/Email]', e); }
+        }
+        const assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + (r.numero||'');
+        const linhas = [
+          'Olá' + (r.nomeAssinaturaCliente ? ', ' + r.nomeAssinaturaCliente : '') + '!',
+          '',
+          'Segue o Relatório Técnico de Atendimento referente à visita da Online-ES' + (r.cliente ? ' na empresa ' + r.cliente : '') + '.',
+          '',
+          '• Relatório nº: ' + (r.numero||''),
+          '• Data: ' + (r.dataHoraBr || r.dataHoraBR || ''),
+          '• Técnico responsável: ' + (r.tecnico||''),
+          '',
+          ...(portalUrlE ? ['🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):', portalUrlE, ''] : []),
+          'Fico à disposição para quaisquer esclarecimentos.',
+          '',
+          'Atenciosamente,',
+          'Online-ES – Eletroeletrônica',
+          'www.onlinees.com.br'
+        ];
+        window.open(
+          'mailto:' + encodeURIComponent(email) +
+          '?subject=' + encodeURIComponent(assunto) +
+          '&body=' + encodeURIComponent(linhas.join('\n')),
+          '_blank', 'noopener,noreferrer'
+        );
+        showToast('✅ E-mail aberto!' + (portalUrlE ? ' O cliente receberá o link para baixar o PDF.' : ''), 4000);
       };
     });
   }
@@ -10195,6 +10269,7 @@ async function renderMeus(){
           '<button class="btn small" data-meus-ver="'+ _e(r.id) +'"><i class="ri-eye-line"></i> Ver</button>'+
           '<button class="btn small" data-meus-editar="'+ _e(r.id) +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
           '<button class="btn small" data-meus-whats="'+ _e(r.id) +'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
+          (r.emailCliente ? '<button class="btn small" data-meus-email="'+ _e(r.id) +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
           '<button class="btn small" data-meus-pdf="'+ _e(r.id) +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
         '</div>';
       card.onclick = null; // botões individuais tratam o clique
@@ -10222,6 +10297,56 @@ async function renderMeus(){
         if (typeof editarRelatorio === 'function') {
           editarRelatorio(r2);
         }
+      };
+    });
+    // E-mail com link do portal — Meus Atendimentos
+    lista.querySelectorAll('[data-meus-email]').forEach(function(btn){
+      btn.onclick = async function(e){ e.stopPropagation();
+        var id = btn.getAttribute('data-meus-email');
+        var r2 = filtrados.find(function(x){ return x.id===id; });
+        if(!r2) return;
+        var email = (r2.emailCliente || '').trim();
+        if(!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
+        // Gera/reutiliza token do portal
+        var portalUrl = null;
+        if(window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+          try {
+            showToast('🔗 Gerando link...', 2000);
+            var tok = await window._gerarTokenPortal(r2);
+            if(tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok);
+            if(tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
+              salvarRelatorioNoFirestore(r2).catch(function(){});
+            }
+          } catch(eP){ console.warn('[Meus/Email] Falha ao gerar token:', eP); }
+        }
+        var numero  = r2.numero  || '';
+        var cliente = r2.cliente || '';
+        var dataTxt = r2.dataHoraBr || r2.dataHoraBR || '';
+        var tecnico = r2.tecnico || '';
+        var assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + numero;
+        var linhas = [
+          'Olá' + (r2.nomeAssinaturaCliente ? ', ' + r2.nomeAssinaturaCliente : '') + '!',
+          '',
+          'Segue o Relatório Técnico de Atendimento referente à visita da Online-ES' + (cliente ? ' na empresa ' + cliente : '') + '.',
+          '',
+          '• Relatório nº: ' + numero,
+          '• Data: ' + dataTxt,
+          '• Técnico responsável: ' + tecnico,
+          ''
+        ];
+        if(portalUrl){
+          linhas.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
+          linhas.push(portalUrl);
+        }
+        linhas.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
+        var corpo = linhas.join('\n');
+        window.open(
+          'mailto:' + encodeURIComponent(email) +
+          '?subject=' + encodeURIComponent(assunto) +
+          '&body=' + encodeURIComponent(corpo),
+          '_blank', 'noopener,noreferrer'
+        );
+        showToast('✅ E-mail aberto!' + (portalUrl ? ' O cliente receberá o link para baixar o PDF.' : ''), 4000);
       };
     });
     lista.querySelectorAll('[data-meus-whats]').forEach(function(btn){
