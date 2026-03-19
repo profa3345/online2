@@ -5299,7 +5299,17 @@ function autoFillCamposAtendimento(){
         const pid = firebaseConfig.projectId;
         const key = firebaseConfig.apiKey;
         const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsClientes?key=${key}&pageSize=3`;
-        const r = await fetch(url);
+        // [FIX-v39] O teste anterior fazia fetch anônimo — as Security Rules corretamente
+        // bloqueavam. Envia o token do Firebase Auth igual ao _fetchColecaoREST real faz.
+        var _diagReadHeaders = {};
+        try {
+          var _diagReadAuth = window._firebaseAuth && window._firebaseAuth.currentUser;
+          if (_diagReadAuth) {
+            var _diagReadTok = await _diagReadAuth.getIdToken();
+            if (_diagReadTok) _diagReadHeaders['Authorization'] = 'Bearer ' + _diagReadTok;
+          }
+        } catch(e) {}
+        const r = await fetch(url, { headers: _diagReadHeaders });
         const json = await r.json();
         if (r.ok) {
           const docs = json.documents || [];
@@ -5629,13 +5639,18 @@ function autoFillCamposAtendimento(){
     window._logoutIntencional = true;
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
 
-    // [FIX-LOGOUT-1] Salva rascunho do formulário antes de deslogar
-    // para que o técnico não perca o que estava preenchendo
+    // [FIX-v39] Salva rascunho antes de deslogar sem imagens/assinaturas base64.
+    // JSON completo com fotos pode ter MBs → trava a thread e excede quota do localStorage.
     try {
       if (typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
         var _rascunhoLogout = montarRelatorioAtual();
         if (_rascunhoLogout && _rascunhoLogout.cliente) {
-          localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_rascunhoLogout));
+          var _rLogSem = Object.assign({}, _rascunhoLogout);
+          _rLogSem.imgsEquip = []; _rLogSem.imgsServico = []; _rLogSem.imgsBaterias = [];
+          _rLogSem.vidsEquip = []; _rLogSem.vidsServico = []; _rLogSem.vidsBaterias = [];
+          _rLogSem.assinaturaCliente = null; _rLogSem.assinaturaTecnicoImg = null;
+          _rLogSem._rascunho = true; _rLogSem._rascunhoData = new Date().toISOString();
+          localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_rLogSem));
         }
       }
     } catch(e) {}
@@ -6683,7 +6698,9 @@ document.getElementById('btnAddCliente').onclick=()=>{
         const cepDigits = (campoCepCliente.value || '').replace(/\D/g,'');
         if (cepDigits.length !== 8) return;
         if (!navigator.onLine) return;
-        const resp = await fetch('https://viacep.com.br/ws/' + cepDigits + '/json/');
+        // [FIX-v39] Timeout de 5s — sem ele um fetch travado bloqueia a função async indefinidamente
+        const resp = await fetch('https://viacep.com.br/ws/' + cepDigits + '/json/',
+          { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
         if (!resp.ok) return;
         const dados = await resp.json();
         if (dados.erro) return;
@@ -8611,7 +8628,10 @@ if (logoBase64) {
           var img = new Image();
           img.onload = function() {
             var ctx = sigCanvas.getContext('2d');
-            ctx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            // [FIX-v39] fillRect branco antes de drawImage — sem ele o canvas
+            // fica transparente nos pixels não cobertos pela assinatura.
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
             // Mantém proporção
             var scale = Math.min(sigCanvas.width / img.width, sigCanvas.height / img.height);
             var w = img.width * scale, h = img.height * scale;
@@ -8679,10 +8699,15 @@ if (logoBase64) {
       // Se assinatura já recebida mas não confirmada, avisa
       if (_sigPendente) {
         showToast('⚠️ Assinatura descartada. Use o canvas ou gere um novo QR.', 3500);
-        // Limpa canvas
+        // Limpa canvas com fundo branco
         try {
           var sc = document.getElementById('sigCliente');
-          if (sc) sc.getContext('2d').clearRect(0, 0, sc.width, sc.height);
+          if (sc) {
+            // [FIX-v39] clearRect sem fillRect deixa fundo transparente
+            var _scCtx = sc.getContext('2d');
+            _scCtx.fillStyle = '#ffffff';
+            _scCtx.fillRect(0, 0, sc.width, sc.height);
+          }
         } catch(e) {}
       }
       _fecharModal();
@@ -10362,13 +10387,33 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     try {
       const f = inputLogoFile?.files?.[0];
       if (!f) { showToast('Selecione uma imagem para a logo.'); return; }
-      const b64 = await lerArquivoComoDataURL(f);
+      // [FIX-v39] Valida tipo e tamanho antes de salvar.
+      // Sem isso, qualquer arquivo poderia ser salvo no localStorage,
+      // podendo exceder a quota ou causar erro ao tentar exibir no PDF.
+      if (!f.type.startsWith('image/')) { showToast('❌ Selecione uma imagem válida (PNG, JPG ou SVG).', 3500); return; }
+      if (f.size > 2 * 1024 * 1024) { showToast('❌ Logo muito grande (máx 2MB). Comprima a imagem antes de enviar.', 4000); return; }
+      const b64raw = await lerArquivoComoDataURL(f);
+      // Redimensiona para no máximo 400px (mantém proporção) para não pesar no PDF e no localStorage
+      var b64 = await new Promise(function(resolve) {
+        try {
+          var img = new Image();
+          img.onload = function() {
+            var MAX = 400;
+            var w = img.width, h = img.height;
+            if (w > MAX || h > MAX) { var r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+            var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(cv.toDataURL('image/png'));
+          };
+          img.onerror = function() { resolve(b64raw); };
+          img.src = b64raw;
+        } catch(e) { resolve(b64raw); }
+      });
       localStorage.setItem('online-es-logo-b64', b64);
       logoBase64 = b64;
       window.logoPromise = Promise.resolve(b64);
       atualizarPreviewLogo(b64);
       try { setTimeout(aplicarLogoUI, 50); } catch(e) {}
-
       showToast('Logo salva com sucesso. Gere um PDF para testar.');
       try { logInfo('Logo salva', {}); } catch(e){}
     } catch(e){
