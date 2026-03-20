@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES
-  Base consolidada co conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
+  ONLINE-ES — VERSÃO FINAL PREMIUM
+  Base consolidada a partir das versões mais fortes enviadas pela usuária.
+  Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
 -->
 <html lang="pt-BR">
@@ -9441,6 +9442,8 @@ if (logoBase64) {
       const nomeTec      = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
 
       showLoader('Salvando e gerando link...');
+      // [FIX-LOADER] try/finally garante que o loader sempre fecha, mesmo em exceção inesperada.
+      try {
 
       // 1. Salva/atualiza sempre no localStorage e no Firestore antes de gerar o token.
       // [FIX-PORTAL-SAVE] O código anterior só salvava se a RAT não existia localmente,
@@ -9499,6 +9502,8 @@ if (logoBase64) {
       );
       showToast('✅ E-mail aberto! O cliente receberá o link para baixar o PDF no portal.', 5000);
       try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comPortal: true }); } catch(e) {}
+
+      } finally { hideLoader(); } // [FIX-LOADER] fecha try/finally do e-mail
     };
   }
 
@@ -15426,6 +15431,10 @@ async function _renderPortal(token){
       btnPdf.disabled=true;
       btnPdf.innerHTML='<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Gerando PDF...';
       try{
+        // [FIX-PORTAL-PDF] Garante que jsPDF está carregado antes de gerar o PDF.
+        // Quando o cliente abre o portal diretamente pelo link, o jsPDF nunca foi
+        // carregado pelo painel — sem este await o exportarPDF falha silenciosamente.
+        if (typeof window._ensureJsPDF === 'function') await window._ensureJsPDF();
         await window.exportarPDF(Object.assign({},rat));
       }catch(e){
         _pt('❌ Não foi possível gerar o PDF. Verifique se o relatório está completo e tente novamente.');
