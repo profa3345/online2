@@ -134,7 +134,7 @@
     .logo-app img{width:40px;height:40px;object-fit:contain;filter:drop-shadow(0 0 10px rgba(248,130,32,.45))}
     .logo-app div strong{display:block;font-size:1rem;letter-spacing:.04em}
     .logo-app div small{font-size:.72rem;color:var(--muted)}
-    .sidebar-toggle{background:rgba(15,23,42,.12);border:1px solid rgba(148,163,184,.24);color:#e2e8f0;border-radius:12px;width:32px;height:32px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem}
+    .sidebar-toggle{background:rgba(255,255,255,.06);border:1px solid rgba(148,163,184,.24);color:#e2e8f0;border-radius:12px;width:32px;height:32px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem}
     .menu{display:flex;flex-direction:column;gap:6px}
     .menu button{background:transparent;border:none;color:#cbd5e1;text-align:left;padding:11px 10px;border-radius:12px;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:1rem;transition:.15s ease}
     .menu button i{font-size:1.05rem;opacity:.9}
@@ -144,13 +144,46 @@
     .user-box small{font-size:.68rem;color:#94a3b8;display:block}
     .logout{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.32);color:#fecaca;font-size:.6rem;border-radius:8px;padding:4px 9px;margin-top:6px;cursor:pointer}
     .content{margin-left:245px;flex:1;min-height:100vh;display:flex;flex-direction:column}
-    .topbar{background:rgba(15,23,42,.45);backdrop-filter:blur(15px);border-bottom:1px solid rgba(248,130,32,.04);padding:9px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:20}
-    .topbar h1{font-size:1.4rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
-    .topbar small{font-size:1rem;color:#cbd5e1;font-weight:500}
-    .topbar-right{display:flex;gap:10px;align-items:center}
+    /* [TITLE-PREMIUM] Topbar com identidade visual forte */
+    .topbar{
+      background:linear-gradient(180deg,rgba(9,14,30,.82) 0%,rgba(9,14,30,.72) 100%);
+      backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+      border-bottom:1px solid rgba(249,115,22,.18);
+      padding:9px 18px;
+      display:flex;justify-content:space-between;align-items:center;
+      position:sticky;top:0;z-index:20;
+      box-shadow:0 1px 0 rgba(249,115,22,.10),0 4px 24px rgba(0,0,0,.28);
+    }
+    /* Título centralizado absolutamente */
+    .topbar > div:not(.topbar-right){
+      position:absolute;left:50%;transform:translateX(-50%);
+      text-align:center;pointer-events:none;max-width:calc(100% - 160px);
+    }
+    /* H1: tipografia forte, hierarquia clara */
+    .topbar h1{
+      font-size:1.12rem;font-weight:700;margin:0;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      letter-spacing:-.02em;
+      color:#ffffff;
+      text-shadow:0 1px 8px rgba(0,0,0,.4);
+    }
+    /* Subtítulo: pill laranja discreto */
+    .topbar small{
+      display:inline-block;
+      font-size:.6rem;font-weight:600;
+      letter-spacing:.07em;text-transform:uppercase;
+      color:#f97316;
+      background:rgba(249,115,22,.12);
+      border:1px solid rgba(249,115,22,.22);
+      border-radius:999px;
+      padding:1px 8px;
+      margin-top:4px;
+    }
+
+    .topbar-right{display:flex;gap:10px;align-items:center;position:relative;z-index:1;}
     /* [NAV-BACK] Botão voltar — mesmo estilo do sidebar-toggle */
-    #btnVoltarTela{background:rgba(15,23,42,.12);border:1px solid rgba(148,163,184,.24);color:#e2e8f0;border-radius:12px;width:32px;height:32px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;flex-shrink:0;transition:background .15s;}
-    #btnVoltarTela:active{background:rgba(249,115,22,.25);}
+    #btnVoltarTela{background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28);color:#fb923c;border-radius:12px;width:34px;height:34px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;flex-shrink:0;transition:background .15s,transform .1s;}
+    #btnVoltarTela:active{background:rgba(249,115,22,.3);transform:scale(.93);}
     .badge-online{background:rgba(34,197,94,.15);color:#bbf7d0;font-size:.6rem;border-radius:999px;padding:3px 9px;transition:background .3s,color .3s;font-weight:600;}
     .main{padding:14px 14px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
     .panel{background:rgba(15,23,42,.35);border:1px solid rgba(148,163,184,.05);border-radius:16px;padding:14px 14px 6px;box-shadow:0 10px 40px rgba(0,0,0,.12);backdrop-filter:blur(12px);animation:fadeIn .25s ease}
@@ -161,8 +194,20 @@
     #btnModoRapido { transition:background .2s,color .2s,border-color .2s; }
     #btnModoRapido.ativo { background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.5);color:#f97316;font-weight:700; }
     .form-panel{background:var(--bg-form)!important;border:1px solid rgba(148,163,184,.22);border-radius:18px;box-shadow:0 16px 40px rgba(15,23,42,.06);color:#0f172a!important}
-    .form-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.14);border-radius:18px;padding:16px 16px 12px;margin-bottom:12px;overflow-x:auto}
-    .supervisor-panel{background:var(--bg-supervisor)!important;color:#0f172a!important;border:1px solid rgba(148,163,184,.12);box-shadow:0 8px 32px rgba(15,23,42,.08);border-radius:18px}
+    .form-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.14);border-radius:18px;padding:16px 16px 14px;margin-bottom:14px;overflow-x:auto;transition:box-shadow .2s ease;}
+    .section-card:focus-within{box-shadow:0 0 0 3px rgba(249,115,22,.12);}
+    /* [UX-PREMIUM] Animação de entrada para cards de relatório */
+    @keyframes slideInCard{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .relatorio-card-item{animation:slideInCard .22s ease both;}
+    .relatorio-card-item:nth-child(2){animation-delay:.04s}
+    .relatorio-card-item:nth-child(3){animation-delay:.08s}
+    .relatorio-card-item:nth-child(4){animation-delay:.12s}
+    .relatorio-card-item:nth-child(5){animation-delay:.16s}
+    /* [UX-PREMIUM] Chip ativo do status mais vibrante */
+    .badge-status{font-weight:700;letter-spacing:.02em;}
+    /* [UX-PREMIUM] Input focus mais expressivo */
+    input:focus,select:focus,textarea:focus{outline:none;border-color:rgba(249,115,22,.6)!important;box-shadow:0 0 0 3px rgba(249,115,22,.1)!important;transition:border-color .15s,box-shadow .15s;}
+    .supervisor-panel{background:var(--bg-supervisor);background:linear-gradient(160deg,#f0f4f8 0%,#e8edf3 100%)!important;color:#0f172a!important;border:1px solid rgba(148,163,184,.12);box-shadow:0 8px 32px rgba(15,23,42,.08);border-radius:18px}
     .supervisor-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.12);border-radius:18px;padding:16px 16px 12px;margin-bottom:14px;overflow-x:auto}
    .row{
   display:flex;
@@ -208,7 +253,9 @@
     /* [FIX-SCR1] No mobile remove o scroll interno — a lista flui na página normalmente,
        evitando o padrão confuso de scroll-dentro-de-scroll */
     @media(max-width:880px){.list-relatorios{max-height:none;overflow-y:visible;}}
-    .relatorio-card{background:rgba(236,252,203,.5)!important;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:5px;color:#0f172a}
+    .relatorio-card{background:#fff!important;border:1px solid rgba(148,163,184,.2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;color:#0f172a;transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease;margin-bottom:10px;}
+    .relatorio-card:hover{box-shadow:0 6px 20px rgba(0,0,0,.09);transform:translateY(-1px);border-color:rgba(249,115,22,.28);}
+    .relatorio-card.visto{background:rgba(241,245,249,.7)!important;border-color:rgba(148,163,184,.15);}
     .relatorio-card.visto{border-color:rgba(148,163,184,.9);background:rgba(236,252,203,.85)!important}
     .badge-status{display:inline-block;padding:2px 10px 3px;border-radius:999px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
     .status-ok{background:rgba(16,185,129,.98);color:#022c22;border:1px solid rgba(22,163,74,.65)}
@@ -319,8 +366,9 @@
     .report-body .campo{margin-bottom:10px;font-size:.9rem}
     .report-body .rotulo{font-weight:700;color:#0f172a}
     .report-close{background:transparent;border:none;color:#fff;font-size:1.1rem;cursor:pointer;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px}
-    .toast{position:fixed;bottom:16px;right:16px;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(17,79,145,.3);border-radius:10px;padding:6px 12px;font-size:.7rem;display:none;z-index:11000}
-    @media(max-width:880px){.toast{bottom:calc(90px + env(safe-area-inset-bottom));right:12px;left:12px;text-align:center;font-size:.8rem;padding:10px 14px;}}
+    .toast{position:fixed;bottom:16px;right:16px;background:rgba(15,23,42,.92);color:#fff;border:1px solid rgba(17,79,145,.3);border-radius:12px;padding:8px 14px;font-size:.75rem;display:none;z-index:11000;box-shadow:0 4px 20px rgba(0,0,0,.25);max-width:340px;line-height:1.4;word-break:break-word;}
+    /* [UX-TOAST] Mobile: toast maior, centralizado, mais legível mesmo com sol na tela */
+    @media(max-width:880px){.toast{bottom:calc(94px + env(safe-area-inset-bottom));right:16px;left:16px;text-align:center;font-size:.88rem;padding:13px 18px;border-radius:14px;max-width:none;font-weight:500;letter-spacing:.01em;box-shadow:0 6px 28px rgba(0,0,0,.35);}}
 
     .global-loader{
       position:fixed;
@@ -361,8 +409,16 @@
       to{ transform:translateY(-4px); opacity:1; }
     }
     .dash-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-    .card-mini{background:linear-gradient(140deg,#0f172a 0%,#114f91 60%)!important;padding:10px 12px;border-radius:12px;min-width:140px;flex:1 1 140px;color:#fff;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 6px 18px rgba(17,79,145,.35);cursor:pointer}
-    .card-mini:hover{transform:translateY(-3px);box-shadow:0 10px 25px rgba(17,79,145,.48)}
+    .card-mini{background:linear-gradient(140deg,#0f172a 0%,#114f91 60%)!important;padding:12px 14px;border-radius:14px;min-width:140px;flex:1 1 140px;color:#fff;transition:transform .18s ease,box-shadow .18s ease;box-shadow:0 6px 18px rgba(17,79,145,.35);cursor:pointer;position:relative;overflow:hidden;}
+    .card-mini::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 60%);pointer-events:none;}
+    .card-mini:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 14px 32px rgba(17,79,145,.55)}
+    .card-mini:active{transform:translateY(-1px) scale(.99);}
+    .card-mini .card-icon{font-size:1.4rem;margin-bottom:4px;display:block;opacity:.85;}
+    .card-mini .card-num{font-size:1.6rem;font-weight:700;line-height:1;display:block;letter-spacing:-.02em;}
+    .card-mini .card-lbl{font-size:.65rem;opacity:.75;margin-top:3px;display:block;text-transform:uppercase;letter-spacing:.05em;}
+    .card-mini .card-trend{font-size:.62rem;margin-top:6px;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.12);}
+    @keyframes countUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .card-mini .card-num{animation:countUp .4s ease both;}
     #modalDeletarRAT{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px;}
   #modalDeletarRAT>div{background:#fff;border-radius:18px;padding:28px 24px 22px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(15,23,42,.18);}
   #modalDeletarRAT.hidden{display:none;}
@@ -384,23 +440,29 @@
       .row .col{width:100%!important;flex:1 1 100%!important;min-width:0!important;max-width:100%!important}
       .row .col input,.row .col select,.row .col textarea{width:100%!important;box-sizing:border-box!important}
       /* Padding reduzido */
-      .main{padding:10px 8px}
-      .form-panel .section-card{padding:12px 10px 10px}
-      .supervisor-panel .section-card{padding:12px 10px 10px}
+      .main{padding:12px 10px}
+      .form-panel .section-card{padding:14px 12px 12px}
+      .supervisor-panel .section-card{padding:14px 12px 12px}
       /* Relatório overlay */
       .report-overlay{padding:0}
       .report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0;display:flex;flex-direction:column}
       .report-body{font-size:.88rem}
-      /* Topbar */
+      /* Topbar mobile */
       .sidebar-toggle{display:flex!important}
-      .topbar{gap:8px;padding:8px 10px}
-      .topbar h1{font-size:1.1rem}
+      .topbar{gap:8px;padding:10px 12px;}
+      .topbar h1{font-size:1rem;letter-spacing:-.02em;}
+      .topbar > div:not(.topbar-right){max-width:calc(100% - 120px);}
+      .topbar small{font-size:.58rem;padding:1px 7px;}
+
       /* Tabelas com scroll horizontal */
       .user-table{font-size:.72rem}
       .user-table th,.user-table td{padding:6px 7px}
       /* Dash cards empilham */
-      .dash-cards{flex-direction:column}
-      .dash-cards > div{width:100%!important}
+      /* [POLISH-MOBILE] KPI cards: 2 por linha no mobile — melhor uso do espaço */
+      .dash-cards{flex-direction:row;flex-wrap:wrap;gap:8px}
+      .dash-cards > div{width:calc(50% - 4px)!important;min-width:0!important;flex:0 0 calc(50% - 4px)!important;}
+      .card-mini .card-num{font-size:1.4rem}
+      .card-mini{padding:10px 12px}
       /* Botões de ação nas tabelas */
       .relatorio-acoes{flex-wrap:wrap;gap:4px}
       .relatorio-acoes .btn{font-size:.78rem;padding:8px 12px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
@@ -544,9 +606,11 @@
     * { -webkit-tap-highlight-color: transparent; }
     /* UX: botões e links com touch-action para resposta imediata */
     .btn, button, a, label[for] { touch-action: manipulation; }
-    /* UX: topbar safe-area no topo (notch iPhones) */
+    /* UX: topbar safe-area — distância confortável do topo */
     .topbar {
-      padding-top: calc(8px + env(safe-area-inset-top));
+      padding-top: calc(18px + env(safe-area-inset-top));
+      padding-bottom: 16px;
+      min-height: 64px;
     }
     /* UX: sidebar safe-area */
     .sidebar {
@@ -1205,11 +1269,212 @@ html[data-role="technician"] nav button {
   html[data-role="supervisor"] #mMonitor,
   html[data-role="tecnico"] #telaMonitor,
   html[data-role="supervisor"] #telaMonitor { display: none !important; }
+
+  /* ═══════════════════════════════════════════
+     UX IMPROVEMENTS — pure CSS/JS, no Firebase
+     ═══════════════════════════════════════════ */
+
+  /* 1. ACESSIBILIDADE: focus-visible com ring laranja
+     Remove o outline:0 do reset e substitui por foco visível apenas via teclado */
+  *:focus { outline: none; }
+  *:focus-visible {
+    outline: 2px solid #f97316 !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 4px rgba(249,115,22,.18) !important;
+  }
+  /* Exceção: inputs/textareas têm foco próprio (já existe no CSS global) */
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: none !important;
+    border-color: rgba(249,115,22,.6) !important;
+    box-shadow: 0 0 0 3px rgba(249,115,22,.1) !important;
+  }
+
+  /* 2. CONTRASTE: elevar textos muito pequenos para mínimo legível
+     Badges, subtítulos e helper texts que usam cores claras em fundo escuro */
+  .badge-online { color: #d1fae5 !important; font-size: .65rem !important; }
+  .topbar small { color: #fbbf24 !important; }
+  .logo-app div small { color: #cbd5e1 !important; font-size: .75rem !important; }
+  .user-box small { color: #cbd5e1 !important; font-size: .72rem !important; }
+  .logout { font-size: .7rem !important; color: #fecaca !important; }
+  .muted, .hint, [class*="muted"] { color: #94a3b8 !important; }
+  /* Textos secundários no fundo escuro — mínimo #94a3b8 → #b0bec5 */
+  .home-greeting .home-hello { color: #b0bec5 !important; }
+  .badge-status { font-size: .68rem !important; }
+  /* Corrige tamanhos .6rem que ficam ~9-10px */
+  .monitorBadge, #monitorBadge { font-size: .65rem !important; }
+
+  /* 3. SKELETON LOADERS — placeholder animado enquanto lista carrega */
+  @keyframes shimmer {
+    0%   { background-position: -600px 0; }
+    100% { background-position: 600px 0; }
+  }
+  .skeleton {
+    border-radius: 10px;
+    background: linear-gradient(90deg,
+      rgba(148,163,184,.08) 25%,
+      rgba(148,163,184,.18) 50%,
+      rgba(148,163,184,.08) 75%);
+    background-size: 1200px 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+  .skeleton-card {
+    background: rgba(15,23,42,.35);
+    border: 1px solid rgba(148,163,184,.08);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .skeleton-line { height: 12px; border-radius: 6px; }
+  .skeleton-line.wide  { width: 75%; }
+  .skeleton-line.mid   { width: 50%; }
+  .skeleton-line.short { width: 30%; }
+  .skeleton-title { height: 16px; width: 60%; border-radius: 6px; margin-bottom: 4px; }
+
+  /* 4. EMPTY STATES — tela orientativa quando lista está vazia */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    gap: 12px;
+  }
+  .empty-state-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(249,115,22,.1);
+    border: 1px solid rgba(249,115,22,.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: #f97316;
+    margin-bottom: 4px;
+  }
+  .empty-state h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+  .empty-state p {
+    margin: 0;
+    font-size: .82rem !important;
+    color: #94a3b8;
+    max-width: 280px;
+    line-height: 1.5;
+  }
+
+  /* 5. TOAST SYSTEM — notificações centralizadas */
+  #uxToastContainer {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+  }
+  .ux-toast {
+    background: rgba(15,23,42,.96);
+    border: 1px solid rgba(148,163,184,.2);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: .82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.35);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: min(90vw, 420px);
+    pointer-events: auto;
+    animation: toastIn .22s ease forwards;
+  }
+  .ux-toast.success { border-color: rgba(22,163,74,.4); color: #86efac; }
+  .ux-toast.error   { border-color: rgba(248,113,113,.4); color: #fca5a5; }
+  .ux-toast.warning { border-color: rgba(249,115,22,.4); color: #fdba74; }
+  .ux-toast.out     { animation: toastOut .2s ease forwards; }
+  @keyframes toastIn  { from { opacity:0; transform:translateY(10px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+  @keyframes toastOut { from { opacity:1; transform:translateY(0) scale(1); }    to { opacity:0; transform:translateY(8px) scale(.96); } }
+
+  /* 6. SIDEBAR: separadores visuais entre grupos de menu */
+  .menu-separator {
+    height: 1px;
+    background: rgba(148,163,184,.1);
+    margin: 4px 0;
+    border: none;
+  }
+  .menu-group-label {
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #64748b;
+    padding: 6px 10px 2px;
+    pointer-events: none;
+  }
+
+  /* 7. FLASH DE CÂMERA ao capturar foto */
+  #cameraFlash {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    z-index: 19999;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #cameraFlash.flash-active {
+    animation: cameraFlashAnim .25s ease forwards;
+  }
+  @keyframes cameraFlashAnim {
+    0%   { opacity: .85; }
+    100% { opacity: 0; }
+  }
+
+  /* 8. VALIDAÇÃO INLINE de campos obrigatórios */
+  .campo-invalido {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220,38,38,.1) !important;
+  }
+  .campo-valido {
+    border-color: rgba(22,163,74,.5) !important;
+    box-shadow: 0 0 0 2px rgba(22,163,74,.1) !important;
+  }
+  .campo-erro-msg {
+    font-size: .72rem !important;
+    color: #f87171;
+    margin-top: 3px;
+    display: block;
+    animation: toastIn .15s ease;
+  }
+
+  /* 9. MÍNIMO DE FONT-SIZE global: garante que nenhum texto fique abaixo de 11px */
+  .badge-status, .badge-online, .logout,
+  .topbar small, .mon-badge,
+  #badgePendentes, #monitorBadge,
+  .home-greeting .home-hello, .home-greeting .home-role {
+    font-size: max(.65rem, 11px) !important;
+  }
   </style>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 </head>
 <body>
+<!-- UX: Toast container centralizado -->
+<div id="uxToastContainer"></div>
+<!-- UX: Flash ao capturar foto -->
+<div id="cameraFlash"></div>
+
 <!-- Banner offline — aparece automaticamente quando sem internet -->
 <div id="offlineBanner">
   <i class="ri-wifi-off-line"></i>
@@ -1334,10 +1599,15 @@ html[data-role="technician"] nav button {
       </div>
     </div>
     <div class="menu">
+      <div class="menu-group-label">Atendimento</div>
       <button id="mNovo" class="active"><i class="ri-edit-box-line"></i> Novo Atendimento</button>
       <button id="mMeus"><i class="ri-file-list-3-line"></i> Meus Atendimentos</button>
+      <hr class="menu-separator">
+      <div class="menu-group-label">Gestão</div>
       <button id="mPainel"><i class="ri-dashboard-3-line"></i> Painel de Gerenciamento</button>
       <button id="mCadastros"><i class="ri-contacts-book-2-line"></i> Cadastros</button>
+      <hr class="menu-separator">
+      <div class="menu-group-label">Configuração</div>
       <button id="mSistema"><i class="ri-settings-4-line"></i> Sistema</button>
       <!-- [MON] Botão de monitoramento — visível apenas para admin -->
       <button id="mMonitor" style="display:none;position:relative;"><i class="ri-pulse-line"></i> Monitoramento
@@ -1362,17 +1632,21 @@ html[data-role="technician"] nav button {
   </button>
   <div class="content">
     <div class="topbar">
-      <button class="sidebar-toggle" id="btnToggleSidebar">
-        <i class="ri-menu-3-line"></i>
-      </button>
-      <!-- [NAV-BACK] Botão Voltar — aparece quando há tela anterior no histórico interno -->
-      <button id="btnVoltarTela" aria-label="Voltar para a tela anterior"
-        style="display:none;background:rgba(15,23,42,.12);border:1px solid rgba(148,163,184,.24);color:#e2e8f0;border-radius:12px;width:32px;height:32px;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;flex-shrink:0;">
-        <i class="ri-arrow-left-line"></i>
-      </button>
+      <!-- [FIX-TITLE] Grupo esquerdo: z-index:1 para ficar sobre o título absoluto -->
+      <div style="display:flex;gap:8px;align-items:center;position:relative;z-index:1;flex-shrink:0;">
+        <button class="sidebar-toggle" id="btnToggleSidebar">
+          <i class="ri-menu-3-line"></i>
+        </button>
+        <!-- [NAV-BACK] Botão Voltar — aparece quando há tela anterior no histórico interno -->
+        <button id="btnVoltarTela" aria-label="Voltar para a tela anterior"
+          style="display:none;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28);color:#fb923c;border-radius:12px;width:34px;height:34px;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;flex-shrink:0;transition:background .15s;">
+          <i class="ri-arrow-left-line"></i>
+        </button>
+      </div>
+      <!-- [FIX-TITLE] Título centralizado absolutamente via CSS -->
       <div>
         <h1 id="tituloTela">Novo Atendimento</h1>
-        <small>Sistema de Relatórios Técnicos</small>
+        <small id="subtituloTela">Preencha os dados do atendimento</small>
       </div>
       <div class="topbar-right">
         <div id="fontControls" style="display:none;gap:4px;align-items:center;">
@@ -1710,6 +1984,21 @@ html[data-role="technician"] nav button {
             <div class="col">
               <label>Problema informado</label>
               <textarea id="cProblema" aria-label="Descrição do problema relatado" rows="2" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"></textarea>
+              <!-- [DIAG-SUGEST] Sugestão contextual de diagnóstico -->
+              <!-- [AUTO-PREMIUM] Caixa de sugestão de diagnóstico refinada -->
+              <div id="diagSugestBox" style="display:none;background:linear-gradient(135deg,#eff6ff,#f0f9ff);border:1px solid #93c5fd;border-radius:12px;padding:10px 12px;margin-top:6px;animation:_slideDown .2s ease;">
+                <div style="display:flex;align-items:flex-start;gap:8px;">
+                  <span style="font-size:1rem;flex-shrink:0;margin-top:1px;">💡</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:.68rem;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Sugestão inteligente</div>
+                    <span id="diagSugestTexto" style="font-size:.74rem;color:#1e3a8a;line-height:1.5;display:block;"></span>
+                  </div>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                  <button type="button" id="diagSugestUsar" style="flex:1;background:linear-gradient(90deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:.7rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;"><i class="ri-check-line"></i> Usar sugestão</button>
+                  <button type="button" id="diagSugestFechar" style="background:rgba(29,78,216,.08);border:1px solid rgba(29,78,216,.2);color:#1d4ed8;border-radius:8px;padding:6px 10px;font-size:.7rem;cursor:pointer;font-family:inherit;">Ignorar</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="row" style="margin-top:6px;">
@@ -1831,6 +2120,9 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinatura">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
+            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar canvas</span>
+            </button>
             <button type="button" class="btn small" id="btnModoTouchpad">
               <i class="ri-mouse-line"></i> Modo Touchpad: OFF
             </button>
@@ -1899,6 +2191,9 @@ html[data-role="technician"] nav button {
             </button>
             <button type="button" class="btn small" id="btnUsarAssinaturaTec">
               <i class="ri-check-line"></i> Usar esta assinatura
+            </button>
+            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar canvas</span>
             </button>
             <small id="sigStatusTec" style="font-size:.68rem;color:#0f172a;"></small>
           </div>
@@ -2003,24 +2298,46 @@ html[data-role="technician"] nav button {
         </h2>
 
         <div class="dash-cards">
-          <div class="card-mini" id="cardHoje">
-            <small>Relatórios Recebidos Hoje</small>
-            <strong id="dHoje" style="font-size:1.3rem;">0</strong>
+          <div class="card-mini" id="cardHoje" title="Ver RATs de hoje">
+            <span class="card-icon"><i class="ri-calendar-check-line"></i></span>
+            <span class="card-num" id="dHoje">0</span>
+            <span class="card-lbl">RATs hoje</span>
+            <span class="card-trend" id="dHojeTrend" style="display:none;"></span>
           </div>
-          <div class="card-mini" id="cardConcluidosHoje">
-            <small>Concluídos hoje</small>
-            <strong id="dConcluidosHoje" style="font-size:1.3rem;">0</strong>
-            <span class="badge-status status-ok" style="margin-top:4px;display:inline-block;">ok hoje</span>
+          <div class="card-mini" id="cardConcluidosHoje" title="Ver concluídos hoje" style="background:linear-gradient(140deg,#064e3b 0%,#065f46 60%)!important;box-shadow:0 6px 18px rgba(6,78,59,.4)!important;">
+            <span class="card-icon"><i class="ri-check-double-line"></i></span>
+            <span class="card-num" id="dConcluidosHoje">0</span>
+            <span class="card-lbl">Concluídos hoje</span>
           </div>
-          <div class="card-mini" id="cardConcluidosGeral">
-            <small>Concluídos (geral)</small>
-            <strong id="dConcluidosGeral" style="font-size:1.3rem;">0</strong>
-            <small style="opacity:.85;">Desde o início</small>
+          <div class="card-mini" id="cardConcluidosGeral" title="Ver todos concluídos" style="background:linear-gradient(140deg,#1e1b4b 0%,#3730a3 60%)!important;box-shadow:0 6px 18px rgba(55,48,163,.4)!important;">
+            <span class="card-icon"><i class="ri-bar-chart-2-line"></i></span>
+            <span class="card-num" id="dConcluidosGeral">0</span>
+            <span class="card-lbl">Total concluídos</span>
           </div>
-          <div class="card-mini" id="cardPendentes">
-            <small>Com pendência</small>
-            <strong id="dPendentes" style="font-size:1.3rem;">0</strong>
-            <span class="badge-status status-warn" style="margin-top:4px;display:inline-block;">pend.</span>
+          <div class="card-mini" id="cardPendentes" title="Ver pendentes" style="background:linear-gradient(140deg,#431407 0%,#9a3412 60%)!important;box-shadow:0 6px 18px rgba(154,52,18,.4)!important;">
+            <span class="card-icon"><i class="ri-time-line"></i></span>
+            <span class="card-num" id="dPendentes">0</span>
+            <span class="card-lbl">Pendentes</span>
+          </div>
+        </div>
+
+        <!-- [DASH-CHART] Seção de gráficos e ranking -->
+        <div class="section-card" id="dashGraficosWrap" style="margin-bottom:12px;display:none;">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+            <!-- Gráfico de barras: últimos 7 dias -->
+            <div style="flex:1 1 200px;min-width:180px;">
+              <div style="font-size:.7rem;font-weight:700;color:#475569;margin-bottom:12px;letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;gap:7px;"><i class="ri-bar-chart-fill" style="color:#f97316;font-size:1rem;"></i>Atendimentos — últimos 7 dias</div>
+              <div id="dashBarras" style="display:flex;align-items:flex-end;gap:4px;height:100px;"></div>
+              <div id="dashBarrasLabels" style="display:flex;gap:5px;margin-top:4px;"></div>
+            </div>
+            <!-- Ranking de técnicos -->
+            <div style="flex:1 1 160px;min-width:140px;">
+              <div style="font-size:.7rem;font-weight:700;color:#475569;margin-bottom:12px;letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;gap:7px;"><i class="ri-team-line" style="color:#3b82f6;font-size:1rem;"></i>Técnicos mais ativos</div>
+              <div id="dashRanking"></div>
+            </div>
+            <!-- [REMOVED] Taxa de retorno e Tempo médio removidos:
+                 dados insuficientes para cálculo confiável (problemas diferentes
+                 do mesmo cliente contariam como retrabalho). -->
           </div>
         </div>
 
@@ -2057,6 +2374,11 @@ html[data-role="technician"] nav button {
             </div>
           </div>
           <small class="help">As datas devem estar no formato brasileiro (dd/mm/aaaa). A busca considera o intervalo completo.</small>
+          <!-- [BUSCA-LIVRE] Campo de busca por texto livre -->
+          <div style="margin-top:8px;position:relative;">
+            <i class="ri-search-line" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.85rem;pointer-events:none;"></i>
+            <input id="buscaTextoLivre" type="search" placeholder="Buscar por nº RAT, cliente, equipamento, problema, diagnóstico, técnico..." aria-label="Busca por texto livre" style="width:100%;padding:7px 10px 7px 32px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:.78rem;box-sizing:border-box;" autocomplete="off">
+          </div>
           <div class="list-relatorios" id="listaBusca"></div>
         </div>
 
@@ -2742,6 +3064,7 @@ html[data-role="technician"] nav button {
     apiKey: "AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8",
     authDomain: "onlinees-system.firebaseapp.com",
     projectId: "onlinees-system",
+    storageBucket: "onlinees-system.appspot.com",
     messagingSenderId: "891796507607",
     appId: "1:891796507607:web:b5f7e9aab2975beca81992"
   };
@@ -2866,8 +3189,10 @@ html[data-role="technician"] nav button {
               // Token renovado automaticamente pelo Firebase SDK
               console.log('[Auth] Token Firebase renovado. UID:', fbUser.uid);
             } else {
-              // Sessão Firebase expirou — REST fallback continuará funcionando
-              console.log('[Auth] Sessão Firebase expirada — escrita via REST fallback.');
+              // [FIX-AUTH] currentUser null é ESPERADO — app usa autenticação própria,
+              // não Firebase Auth. Com a correção [FIX-AUTH] o SDK é usado diretamente
+              // via db (Firestore SDK compat já autenticado via apiKey + Security Rules).
+              console.log('[Auth] Firebase Auth sem sessão (esperado — app usa auth próprio). SDK Firestore ativo.');
             }
           } catch(e) { /* silencioso — não interrompe o app */ }
         });
@@ -2896,7 +3221,7 @@ html[data-role="technician"] nav button {
         // Senha NÃO vai para o Firestore — fica apenas no localStorage
         _firebaseUid: u._firebaseUid||null, _email: u._email||null
       };
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         await db.collection('onlineEsUsuarios').doc(id).set({
           ..._dadosUser, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
@@ -2971,7 +3296,7 @@ html[data-role="technician"] nav button {
       cidade: c.cidade || '', uf: c.uf || '', ativo: c.ativo !== false
     };
     try {
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         await db.collection('onlineEsClientes').doc(id).set({
           ...dados, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
@@ -2997,7 +3322,7 @@ html[data-role="technician"] nav button {
       estoque: (typeof eq.estoque === 'number' && !isNaN(eq.estoque)) ? eq.estoque : null
     };
     try {
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         await db.collection('onlineEsEquipamentos').doc(id).set({
           ...dados, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
@@ -3012,7 +3337,8 @@ html[data-role="technician"] nav button {
   async function syncUsuariosFromFirestore() {
     if (!navigator.onLine) return;
     try {
-      const docs = (db && window._firebaseAuth && window._firebaseAuth.currentUser)
+      // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; usa SDK diretamente
+      const docs = db
         ? await (async () => { const snap = await db.collection("onlineEsUsuarios").get(); const a=[]; snap.forEach(doc=>{const d=doc.data()||{};d._firestoreId=doc.id;a.push(d);}); return a; })()
         : await _fetchColecaoREST('onlineEsUsuarios', 500);
       const lista = [];
@@ -3082,15 +3408,14 @@ html[data-role="technician"] nav button {
     if (!navigator.onLine) return;
     // Tenta SDK (autenticado) primeiro, REST como fallback apenas se autenticado
     const _fetchClientes = async () => {
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         const snap = await db.collection("onlineEsClientes").get();
         const arr = [];
         snap.forEach(doc => { const d = doc.data() || {}; d._firestoreId = doc.id; arr.push(d); });
         return arr;
       }
-      // [FIX-AUTH-REST] Só faz chamada REST se há currentUser — sem auth as regras
-      // do Firestore rejeitam a requisição e o erro era silenciado, retornando [] falso.
-      if (window._firebaseAuth && window._firebaseAuth.currentUser) {
+      // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; REST só se SDK indisponível
+      if (!db) {
         return await _fetchColecaoREST('onlineEsClientes', 500);
       }
       console.warn('[syncClientes] Sem autenticação — sync adiado.');
@@ -3132,14 +3457,14 @@ html[data-role="technician"] nav button {
   async function syncEquipamentosFromFirestore() {
     if (!navigator.onLine) return;
     const _fetchEq = async () => {
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         const snap = await db.collection("onlineEsEquipamentos").get();
         const arr = [];
         snap.forEach(doc => { const d = doc.data() || {}; d._firestoreId = doc.id; arr.push(d); });
         return arr;
       }
-      // [FIX-AUTH-REST] Apenas chama REST se autenticado
-      if (window._firebaseAuth && window._firebaseAuth.currentUser) {
+      // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; REST só se SDK indisponível
+      if (!db) {
         return await _fetchColecaoREST('onlineEsEquipamentos', 500);
       }
       console.warn('[syncEquipamentos] Sem autenticação — sync adiado.');
@@ -3182,7 +3507,7 @@ html[data-role="technician"] nav button {
       var _uLogin = window.usuarioLogado || {};
       var _isTecnico = _uLogin.role === 'tecnico';
       var _LIMIT_SYNC = 200; // suficiente para cache inicial; onSnapshot mantém atualizado
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         var _query = db.collection('onlineEsRelatorios');
         if (_isTecnico && _uLogin.username) {
           // Técnico: apenas suas RATs, mais recentes primeiro
@@ -3340,7 +3665,7 @@ html[data-role="technician"] nav button {
         console.warn('[FOTO-FS] Documento muito grande (' + Math.round(_jsonEstimado/1024) + 'KB) — fotos removidas do Firestore. Reduza o número de fotos.');
         if (typeof showToast === 'function') showToast('⚠️ Muitas fotos: PDF do cliente não terá imagens. Reduza para até 6 fotos.', 5000);
       }
-      if (db && window._firebaseAuth && window._firebaseAuth.currentUser) {
+      if (db) { // [FIX-AUTH] Usa SDK diretamente — app usa auth próprio, não Firebase Auth
         await db.collection("onlineEsRelatorios").doc(docId).set(rFirestore, { merge: true });
         
       } else {
@@ -3359,7 +3684,9 @@ html[data-role="technician"] nav button {
   // === Sync geral no login: sincroniza todas as coleções ===
   // onSnapshot: escuta relatórios em tempo real (supervisor vê quando técnico salva)
   function _iniciarListenerRelatorios() {
-    if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
+    // [FIX-LISTENER] Guard corrigido: app usa auth próprio (não Firebase Auth),
+    // então currentUser é sempre null. Verifica apenas db + usuário do app logado.
+    if (!db || !window.usuarioLogado) return;
     if (window._relatoriosListener) return; // já ativo
     try {
       // [S-01/B-01] Técnico só recebe seus próprios RATs; supervisor/admin recebem todos.
@@ -4274,11 +4601,19 @@ function saveUsers(lista){
     // Guarda último número gerado (usado pelo fallback do lock)
     try { localStorage.setItem(STORAGE_CONTADOR + '-last', numero); } catch(e) {}
     // Registra no Firestore de forma assíncrona para detectar colisões
-    if (navigator.onLine && window._firebaseAuth && window._firebaseAuth.currentUser) {
+    // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta estar online + db
+    if (navigator.onLine) {
       try {
-        _setDocREST('onlineEsContadores', numero, {
-          numero: numero, tecnico: _tecLogin, timestamp: new Date().toISOString(), reservado: true
-        }).catch(function(){});
+        var _db2 = window._getDb ? window._getDb() : null;
+        if (_db2) {
+          _db2.collection('onlineEsContadores').doc(numero).set({
+            numero: numero, tecnico: _tecLogin, timestamp: new Date().toISOString(), reservado: true
+          }).catch(function(){});
+        } else {
+          _setDocREST('onlineEsContadores', numero, {
+            numero: numero, tecnico: _tecLogin, timestamp: new Date().toISOString(), reservado: true
+          }).catch(function(){});
+        }
       } catch(e) {}
     }
     return numero;
@@ -4288,7 +4623,8 @@ function saveUsers(lista){
   }
   // Verifica assincronamente se número já existe (colisão entre dispositivos)
   async function verificarNumeroRATUnico(numero) {
-    if (!navigator.onLine || !window._firebaseAuth || !window._firebaseAuth.currentUser) return numero;
+    // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta estar online
+    if (!navigator.onLine) return numero;
     try {
       var db2 = window._getDb ? window._getDb() : null;
       if (!db2) return numero;
@@ -4602,6 +4938,110 @@ function autoFillCamposAtendimento(){
   const cProblema = document.getElementById('cProblema');
   const cDiagnostico = document.getElementById('cDiagnostico');
   const cAcoes = document.getElementById('cAcoes');
+
+  // [DIAG-SUGEST] Base de conhecimento local — diagnóstico contextual por palavra-chave
+  // Sem IA, sem servidor, zero custo. Baseado nos problemas mais comuns em eletroeletrônica.
+  const _DIAG_BASE = [
+    { palavras: ['não gela','nao gela','não refrigera','nao refrigera','calor','quente demais'],
+      diag: 'Possível falha no compressor, gás refrigerante baixo ou condensador sujo. Verificar pressão do gás e limpeza do condensador.' },
+    { palavras: ['não liga','nao liga','sem energia','sem luz','não acende','nao acende','dead','morto'],
+      diag: 'Verificar fusível, fonte de alimentação e cabo de energia. Possível falha na placa de controle ou proteção ativada.' },
+    { palavras: ['bateria','baterias','autonomia','descarrega','nao segura carga','não segura carga','carga rapida'],
+      diag: 'Degradação de células da bateria. Realizar teste de capacidade e verificar eficiência de carga do carregador.' },
+    { palavras: ['superaquece','superaquecendo','esquenta demais','muito quente','temperatura alta'],
+      diag: 'Ventilação obstruída ou pasta térmica ressecada. Limpar dissipador, substituir pasta térmica e verificar ventoinha.' },
+    { palavras: ['barulho','ruido','ruído','barulhento','chiado','rangendo','vibrando'],
+      diag: 'Verificar rolamentos do motor ou ventoinha com desgaste, parafusos soltos ou corpo estranho interno.' },
+    { palavras: ['tela','display','não aparece','nao aparece','imagem','pixelado','listras','sem imagem','apagada'],
+      diag: 'Verificar cabo de vídeo, retroiluminação (backlight) e placa de controle do display. Possível falha no inversor.' },
+    { palavras: ['não carrega','nao carrega','carregando lento','carregamento','porta usb','cabo'],
+      diag: 'Verificar porta de carga (desgaste/oxidação), cabo e circuito de gerenciamento de bateria (PMIC).' },
+    { palavras: ['desliga sozinho','reinicia','travando','trava','freeze','congela'],
+      diag: 'Possível superaquecimento, falha na memória RAM ou corrução de firmware. Realizar teste de stress e verificar temperatura.' },
+    { palavras: ['wifi','wi-fi','internet','sem sinal','rede','conexao','conexão','bluetooth'],
+      diag: 'Verificar antena interna, módulo de comunicação e configurações de firmware. Possível dano na antena ou módulo RF.' },
+    { palavras: ['som','audio','áudio','sem som','mudo','alto-falante','speaker','microfone'],
+      diag: 'Verificar conector de áudio, alto-falante e placa de som. Possível falha no codec de áudio ou driver.' },
+    { palavras: ['inversor','nobreak','ups','não comuta','nao comuta','falha transferencia'],
+      diag: 'Verificar baterias, fusível do inversor, relé de transferência e placa de controle. Testar tensão de saída.' },
+    { palavras: ['curto','curto-circuito','queimou','cheiro de queimado','fumaca','fumaça'],
+      diag: 'Inspeção visual completa em busca de componentes queimados. Verificar fusíveis, capacitores e trilhas da PCB.' },
+    { palavras: ['água','molhado','umidade','caiu na agua','caiu água','corrosao','corrosão','oxidado'],
+      diag: 'Limpeza com álcool isopropílico, verificação de corrosão na PCB e substituição de componentes danificados pela umidade.' },
+    { palavras: ['teclado','tecla','botão','nao funciona botao','não responde','não registra'],
+      diag: 'Verificar membrana do teclado, conector flex e placa de controle. Possível acúmulo de sujeira sob as teclas.' },
+    { palavras: ['lento','devagar','performance','desempenho','travado','demora'],
+      diag: 'Verificar armazenamento (capacidade e saúde), memória RAM e processos em segundo plano. Possível falha no storage.' },
+    { palavras: ['ventilador','ventoinha','cooler','girar','parou de girar','fan'],
+      diag: 'Ventoinha com rolamento desgastado ou bloqueada por sujeira. Limpar pás, verificar rolamento e testar tensão de alimentação do motor.' },
+    { palavras: ['fusivel','fusível','queimou fusivel','nao passa corrente','sem corrente'],
+      diag: 'Fusível interrompido por sobrecorrente. Identificar a causa antes de substituir — verificar curto-circuito na carga ou componentes em curto.' },
+    { palavras: ['display apagou','tela apagou','sem backlight','retroiluminação','iluminação'],
+      diag: 'Retroiluminação (backlight) falhou. Verificar inversor de backlight, cabo LVDS e driver LED. Possível falha no transistor de controle.' },
+    { palavras: ['porta nao carrega','usb c','lightning','conector solto','conector oxidado'],
+      diag: 'Conector de carga com pinos oxidados ou quebrados. Testar com cabo diferente, inspecionar pinos com lupa e verificar placa de carga.' },
+    { palavras: ['nobreak desliga','ups desliga','sem autonomia nobreak','bateria nobreak'],
+      diag: 'Baterias do nobreak com sulfatação ou fim de vida útil. Realizar teste de carga, medir tensão em carga e comparar com especificação do fabricante.' },
+    { palavras: ['proteção ativada','proteção térmica','thermal shutdown','desligou sozinho calor','proteção sobrecarga'],
+      diag: 'Proteção térmica ou de sobrecarga ativada. Verificar temperatura interna, limpeza dos dutos de ventilação e calibração do sensor de temperatura.' },
+  ];
+
+  function _buscarDiagSugestao(texto) {
+    if (!texto || texto.length < 4) return null;
+    const norm = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    for (const item of _DIAG_BASE) {
+      if (item.palavras.some(p => norm.includes(p))) return item.diag;
+    }
+    return null;
+  }
+
+  // Wiring do campo problema → sugestão de diagnóstico
+  if (cProblema) {
+    var _diagDebounce = null;
+    cProblema.addEventListener('input', function() {
+      clearTimeout(_diagDebounce);
+      _diagDebounce = setTimeout(function() {
+        const sugest = _buscarDiagSugestao(cProblema.value);
+        const box = document.getElementById('diagSugestBox');
+        const txt = document.getElementById('diagSugestTexto');
+        if (sugest && box && txt) {
+          txt.textContent = sugest;
+          box.style.display = 'block';
+        } else if (box) {
+          box.style.display = 'none';
+        }
+      }, 500);
+    });
+  }
+
+  // Botão "Usar" — copia sugestão para o campo de diagnóstico
+  var _diagSugestUsarBtn = document.getElementById('diagSugestUsar');
+  if (_diagSugestUsarBtn) {
+    _diagSugestUsar = _diagSugestUsarBtn; // expose for later
+    _diagSugestUsarBtn.addEventListener('click', function() {
+      var txt = document.getElementById('diagSugestTexto');
+      if (cDiagnostico && txt) {
+        if (cDiagnostico.value.trim()) {
+          cDiagnostico.value = cDiagnostico.value.trim() + ' ' + txt.textContent;
+        } else {
+          cDiagnostico.value = txt.textContent;
+        }
+        cDiagnostico.focus();
+        document.getElementById('diagSugestBox').style.display = 'none';
+        showToast('✅ Sugestão aplicada! Revise e complete o diagnóstico.', 3000);
+      try { if (navigator.vibrate) navigator.vibrate([20, 40, 20]); } catch(e) {}
+      }
+    });
+  }
+
+  // Botão fechar sugestão
+  var _diagFecharBtn = document.getElementById('diagSugestFechar');
+  if (_diagFecharBtn) {
+    _diagFecharBtn.addEventListener('click', function() {
+      var box = document.getElementById('diagSugestBox');
+      if (box) box.style.display = 'none';
+    });
+  }
   const cPecas = document.getElementById('cPecas');
   const cUpload = document.getElementById('cUpload');
   const cPreview = document.getElementById('cPreview');
@@ -5550,7 +5990,15 @@ function autoFillCamposAtendimento(){
 
   function limparMenu(){
     [mNovo,mMeus,mPainel,mCadastros,mSistema].forEach(b=>{ if (b) b.classList.remove('active'); });
-    [telaNovo,telaMeus,telaPainel,telaCadastros,telaSistema].forEach(s=>{ if (s) s.style.display='none'; });
+    [telaNovo,telaMeus,telaPainel,telaCadastros,telaSistema].forEach(s=>{
+      if (s) {
+        s.style.display='none';
+        // [UX-FADE] Reset da animação — permite que o fadeIn replaye na próxima exibição
+        s.style.animation='none';
+        void s.offsetHeight; // force reflow
+        s.style.animation='';
+      }
+    });
     // Esconde telaMonitor ao navegar para outras telas
     var _telaMon = document.getElementById('telaMonitor');
     if (_telaMon) _telaMon.style.display = 'none';
@@ -5595,6 +6043,7 @@ function autoFillCamposAtendimento(){
       if (telaMeus) telaMeus.style.display='block';
       try { await renderMeus(); } catch(e){ console.warn('Falha ao renderizar Meus Atendimentos:', e); }
       if (tituloEl) tituloEl.textContent='Meus Atendimentos';
+      var _subEl=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl) _subEl.textContent='Histórico dos seus atendimentos';
 
     } else if (nome === 'painel'){
       if (mPainel) mPainel.classList.add('active');
@@ -5607,26 +6056,31 @@ function autoFillCamposAtendimento(){
       aplicarPermissoesConfiguracoes();
       try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       if (tituloEl) tituloEl.textContent='Painel de Gerenciamento';
+      var _subEl=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl) _subEl.textContent='Visão geral e gestão da equipe';
 
     } else if (nome === 'cadastros'){
       if (mCadastros) mCadastros.classList.add('active');
       if (telaCadastros) telaCadastros.style.display='block';
       if (tituloEl) tituloEl.textContent='Cadastros';
+      var _subEl=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl) _subEl.textContent='Clientes, equipamentos e usuários';
 
     } else if (nome === 'sistema'){
       if (mSistema) mSistema.classList.add('active');
       if (telaSistema) telaSistema.style.display='block';
       if (tituloEl) tituloEl.textContent='Sistema';
+      var _subEl=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl) _subEl.textContent='Configurações e preferências';
 
     } else if (nome === 'monitor'){
       // [MON] Tela de monitoramento — lógica completa no wrapper do módulo monitor
       // O base apenas limpa o menu (já feito por limparMenu acima)
       if (tituloEl) tituloEl.textContent='Monitoramento Técnico';
+      var _subEl=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl) _subEl.textContent='Logs e status em tempo real';
 
     } else {
       if (mNovo) mNovo.classList.add('active');
       if (telaNovo) telaNovo.style.display='block';
       if (tituloEl) tituloEl.textContent='Novo Atendimento';
+      var _subEl=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl) _subEl.textContent='Preencha os dados do atendimento';
       // BUG FIX: limpa _ratPreSalvoId sempre que abre tela novo sem estar em modo edição.
       // Cobre editarRelatorio, btnDuplicarAnterior e supervisor edit que não limpavam o id.
       // editarRelatorio redefine _editandoRelatorioId no .then() posterior, então é seguro aqui.
@@ -6133,13 +6587,16 @@ function autoFillCamposAtendimento(){
     if (!data.length){ listaRelatorios.innerHTML='<p style="font-size:.72rem;color:#0f172a;">Nenhum relatório encontrado.</p>'; return; }
 
     // [FIX-v39] DocumentFragment — evita reflow a cada card inserido
+    // [FIX-PERF] Limita renderização inicial a 50 cards — painel supervisor pode ter 500 RATs
+    var _LISTA_LIMIT = 50;
+    var _listaTotalData = data.length;
     var _listaFrag = document.createDocumentFragment();
-    data.forEach(r=>{
+    data.slice(0, _LISTA_LIMIT).forEach(r=>{
       const div=document.createElement('div');
       const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
       const temImg=(r.imgsEquip&&r.imgsEquip.length)||(r.imgsServico&&r.imgsServico.length)||(r.imgsBaterias&&r.imgsBaterias.length);
       const temVid=(r.vidsEquip&&r.vidsEquip.length)||(r.vidsServico&&r.vidsServico.length)||(r.vidsBaterias&&r.vidsBaterias.length);
-      div.className='relatorio-card'+(r.visto?' visto':'');
+      div.className='relatorio-card relatorio-card-item'+(r.visto?' visto':'');
       div.innerHTML=`
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
           <div>
@@ -6171,6 +6628,37 @@ function autoFillCamposAtendimento(){
       _listaFrag.appendChild(div);
     });
     listaRelatorios.appendChild(_listaFrag);
+
+    // [FIX-PERF] Botão "Carregar mais" para RATs além do limite
+    if (_listaTotalData > _LISTA_LIMIT) {
+      var _restoLista = _listaTotalData - _LISTA_LIMIT;
+      var _btnMaisLista = document.createElement('button');
+      _btnMaisLista.className = 'btn secondary';
+      _btnMaisLista.style.cssText = 'width:100%;justify-content:center;margin-top:8px;';
+      _btnMaisLista.innerHTML = '<i class="ri-arrow-down-line"></i> Carregar mais ' + _restoLista + ' relatório(s)';
+      _btnMaisLista.onclick = function() {
+        _btnMaisLista.remove();
+        var _frag3 = document.createDocumentFragment();
+        data.slice(_LISTA_LIMIT).forEach(function(r) {
+          var div3 = document.createElement('div');
+          div3.className = 'relatorio-card relatorio-card-item' + (r.visto ? ' visto' : '');
+          var sc3 = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
+          div3.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
+            '<div><strong>' + esc(r.numero) + ' · ' + esc(r.cliente) + '</strong>' +
+            '<div><small>' + esc(r.dataHoraBr || isoToBR(r.dataHoraIso) || '') + '</small></div>' +
+            '<div><small>Téc.: ' + esc(r.tecnico) + '</small></div></div>' +
+            '<span class="badge-status ' + sc3 + '">' + esc(r.status) + '</span></div>' +
+            '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">' +
+            '<button class="btn small" data-ver3="' + esc(r.id) + '"><i class="ri-eye-line"></i> Visualizar</button>' +
+            '<button class="btn small" data-pdf3="' + esc(r.id) + '"><i class="ri-file-pdf-line"></i> PDF</button></div>';
+          div3.querySelector('[data-ver3]').onclick = function(){ visualizarRelatorio(r.id); };
+          div3.querySelector('[data-pdf3]').onclick = async function(){ try{ await _ensureJsPDF(); await exportarPDF(r); }catch(e){ showToast('❌ Não foi possível gerar o PDF.', 4000); } };
+          _frag3.appendChild(div3);
+        });
+        listaRelatorios.appendChild(_frag3);
+      };
+      listaRelatorios.appendChild(_btnMaisLista);
+    }
 
     listaRelatorios.querySelectorAll('[data-ver]').forEach(btn=>{
       btn.onclick = ()=>{ const id=btn.getAttribute('data-ver'); visualizarRelatorio(id); };
@@ -6215,6 +6703,11 @@ function autoFillCamposAtendimento(){
         const id = btn.getAttribute('data-painel-whats');
         const r = relatorios.find(x => x.id === id);
         if (!r) return;
+        // [FIX-FILE] Bloqueia envio quando aberto via file:// — link gerado seria inacessível ao cliente
+        if (window.location.protocol === 'file:') {
+          showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000);
+          return;
+        }
         var num = ((r.whatsapp || r.telefone || '').replace(/\D/g,'')).trim();
         if (!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         if (num.length <= 11) num = '55' + num;
@@ -6242,6 +6735,11 @@ function autoFillCamposAtendimento(){
         const id = btn.getAttribute('data-painel-email');
         const r = relatorios.find(x => x.id === id);
         if (!r) return;
+        // [FIX-FILE] Bloqueia envio quando aberto via file:// — link gerado seria inacessível ao cliente
+        if (window.location.protocol === 'file:') {
+          showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000);
+          return;
+        }
         const email = (r.emailCliente || '').trim();
         if (!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
         var portalUrlE = null;
@@ -6530,7 +7028,7 @@ function renderUsuarios(){
       <td style="display:flex;gap:6px;flex-wrap:wrap;">
         ${showEditBtn  ? `<button class="btn small" data-editar="${esc(u.username)}"><i class="ri-pencil-line"></i> Editar</button>` : ''}
         ${showResetBtn ? `<button class="btn small" data-reset="${esc(u.username)}"><i class="ri-key-2-line"></i> Resetar senha</button>` : ''}
-        ${showToggleBtn? `<button class="btn small" data-toggle-ativo="${esc(u.username)}" style="background:${isInactive ? '#ea580c' : '#2563eb'};">${isInactive ? 'Inativo' : 'Inativar'}</button>` : ''}
+        ${showToggleBtn? `<button class="btn small" data-toggle-ativo="${esc(u.username)}" style="background:${isInactive ? '#16a34a' : '#2563eb'};">${isInactive ? '<i class="ri-user-follow-line"></i> Ativar' : '<i class="ri-user-unfollow-line"></i> Inativar'}</button>` : ''}
         ${showRemoveBtn? `<button class="btn small" data-remover="${esc(u.username)}"><i class="ri-delete-bin-6-line"></i> Remover</button>` : ''}
       </td>`;
     tbody.appendChild(tr);
@@ -6945,7 +7443,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
         if (!navigator.onLine) return;
         // [FIX-v39] Timeout de 5s — sem ele um fetch travado bloqueia a função async indefinidamente
         const resp = await fetch('https://viacep.com.br/ws/' + cepDigits + '/json/',
-          { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+          (function(){ var _ac=new AbortController(); setTimeout(function(){_ac.abort();},5000); return {signal:_ac.signal}; })());
         if (!resp.ok) return;
         const dados = await resp.json();
         if (dados.erro) return;
@@ -6971,16 +7469,113 @@ document.getElementById('btnAddCliente').onclick=()=>{
 
   function atualizarDashboard(){
     try {
-      // BUG FIX: filtrar RATs deletadas (soft-delete) dos contadores do dashboard
+      // [DASH-PREMIUM] KPIs com tendência hoje vs ontem
       const ativos = relatorios.filter(r => !r._deleted);
       const hojeIso = new Date(); hojeIso.setHours(0,0,0,0);
       const todayStr = hojeIso.toISOString().slice(0,10);
-      const rHoje = ativos.filter(r=>(r.dataHoraIso||r.dataHora||'').slice(0,10)===todayStr);
-      if (dHoje) dHoje.textContent = rHoje.length;
-      if (dConcluidosHoje) dConcluidosHoje.textContent = rHoje.filter(r=>r.status==='Concluído').length;
-      if (dConcluidosGeral) dConcluidosGeral.textContent = ativos.filter(r=>r.status==='Concluído').length;
-      if (dPendentes) dPendentes.textContent = ativos.filter(r=>r.status!=='Concluído').length;
+      const ontemIso = new Date(hojeIso); ontemIso.setDate(ontemIso.getDate()-1);
+      const ontemStr = ontemIso.toISOString().slice(0,10);
+      const rHoje  = ativos.filter(r=>(r.dataHoraIso||r.dataHora||'').slice(0,10)===todayStr);
+      const rOntem = ativos.filter(r=>(r.dataHoraIso||r.dataHora||'').slice(0,10)===ontemStr);
+      if (dHoje) {
+        dHoje.textContent = rHoje.length;
+        dHoje.style.animation = 'none';
+        requestAnimationFrame(function(){ dHoje.style.animation = ''; });
+      }
+      var _trendEl = document.getElementById('dHojeTrend');
+      if (_trendEl) {
+        var diff = rHoje.length - rOntem.length;
+        if (rOntem.length > 0 || rHoje.length > 0) {
+          var sinal = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+          var cor = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#94a3b8';
+          _trendEl.style.display = 'inline-flex';
+          _trendEl.innerHTML = '<span style="color:'+cor+'">'+sinal+' '+Math.abs(diff)+' vs ontem</span>';
+        } else { _trendEl.style.display = 'none'; }
+      }
+      if (dConcluidosHoje)  dConcluidosHoje.textContent  = rHoje.filter(function(r){return r.status==='Concluído';}).length;
+      if (dConcluidosGeral) dConcluidosGeral.textContent = ativos.filter(function(r){return r.status==='Concluído';}).length;
+      if (dPendentes)       dPendentes.textContent       = ativos.filter(function(r){return r.status!=='Concluído';}).length;
+      try { _renderDashGraficos(ativos); } catch(eg){ console.warn('dashGraficos:', eg); }
     } catch(e) { console.warn('atualizarDashboard:', e); }
+  }
+
+  // [DASH-CHART] Gráficos do dashboard: barras 7 dias + ranking técnicos + taxa retorno
+  function _renderDashGraficos(ativos) {
+    const wrap = document.getElementById('dashGraficosWrap');
+    if (!wrap) return;
+    if (!ativos || ativos.length === 0) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+
+    // ── 1. Barras: últimos 7 dias ─────────────────────────────
+    const elBarras = document.getElementById('dashBarras');
+    const elLabels = document.getElementById('dashBarrasLabels');
+    if (elBarras && elLabels) {
+      const dias = [];
+      for (var i = 6; i >= 0; i--) {
+        const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
+        dias.push(d.toISOString().slice(0,10));
+      }
+      const contagens = dias.map(dia => ativos.filter(r => (r.dataHoraIso||r.dataHora||'').slice(0,10) === dia).length);
+      const maximo = Math.max(...contagens, 1);
+      const hoje = new Date().toISOString().slice(0,10);
+      const nomesDia = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+      elBarras.innerHTML = contagens.map((qtd, i) => {
+        const pct = Math.round((qtd / maximo) * 100);
+        const isHoje = dias[i] === hoje;
+        const cor = isHoje
+          ? 'linear-gradient(180deg,#fb923c,#f97316)'
+          : 'linear-gradient(180deg,rgba(99,130,200,.7),rgba(17,79,145,.55))';
+        const altura = Math.max(pct, qtd > 0 ? 10 : 3);
+        const delay = i * 40;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+          <span style="font-size:.62rem;color:${isHoje?'#fb923c':'#94a3b8'};font-weight:700;min-height:14px;">${qtd > 0 ? qtd : ''}</span>
+          <div style="width:100%;background:${cor};border-radius:5px 5px 2px 2px;height:${altura}%;min-height:${qtd>0?'8px':'3px'};transition:height .45s cubic-bezier(.34,1.56,.64,1) ${delay}ms;box-shadow:${isHoje?'0 2px 8px rgba(249,115,22,.4)':'none'};"></div>
+        </div>`;
+      }).join('');
+
+      elLabels.innerHTML = dias.map((dia, i) => {
+        const isHoje = dia === hoje;
+        const d = new Date(dia + 'T12:00:00');
+        const label = isHoje ? 'Hoje' : nomesDia[d.getDay()];
+        return `<div style="flex:1;text-align:center;font-size:.6rem;color:${isHoje ? '#f97316' : '#64748b'};font-weight:${isHoje ? '700' : '400'};">${label}</div>`;
+      }).join('');
+    }
+
+    // ── 2. Ranking de técnicos (top 5) ───────────────────────
+    const elRanking = document.getElementById('dashRanking');
+    if (elRanking) {
+      const contTec = {};
+      ativos.forEach(r => { const t = r.tecnico||'Sem nome'; contTec[t] = (contTec[t]||0) + 1; });
+      const top = Object.entries(contTec).sort((a,b) => b[1]-a[1]).slice(0,5);
+      const maxTec = top.length > 0 ? top[0][1] : 1;
+      const medalhas = ['🥇','🥈','🥉','',''];
+      const cores = ['linear-gradient(90deg,#f97316,#fb923c)','linear-gradient(90deg,#3b82f6,#60a5fa)','linear-gradient(90deg,#8b5cf6,#a78bfa)','linear-gradient(90deg,#14b8a6,#2dd4bf)','linear-gradient(90deg,#64748b,#94a3b8)'];
+      elRanking.innerHTML = top.map(([nome, qtd], i) => {
+        const pct = Math.round((qtd / maxTec) * 100);
+        const nomeCurto = nome.length > 16 ? nome.slice(0,14)+'…' : nome;
+        const delay = i * 80;
+        return `<div style="margin-bottom:9px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:.68rem;margin-bottom:4px;">
+            <span style="color:#e2e8f0;font-weight:600;display:flex;align-items:center;gap:5px;">${medalhas[i]||'<span style="display:inline-block;width:16px;"></span>'}<span>${nomeCurto}</span></span>
+            <span style="color:#94a3b8;background:rgba(148,163,184,.1);padding:1px 7px;border-radius:99px;">${qtd} RAT${qtd!==1?'s':''}</span>
+          </div>
+          <div style="background:rgba(148,163,184,.1);border-radius:99px;height:6px;overflow:hidden;">
+            <div style="width:0%;background:${cores[i]||cores[4]};height:100%;border-radius:99px;transition:width .5s cubic-bezier(.34,1.2,.64,1) ${delay}ms;" data-w="${pct}"></div>
+          </div>
+        </div>`;
+      }).join('') || '<span style="font-size:.7rem;color:#64748b;">Sem dados ainda</span>';
+      // Anima barras do ranking com requestAnimationFrame
+      requestAnimationFrame(function() {
+        elRanking.querySelectorAll('[data-w]').forEach(function(el) {
+          el.style.width = el.getAttribute('data-w') + '%';
+        });
+      });
+    }
+
+    // [REMOVED] Tempo médio e Taxa de retorno removidos:
+    // dados insuficientes — mesmo cliente com problemas diferentes
+    // seria contado incorretamente como retrabalho.
   }
 
   // Cards filtro rápido
@@ -7852,6 +8447,8 @@ if (logoBase64) {
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
       showToast('Relatório salvo e enviado para o painel.');
+      // [UX-VIB] Vibração de confirmação ao salvar RAT com sucesso
+      try { if (navigator.vibrate) navigator.vibrate([40, 30, 80]); } catch(e) {}
       try {
         if (_eraEdicao) {
           logInfo('RAT editada (online)', {
@@ -7887,6 +8484,8 @@ if (logoBase64) {
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
+      // [UX-VIB] Vibração de confirmação ao salvar offline
+      try { if (navigator.vibrate) navigator.vibrate([40, 30, 40]); } catch(e) {}
       try {
         if (_eraEdicao) {
           logWarning('RAT editada (offline/pendente)', {
@@ -8717,6 +9316,63 @@ if (logoBase64) {
     window._irParaStep = _irParaStep;
     window._getStepAtual = function() { return _stepAtual; };
 
+    // [UX-SWIPE] Swipe horizontal entre steps do formulário
+    // O técnico desliza o dedo para avançar/voltar sem precisar clicar nos botões.
+    // Proteção: ignora swipe quando o usuário está desenhando nos canvas de assinatura,
+    // rola verticalmente, ou o swipe é curto demais (< 50px horizontal).
+    (function() {
+      var _panel = document.getElementById('telaNovo');
+      if (!_panel) return;
+      var _sx = null, _sy = null, _t0 = 0;
+      var LIMIAR_X   = 52;  // px mínimos na horizontal para reconhecer swipe
+      var LIMIAR_Y   = 28;  // px máximos na vertical (acima disso = scroll, não swipe)
+      var MAX_MS     = 420; // ms máximo do gesto (swipes lentos ignorados)
+
+      _panel.addEventListener('touchstart', function(e) {
+        // Não inicia swipe se toque está dentro de um canvas de assinatura
+        var _target = e.target;
+        while (_target && _target !== _panel) {
+          if (_target.tagName === 'CANVAS') return;
+          _target = _target.parentElement;
+        }
+        if (e.touches.length !== 1) return;
+        _sx = e.touches[0].clientX;
+        _sy = e.touches[0].clientY;
+        _t0 = Date.now();
+      }, { passive: true });
+
+      _panel.addEventListener('touchend', function(e) {
+        if (_sx === null) return;
+        var dx = e.changedTouches[0].clientX - _sx;
+        var dy = e.changedTouches[0].clientY - _sy;
+        var dt = Date.now() - _t0;
+        _sx = null; _sy = null;
+
+        // Rejeita se: muito lento, muito curto, ou dominantemente vertical (scroll)
+        if (dt > MAX_MS) return;
+        if (Math.abs(dx) < LIMIAR_X) return;
+        if (Math.abs(dy) > LIMIAR_Y) return;
+
+        var stepAtual = typeof _stepAtual !== 'undefined' ? _stepAtual : (window._getStepAtual ? window._getStepAtual() : 1);
+        if (dx < 0) {
+          // Swipe esquerda → avança (simula clique no Próximo)
+          var _btnNext = document.getElementById('btnStepNext');
+          if (_btnNext && _btnNext.style.display !== 'none' && !_btnNext.disabled) {
+            _btnNext.click();
+            // Vibração leve de confirmação de navegação
+            try { if (navigator.vibrate) navigator.vibrate(18); } catch(e) {}
+          }
+        } else {
+          // Swipe direita → volta (simula clique no Anterior)
+          var _btnPrev = document.getElementById('btnStepPrev');
+          if (_btnPrev && _btnPrev.style.display !== 'none' && !_btnPrev.disabled) {
+            _btnPrev.click();
+            try { if (navigator.vibrate) navigator.vibrate(18); } catch(e) {}
+          }
+        }
+      }, { passive: true });
+    })();
+
     // Inicializa no step 1
     _irParaStep(1);
   })();
@@ -9187,7 +9843,9 @@ if (logoBase64) {
       _cepEl.style.boxShadow    = '0 0 0 3px rgba(249,115,22,.15)';
       if (typeof showToast === 'function') showToast('🔍 Buscando CEP...');
       try {
-        var resp = await fetch('https://viacep.com.br/ws/' + cep + '/json/', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+        var _cepAc = new AbortController(); var _cepTimer = setTimeout(function(){_cepAc.abort();}, 5000);
+        var resp = await fetch('https://viacep.com.br/ws/' + cep + '/json/', { signal: _cepAc.signal });
+        clearTimeout(_cepTimer);
         if (!resp.ok) throw new Error('CEP não encontrado');
         var d = await resp.json();
         if (d.erro) throw new Error('CEP inválido');
@@ -10101,6 +10759,9 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       sigClienteUpload.value = '';
     }
     _marcarCanvasAssinado(sigCanvas, sigStatus, false);
+    // [TRAVA-SIG] Destrava ao limpar — técnico precisa assinar de novo
+    _sigClienteTravado = false;
+    _atualizarBotaoTravaCli();
   }
 
   function getPosCanvas(e){
@@ -10196,6 +10857,11 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if (sigStatus) sigStatus.innerHTML += ' — Digite o nome completo abaixo.';
       if (sigNomeWrap) sigNomeWrap.style.display = 'block';
       if (sigNomeCliente) sigNomeCliente.focus();
+      // [TRAVA-SIG] Auto-trava o canvas após confirmar assinatura
+      _sigClienteTravado = true;
+      _atualizarBotaoTravaCli();
+      // [UX-VIB-SIG] Vibração dupla ao confirmar assinatura — feedback tátil "capturado"
+      try { if (navigator.vibrate) navigator.vibrate([40, 60, 120]); } catch(e) {}
       try { logInfo('Assinatura do cliente capturada (digital)', {}); } catch(e){}
     };
   }
@@ -10212,6 +10878,60 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       }
     };
   }
+
+  // [TRAVA-SIG] Botão de trava do canvas de assinatura do CLIENTE
+  // Resolve o problema do técnico riscar a assinatura ao rolar a tela no mobile.
+  // Quando travado: touchstart/touchmove no canvas são ignorados; scroll funciona normalmente.
+  var _sigClienteTravado = false;
+  var _btnTravarSigCli = document.getElementById('btnTravarSigCliente');
+  var _iconTravarSigCli = document.getElementById('iconTravarSigCliente');
+  var _lblTravarSigCli  = document.getElementById('lblTravarSigCliente');
+
+  function _atualizarBotaoTravaCli() {
+    if (!_btnTravarSigCli) return;
+    if (_sigClienteTravado) {
+      _btnTravarSigCli.style.background = 'rgba(220,38,38,.1)';
+      _btnTravarSigCli.style.borderColor = 'rgba(220,38,38,.4)';
+      _btnTravarSigCli.style.color = '#dc2626';
+      if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-line';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Canvas travado';
+      if (sigCanvas) { sigCanvas.style.opacity = '0.7'; sigCanvas.style.cursor = 'not-allowed'; }
+    } else {
+      _btnTravarSigCli.style.background = 'rgba(148,163,184,.12)';
+      _btnTravarSigCli.style.borderColor = 'rgba(148,163,184,.35)';
+      _btnTravarSigCli.style.color = '#475569';
+      if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-unlock-line';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar canvas';
+      if (sigCanvas) { sigCanvas.style.opacity = ''; sigCanvas.style.cursor = ''; }
+    }
+  }
+
+  if (_btnTravarSigCli) {
+    _btnTravarSigCli.addEventListener('click', function() {
+      _sigClienteTravado = !_sigClienteTravado;
+      _atualizarBotaoTravaCli();
+      showToast(_sigClienteTravado
+        ? '🔒 Canvas travado — role a tela livremente.'
+        : '🔓 Canvas desbloqueado — pode assinar agora.');
+      try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
+    });
+  }
+
+  // Sobrescreve startDraw e moveDraw para respeitar a trava
+  var _origStartDraw = startDraw;
+  var _origMoveDraw  = moveDraw;
+  startDraw = function(e) { if (_sigClienteTravado) return; _origStartDraw(e); };
+  moveDraw  = function(e) { if (_sigClienteTravado) return; _origMoveDraw(e); };
+
+  // Re-registra os eventos com as funções atualizadas
+  sigCanvas.removeEventListener('mousedown',  _origStartDraw);
+  sigCanvas.removeEventListener('touchstart', _origStartDraw);
+  sigCanvas.removeEventListener('mousemove',  _origMoveDraw);
+  sigCanvas.removeEventListener('touchmove',  _origMoveDraw);
+  sigCanvas.addEventListener('mousedown',  startDraw);
+  sigCanvas.addEventListener('touchstart', startDraw,  {passive:false});
+  sigCanvas.addEventListener('mousemove',  moveDraw, {passive:false});
+  sigCanvas.addEventListener('touchmove',  moveDraw, {passive:false});
 
   // Upload de assinatura do cliente (imagem)
   if (typeof sigClienteUpload !== 'undefined' && sigClienteUpload){
@@ -10340,6 +11060,60 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     sigTecnicoCanvas.addEventListener('touchmove', moveDrawTec, {passive:false});
     sigTecnicoCanvas.addEventListener('touchend', endDrawTec);
 
+    // [TRAVA-SIG] Botão de trava do canvas de assinatura do TÉCNICO
+    var _sigTecTravado = false;
+    var _btnTravarSigTec  = document.getElementById('btnTravarSigTecnico');
+    var _iconTravarSigTec = document.getElementById('iconTravarSigTecnico');
+    var _lblTravarSigTec  = document.getElementById('lblTravarSigTecnico');
+
+    function _atualizarBotaoTravaTec() {
+      if (!_btnTravarSigTec) return;
+      if (_sigTecTravado) {
+        _btnTravarSigTec.style.background = 'rgba(220,38,38,.1)';
+        _btnTravarSigTec.style.borderColor = 'rgba(220,38,38,.4)';
+        _btnTravarSigTec.style.color = '#dc2626';
+        if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-line';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Canvas travado';
+        sigTecnicoCanvas.style.opacity = '0.7';
+        sigTecnicoCanvas.style.cursor  = 'not-allowed';
+      } else {
+        _btnTravarSigTec.style.background = 'rgba(148,163,184,.12)';
+        _btnTravarSigTec.style.borderColor = 'rgba(148,163,184,.35)';
+        _btnTravarSigTec.style.color = '#475569';
+        if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-unlock-line';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar canvas';
+        sigTecnicoCanvas.style.opacity = '';
+        sigTecnicoCanvas.style.cursor  = '';
+      }
+    }
+
+    if (_btnTravarSigTec) {
+      _btnTravarSigTec.addEventListener('click', function() {
+        _sigTecTravado = !_sigTecTravado;
+        _atualizarBotaoTravaTec();
+        showToast(_sigTecTravado
+          ? '🔒 Canvas travado — role a tela livremente.'
+          : '🔓 Canvas desbloqueado — pode assinar agora.');
+        try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
+      });
+    }
+
+    // Sobrescreve startDrawTec/moveDrawTec para respeitar trava
+    var _origStartDrawTec = startDrawTec;
+    var _origMoveDrawTec  = moveDrawTec;
+    startDrawTec = function(e) { if (_sigTecTravado) return; _origStartDrawTec(e); };
+    moveDrawTec  = function(e) { if (_sigTecTravado) return; _origMoveDrawTec(e); };
+
+    // Re-registra eventos com funções atualizadas
+    sigTecnicoCanvas.removeEventListener('mousedown',  _origStartDrawTec);
+    sigTecnicoCanvas.removeEventListener('touchstart', _origStartDrawTec);
+    sigTecnicoCanvas.removeEventListener('mousemove',  _origMoveDrawTec);
+    sigTecnicoCanvas.removeEventListener('touchmove',  _origMoveDrawTec);
+    sigTecnicoCanvas.addEventListener('mousedown',  startDrawTec);
+    sigTecnicoCanvas.addEventListener('touchstart', startDrawTec, {passive:false});
+    sigTecnicoCanvas.addEventListener('mousemove',  moveDrawTec, {passive:false});
+    sigTecnicoCanvas.addEventListener('touchmove',  moveDrawTec, {passive:false});
+
     // [FIX-SIG] Debounce no resize do técnico — mesmo motivo do cliente
     var _sigTecResizeTimer = null;
     window.addEventListener('resize', function() {
@@ -10395,6 +11169,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         assinaturaTecnicoAtual = sigTecnicoCanvas.toDataURL('image/png');
         window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
         _marcarCanvasAssinado(sigTecnicoCanvas, sigStatusTec, true);
+        // [UX-VIB-SIG] Vibração dupla ao confirmar assinatura do técnico
+        try { if (navigator.vibrate) navigator.vibrate([40, 60, 120]); } catch(e) {}
         try { logInfo('Assinatura do técnico capturada (digital)', {}); } catch(e){}
       };
     }
@@ -10492,15 +11268,53 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     buscaTecnicoWrap.style.display = (m==='tecnico') ? 'block' : 'none';
     buscaEmpresaWrap.style.display = (m==='empresa') ? 'block' : 'none';
   };
+  // [BUSCA-LIVRE] Referência ao campo de texto livre
+  const buscaTextoLivre = document.getElementById('buscaTextoLivre');
+
+  // Busca ao pressionar Enter no campo de texto livre
+  if (buscaTextoLivre) {
+    buscaTextoLivre.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') btnExecutarBusca.click();
+    });
+  }
+
   btnExecutarBusca.onclick = ()=>{
     showLoader('Filtrando relatórios...');
     setTimeout(()=>{
       const m = buscaModo.value;
       const d1 = (buscaDataIni.value||'').trim();
       const d2 = (buscaDataFim.value||'').trim();
+      const textoLivre = buscaTextoLivre ? (buscaTextoLivre.value||'').trim().toLowerCase() : '';
+
+      // [BUSCA-LIVRE] Se há texto livre, ignora filtro de data e busca em todos os campos
+      if (textoLivre) {
+        const _normalizar = s => String(s||'').toLowerCase()
+          .normalize('NFD').replace(/[̀-ͯ]/g,'');
+        const termos = textoLivre.split(/\s+/).filter(Boolean).map(_normalizar);
+        let data = relatorios.filter(r => {
+          if (r._deleted) return false;
+          // Campos pesquisáveis: número, cliente, equipamento, problema,
+          // diagnóstico, ações, técnico, status, tipo, série, CEP, telefone
+          const haystack = _normalizar([
+            r.numero, r.cliente, r.clienteManual, r.equipamento,
+            r.problema, r.diagnostico, r.acoes, r.tecnico,
+            r.status, r.tipo, r.serie, r.telefone, r.whatsapp,
+            r.localizacao, r.pecas, r.obs
+          ].join(' '));
+          return termos.every(t => haystack.includes(t));
+        });
+        // Aplica filtro de técnico/empresa se selecionados (opcional)
+        if (m==='tecnico') { const t=buscaTecnico.value; if(t) data=data.filter(r=>(r.tecnico||'')===t); }
+        else if (m==='empresa') { const e=buscaEmpresa.value; if(e) data=data.filter(r=>(r.cliente||'')===e); }
+        renderListaBusca(data);
+        hideLoader();
+        return;
+      }
+
+      // Busca por data (comportamento original)
       if(!/^(\d{2})\/(\d{2})\/(\d{4})$/.test(d1) || !/^(\d{2})\/(\d{2})\/(\d{4})$/.test(d2)){
         hideLoader();
-        showToast('Informe as duas datas no formato dd/mm/aaaa.');
+        showToast('Informe as datas ou use o campo de busca por texto acima.');
         return;
       }
       const iniIso = brDateOnlyToISOdate(d1);
@@ -10509,6 +11323,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const fimLimite = fim.toISOString();
 
       let data = relatorios.filter(r=>{
+        if (r._deleted) return false;
         const when = (r.dataHoraIso||r.dataHora);
         return when >= iniIso && when < fimLimite;
       });
@@ -10537,8 +11352,9 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     countEl.textContent = lista.length + ' relatório(s) encontrado(s)';
     listaBusca.appendChild(countEl);
     // [FIX-v39] DocumentFragment — mesma otimização aplicada em renderMeus e renderLista
+    // [FIX-PERF] Limita a 50 resultados na busca
     var _buscaFrag = document.createDocumentFragment();
-    lista.forEach(r=>{
+    lista.slice(0, 50).forEach(r=>{
       const card=document.createElement('div');
       const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
       card.className='relatorio-card'+(r.visto?' visto':'');
@@ -10571,6 +11387,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     // WhatsApp com link do portal
     listaBusca.querySelectorAll('[data-busca-whats]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-busca-whats'); const r=relatorios.find(x=>x.id===id); if(!r) return;
+      // [FIX-FILE] Bloqueia quando aberto localmente
+      if(window.location.protocol==='file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.',5000); return; }
       var num=((r.whatsapp||r.telefone||'').replace(/\D/g,'')).trim();
       if(num.length<=11) num='55'+num;
       var pUrl=null;
@@ -10585,6 +11403,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     // E-mail com link do portal
     listaBusca.querySelectorAll('[data-busca-email]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-busca-email'); const r=relatorios.find(x=>x.id===id); if(!r) return;
+      // [FIX-FILE] Bloqueia quando aberto localmente
+      if(window.location.protocol==='file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.',5000); return; }
       const email=(r.emailCliente||'').trim(); if(!email) return;
       var pUrl=null;
       if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
@@ -10730,13 +11550,22 @@ function aplicarPermissoesConfiguracoes(){
       }
     }
     // Inclui dados do Firestore no backup
+    // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; usa SDK diretamente
     var firestoreData = {};
-    if (navigator.onLine && window._firebaseAuth && window._firebaseAuth.currentUser) {
+    if (navigator.onLine) {
       try {
+        var _dbBkp = window._getDb ? window._getDb() : null;
         var colecoes = ['onlineEsRelatorios','onlineEsClientes','onlineEsEquipamentos','onlineEsUsuarios'];
         for (var col of colecoes) {
           try {
-            var docs = await _fetchColecaoREST(col);
+            var docs;
+            if (_dbBkp) {
+              var _snap = await _dbBkp.collection(col).limit(500).get();
+              docs = [];
+              _snap.forEach(function(d){ docs.push(d.data()); });
+            } else {
+              docs = await _fetchColecaoREST(col);
+            }
             if (docs && docs.length) firestoreData[col] = docs;
           } catch(e) {}
         }
@@ -10755,6 +11584,9 @@ function aplicarPermissoesConfiguracoes(){
     };
     if (dump['online-es-usuarios-v1']) dump['online-es-usuarios-v1'] = _stripSenhas(dump['online-es-usuarios-v1']);
     if (dump['online-es-users'])       dump['online-es-users']       = _stripSenhas(dump['online-es-users']);
+    // [FIX-SEC] A chave atual é v3 — as anteriores eram legadas e podem não existir.
+    // Sem esta linha, hashes PBKDF2 e salts saíam no backup em texto puro.
+    if (dump['online-es-usuarios-v3']) dump['online-es-usuarios-v3'] = _stripSenhas(dump['online-es-usuarios-v3']);
 
     // [SEC-BKP] Remove hashes de senha dos dados do Firestore
     if (firestoreData['onlineEsUsuarios'] && Array.isArray(firestoreData['onlineEsUsuarios'])) {
@@ -11477,6 +12309,7 @@ window.setCustomLogoBase64 = function(b64){
     // Atualiza título
     var titulo = document.getElementById('tituloTela');
     if (titulo) titulo.textContent = 'Início';
+    var _subEl2=document.getElementById('subtituloTela')||document.querySelector('.topbar small'); if(_subEl2) _subEl2.textContent='ONLINE-ES Eletroeletrônica';
     // Atualiza bottom nav
     _atualizarBnavAtivo('__home__');
     // Rola para o topo
@@ -12136,12 +12969,15 @@ async function renderMeus(){
       aviso.textContent = 'Nenhum relatório especificamente vinculado a este técnico foi encontrado. Listando todos os relatórios deste dispositivo (mais recentes primeiro).';
       lista.appendChild(aviso);
     }
-    // [FIX-v39] Limpa a lista ANTES de renderizar — sem isso, cada chamada a renderMeus()
-    // acumula cards duplicados (ex: ao navegar para a tela e voltar repetidamente).
-    // Também usa DocumentFragment para evitar reflow a cada card inserido.
+    // [FIX-PERF] Limita renderização inicial a 40 cards para não congelar mobile.
+    // Com 200+ RATs, um forEach síncrono bloqueia a thread por 1-3s.
+    // Botão "Carregar mais" permite ver o restante sob demanda.
+    var RENDER_LIMIT = 40;
+    var _totalFiltrados = filtrados.length;
+    var _renderizados = filtrados.slice(0, RENDER_LIMIT);
     lista.innerHTML = '';
     var _meusFragment = document.createDocumentFragment();
-    filtrados.forEach(function(r){
+    _renderizados.forEach(function(r){
       var card = document.createElement('div');
       card.className = 'relatorio-card';
       var titulo = (r.numero || r.rat || 'Sem número');
@@ -12182,7 +13018,43 @@ async function renderMeus(){
     });
     lista.appendChild(_meusFragment);
 
-    // BUG FIX: event handlers para os botões dos cards de Meus Atendimentos
+    // [FIX-PERF] Botão "Carregar mais" quando há RATs além do limite inicial
+    if (_totalFiltrados > RENDER_LIMIT) {
+      var _resto = _totalFiltrados - RENDER_LIMIT;
+      var _btnMais = document.createElement('button');
+      _btnMais.className = 'btn secondary';
+      _btnMais.style.cssText = 'width:100%;justify-content:center;margin-top:8px;';
+      _btnMais.innerHTML = '<i class="ri-arrow-down-line"></i> Carregar mais ' + _resto + ' relatório(s)';
+      _btnMais.onclick = function() {
+        _btnMais.remove();
+        var _frag2 = document.createDocumentFragment();
+        filtrados.slice(RENDER_LIMIT).forEach(function(r) {
+          var card2 = document.createElement('div');
+          card2.className = 'relatorio-card';
+          var st = r.status || 'Concluído';
+          var sc2 = st === 'Concluído' ? 'status-ok' : (st.includes('pendência') ? 'status-warn' : 'status-bad');
+          var _e2 = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+          var db2 = r.dataHoraBr || r.dataHoraBR || r.dataBr || '';
+          card2.innerHTML =
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'+
+              '<div><strong>'+_e2(r.numero||'')+'</strong> · <span style="font-size:.78rem;">'+_e2(r.cliente||'')+'</span></div>'+
+              '<span class="badge-status '+sc2+'">'+_e2(st)+'</span>'+
+            '</div>'+
+            '<div style="font-size:.72rem;color:#4b5563;margin-top:3px;">'+_e2(db2)+'</div>'+
+            '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">'+
+              '<button class="btn small" data-meus-ver="'+_e2(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
+              '<button class="btn small" data-meus-editar="'+_e2(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
+              '<button class="btn small" data-meus-pdf="'+_e2(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+            '</div>';
+          card2.querySelector('[data-meus-ver]').onclick = function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(rr&&typeof abrirRelatorioOverlay==='function')abrirRelatorioOverlay(rr);};
+          card2.querySelector('[data-meus-editar]').onclick = async function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(!rr)return;if(!await showConfirm('Editar o relatório Nº '+(rr.numero||'')+'?'))return;if(typeof editarRelatorio==='function')editarRelatorio(rr);};
+          card2.querySelector('[data-meus-pdf]').onclick = async function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(!rr)return;try{await _ensureJsPDF();await exportarPDF(rr);}catch(e){showToast('❌ Não foi possível gerar o PDF.',4000);}};
+          _frag2.appendChild(card2);
+        });
+        lista.appendChild(_frag2);
+      };
+      lista.appendChild(_btnMais);
+    }
     lista.querySelectorAll('[data-meus-ver]').forEach(function(btn){
       btn.onclick = function(e){ e.stopPropagation();
         var id = btn.getAttribute('data-meus-ver');
@@ -12260,6 +13132,8 @@ async function renderMeus(){
         var id = btn.getAttribute('data-meus-whats');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if(!r2) return;
+        // [FIX-FILE] Bloqueia quando aberto localmente
+        if(window.location.protocol === 'file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000); return; }
         var num = r2.whatsapp || r2.telefone || '';
         num = num.replace(/\D/g,'');
         if(!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
@@ -12362,7 +13236,8 @@ async function _renderMeusComCache() {
   lista.innerHTML = '';
   var _frag = document.createDocumentFragment();
   var _e = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
-  filtrados.forEach(function(r) {
+  // [FIX-PERF] Limita a 40 cards para não congelar mobile
+  filtrados.slice(0, 40).forEach(function(r) {
     var card = document.createElement('div');
     card.className = 'relatorio-card';
     var status = r.status || 'Concluído';
@@ -12421,10 +13296,12 @@ if(typeof renderUsuarios === 'function'){
           if(btn){
             if(isInactive){
               btn.classList.add('btn-inativo');
-              btn.textContent = 'Inativo';
+              btn.innerHTML = '<i class="ri-user-follow-line"></i> Ativar';
+              btn.style.background = '#16a34a';
             }else{
               btn.classList.remove('btn-inativo');
-              btn.textContent = 'Inativar';
+              btn.innerHTML = '<i class="ri-user-unfollow-line"></i> Inativar';
+              btn.style.background = '#2563eb';
             }
           }
         });
@@ -14103,7 +14980,7 @@ async function fazerLogin(){
           var swDataUrl = 'data:application/javascript;charset=utf-8,' + encodeURIComponent(swCode);
           navigator.serviceWorker.register(swDataUrl)
             .then(function() { console.log('✅ Service Worker registrado (data URL).'); })
-            .catch(function() { console.log('ℹ️ Service Worker indisponível — app funciona normalmente.'); });
+            .catch(function() { console.log('ℹ️ Service Worker indisponível (normal em file://, modo privado ou 1ª carga) — app funciona normalmente sem cache PWA.'); });
         } catch(e2) {
           console.log('ℹ️ Service Worker não suportado neste ambiente.');
         }
@@ -14632,7 +15509,8 @@ async function fazerLogin(){
     setTimeout(function() {
       try {
         var db = typeof window._getDb === 'function' ? window._getDb() : null;
-        if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
+        // [FIX-LISTENER] app usa auth próprio — basta db + usuário logado
+        if (!db || !window.usuarioLogado) return;
         var docId = evento.id || _monId();
         db.collection(MON_COLECAO).doc(docId).set(evento).catch(function(){});
       } catch(e) {}
@@ -14827,7 +15705,8 @@ async function fazerLogin(){
   async function _monCarregarLogs() {
     try {
       var db = typeof window._getDb === 'function' ? window._getDb() : null;
-      if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) {
+      // [FIX-LISTENER] app usa auth próprio — basta db estar disponível
+      if (!db) {
         // Fallback: usa buffer local
         _monLogsTotal = _monBuffer.slice().reverse();
         _monAtualizarUI();
@@ -15157,7 +16036,8 @@ async function fazerLogin(){
     setTimeout(function() {
       try {
         var db = typeof window._getDb === 'function' ? window._getDb() : null;
-        if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
+        // [FIX-LISTENER] app usa auth próprio — basta db + usuário logado
+        if (!db || !window.usuarioLogado) return;
         _monBuffer.forEach(function(ev) {
           if (!ev._flushed) {
             ev._flushed = true;
@@ -15247,7 +16127,8 @@ window._gerarTokenPortal = async function(rat){
     // Já tem token — garante que está salvo no Firestore (pode ter falhado antes)
     try{
       var db=_db();
-      if(db&&window._firebaseAuth&&window._firebaseAuth.currentUser){
+      // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta db
+      if(db){
         var docIdExist=rat._firestoreId||rat.id;
         await db.collection('onlineEsRelatorios').doc(docIdExist).set(
           {portalToken:rat.portalToken, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
@@ -15279,9 +16160,10 @@ window._gerarTokenPortal = async function(rat){
     window.relatorios=lista;
   }catch(e){console.warn('[Portal] save local:',e);}
   // Salva Firestore
+  // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta db
   try{
     var db=_db();
-    if(db&&window._firebaseAuth&&window._firebaseAuth.currentUser){
+    if(db){
       var docId=rat._firestoreId||rat.id;
       await db.collection('onlineEsRelatorios').doc(docId).set(
         {portalToken:token, portalTokenCriado:rat.portalTokenCriado},
@@ -15779,6 +16661,474 @@ function _init(){
 
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_init);
 else _init();
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     UX IMPROVEMENTS — pure client-side, no Firebase required
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  /* ── 1. SISTEMA DE TOAST CENTRALIZADO ─────────────────────
+     Substitui / complementa showToast existente.
+     Uso: window.uxToast('Mensagem', 'success'|'error'|'warning')
+  ──────────────────────────────────────────────────────────── */
+  window.uxToast = function(msg, type, duration) {
+    type = type || 'success';
+    duration = duration || 3200;
+    var container = document.getElementById('uxToastContainer');
+    if (!container) return;
+    var t = document.createElement('div');
+    var icons = { success: '✓', error: '✕', warning: '⚠' };
+    t.className = 'ux-toast ' + type;
+    t.innerHTML = '<span style="font-size:1rem;">' + (icons[type]||'ℹ') + '</span> ' + msg;
+    container.appendChild(t);
+    setTimeout(function() {
+      t.classList.add('out');
+      setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 220);
+    }, duration);
+  };
+
+  // Intercepta showToast existente para também passar pelo novo sistema
+  // [FIX] o showToast original recebe (msg, duration:ms); o uxToast recebe (msg, type:string)
+  // Distingue pelos tipos: string = tipo semântico; number = duração legada
+  var _origShowToast = window.showToast;
+  window.showToast = function(msg, typeOrDuration) {
+    var type = 'success';
+    var duration = 3200;
+    if (typeof typeOrDuration === 'string') {
+      type = typeOrDuration;
+    } else if (typeof typeOrDuration === 'number') {
+      duration = typeOrDuration;
+      if (msg && (msg.includes('❌') || msg.includes('Erro') || msg.includes('erro'))) type = 'error';
+      else if (msg && msg.includes('⚠️')) type = 'warning';
+    }
+    window.uxToast(msg, type, duration);
+    if (typeof _origShowToast === 'function') {
+      try { _origShowToast(msg, typeOrDuration); } catch(e) {}
+    }
+  };
+
+  /* ── 2. SKELETON LOADERS para a lista de relatórios ───────
+     Exibe placeholders animados enquanto os dados carregam.
+  ──────────────────────────────────────────────────────────── */
+  window.showSkeletons = function(containerId, count) {
+    count = count || 3;
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      html += '<div class="skeleton-card">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<div class="skeleton skeleton-title"></div>' +
+        '<div class="skeleton skeleton-line short" style="width:60px;height:20px;border-radius:999px;"></div>' +
+        '</div>' +
+        '<div class="skeleton skeleton-line wide"></div>' +
+        '<div class="skeleton skeleton-line mid"></div>' +
+        '<div style="display:flex;gap:8px;margin-top:4px;">' +
+        '<div class="skeleton skeleton-line" style="width:80px;height:32px;border-radius:8px;"></div>' +
+        '<div class="skeleton skeleton-line" style="width:80px;height:32px;border-radius:8px;"></div>' +
+        '</div>' +
+        '</div>';
+    }
+    el.innerHTML = html;
+  };
+  window.hideSkeletons = function(containerId) {
+    // Chamado pelo código de render existente — os skeletons são substituídos pelo conteúdo real
+  };
+
+  /* ── 3. EMPTY STATES ──────────────────────────────────────
+     Injeta tela orientativa quando listas ficam vazias.
+  ──────────────────────────────────────────────────────────── */
+  window.renderEmptyState = function(containerId, opts) {
+    opts = opts || {};
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var icon = opts.icon || '📋';
+    var title = opts.title || 'Nenhum item encontrado';
+    var msg = opts.msg || 'Tente ajustar os filtros ou crie um novo registro.';
+    var cta = opts.cta || null;
+    var ctaAction = opts.ctaAction || null;
+    el.innerHTML = '<div class="empty-state">' +
+      '<div class="empty-state-icon">' + icon + '</div>' +
+      '<h3>' + title + '</h3>' +
+      '<p>' + msg + '</p>' +
+      (cta ? '<button class="btn orange" id="_emptyStateCta" style="margin-top:8px;">' + cta + '</button>' : '') +
+      '</div>';
+    if (cta && ctaAction) {
+      var btn = document.getElementById('_emptyStateCta');
+      if (btn) btn.addEventListener('click', ctaAction);
+    }
+  };
+
+  /* ── 4. FLASH DE CÂMERA ───────────────────────────────────
+     Dispara ao capturar foto para feedback nativo.
+     Ativado via window.triggerCameraFlash()
+  ──────────────────────────────────────────────────────────── */
+  window.triggerCameraFlash = function() {
+    var flash = document.getElementById('cameraFlash');
+    if (!flash) return;
+    flash.classList.remove('flash-active');
+    void flash.offsetWidth; // força reflow para reiniciar animação
+    flash.classList.add('flash-active');
+    setTimeout(function() { flash.classList.remove('flash-active'); }, 260);
+  };
+
+  // Hookar nos botões de captura existentes
+  function _hookCameraCapture() {
+    var captureSelectors = ['#camCapturar', '#btnCapturarFoto', '[id*="captur"]'];
+    captureSelectors.forEach(function(sel) {
+      var btns = document.querySelectorAll(sel);
+      btns.forEach(function(btn) {
+        if (btn._flashHooked) return;
+        btn._flashHooked = true;
+        btn.addEventListener('click', function() {
+          setTimeout(window.triggerCameraFlash, 80);
+        });
+      });
+    });
+  }
+  // Observa o DOM para hookar botões adicionados dinamicamente
+  var _camObserver = new MutationObserver(function() { _hookCameraCapture(); });
+  _camObserver.observe(document.body, { childList: true, subtree: true });
+  _hookCameraCapture();
+
+  /* ── 5. PERSISTÊNCIA DE FILTROS (sessionStorage) ──────────
+     Salva e restaura os filtros da lista de relatórios.
+  ──────────────────────────────────────────────────────────── */
+  var FILTER_KEY = 'onlineEs_filtros_v1';
+
+  function _getFilterFields() {
+    return [
+      '#filtroStatus', '#filtroBusca', '#filtroTecnico',
+      '#filtroCliente', '#filtroPeriodo', '#filtroDataDe', '#filtroDataAte'
+    ];
+  }
+
+  window.salvarFiltros = function() {
+    var state = {};
+    _getFilterFields().forEach(function(sel) {
+      var el = document.querySelector(sel);
+      if (el) state[sel] = el.value;
+    });
+    try { sessionStorage.setItem(FILTER_KEY, JSON.stringify(state)); } catch(e) {}
+  };
+
+  window.restaurarFiltros = function() {
+    var raw;
+    try { raw = sessionStorage.getItem(FILTER_KEY); } catch(e) {}
+    if (!raw) return false;
+    var state;
+    try { state = JSON.parse(raw); } catch(e) { return false; }
+    var restored = false;
+    _getFilterFields().forEach(function(sel) {
+      var el = document.querySelector(sel);
+      if (el && state[sel] !== undefined && state[sel] !== '') {
+        el.value = state[sel];
+        restored = true;
+      }
+    });
+    return restored;
+  };
+
+  // Hookar os filtros ao serem modificados
+  function _hookFilters() {
+    _getFilterFields().forEach(function(sel) {
+      var el = document.querySelector(sel);
+      if (el && !el._filterHooked) {
+        el._filterHooked = true;
+        el.addEventListener('change', window.salvarFiltros);
+        el.addEventListener('input', window.salvarFiltros);
+      }
+    });
+  }
+  // Tenta hookar filtros ao navegar para a tela de listagem
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('#mMeus, #mPainel, [data-tela="meus"], [data-tela="painel"]');
+    if (btn) {
+      setTimeout(function() {
+        _hookFilters();
+        window.restaurarFiltros();
+      }, 300);
+    }
+  });
+  setTimeout(_hookFilters, 1200);
+
+  /* ── 6. VALIDAÇÃO INLINE em campos obrigatórios ───────────
+     Ao sair de um campo obrigatório vazio, mostra erro imediato.
+  ──────────────────────────────────────────────────────────── */
+  function _validarCampoObrigatorio(input) {
+    var val = (input.value || '').trim();
+    var msgId = input.id + '_errmsg';
+    var existente = document.getElementById(msgId);
+    if (!val) {
+      input.classList.add('campo-invalido');
+      input.classList.remove('campo-valido');
+      if (!existente) {
+        var msg = document.createElement('span');
+        msg.id = msgId;
+        msg.className = 'campo-erro-msg';
+        msg.textContent = 'Campo obrigatório';
+        input.parentNode.insertBefore(msg, input.nextSibling);
+      }
+    } else {
+      input.classList.remove('campo-invalido');
+      input.classList.add('campo-valido');
+      if (existente) existente.remove();
+    }
+  }
+
+  function _hookValidacaoInline() {
+    var obrigatorios = document.querySelectorAll(
+      '#cDiagnostico, #cAcoes, #aClienteBusca, #aClienteManual'
+    );
+    obrigatorios.forEach(function(el) {
+      if (el._validacaoHooked) return;
+      el._validacaoHooked = true;
+      el.addEventListener('blur', function() { _validarCampoObrigatorio(el); });
+      el.addEventListener('input', function() {
+        if (el.classList.contains('campo-invalido')) _validarCampoObrigatorio(el);
+      });
+    });
+  }
+  // Hookar ao montar formulário e ao navegar nos steps
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.step-btn, [data-step]')) {
+      setTimeout(_hookValidacaoInline, 200);
+    }
+  });
+  setTimeout(_hookValidacaoInline, 1500);
+
+  /* ── 7. SKELETON na lista de relatórios ──────────────────
+     Intercepta renderizações de lista para mostrar loading.
+  ──────────────────────────────────────────────────────────── */
+  var _origRenderLista = window.renderLista;
+  if (typeof _origRenderLista !== 'function') {
+    // Se ainda não foi definida, observar quando for
+    Object.defineProperty(window, 'renderLista', {
+      set: function(fn) {
+        window._renderListaOriginal = fn;
+        window._renderListaWrapped = function() {
+          var listaEl = document.getElementById('listaMeusRelatorios') ||
+                        document.getElementById('listaRelatorios');
+          if (listaEl && (!listaEl.children.length || listaEl.querySelector('.relatorio-card') === null)) {
+            window.showSkeletons(listaEl.id, 4);
+          }
+          return fn.apply(this, arguments);
+        };
+      },
+      get: function() { return window._renderListaWrapped || window._renderListaOriginal; },
+      configurable: true
+    });
+  }
+
+  /* ── 8. EMPTY STATE para listas vazias ───────────────────
+     Observa o container da lista e injeta empty state se vazio.
+  ──────────────────────────────────────────────────────────── */
+  function _verificarEmptyState(el) {
+    if (!el) return;
+    // Espera o conteúdo ser renderizado
+    setTimeout(function() {
+      var temCards = el.querySelector('.relatorio-card, .relatorio-card-item');
+      var temSkeleton = el.querySelector('.skeleton-card');
+      if (!temCards && !temSkeleton && el.children.length === 0) {
+        var isMeus = el.id && el.id.toLowerCase().includes('meus');
+        window.renderEmptyState(el.id, {
+          icon: isMeus ? '📋' : '📊',
+          title: isMeus ? 'Nenhum atendimento encontrado' : 'Nenhum resultado',
+          msg: isMeus
+            ? 'Você ainda não possui atendimentos. Clique em "Novo Atendimento" para começar.'
+            : 'Tente ajustar os filtros de busca para encontrar registros.',
+          cta: isMeus ? '<i class="ri-add-box-line"></i> Novo Atendimento' : null,
+          ctaAction: isMeus ? function() {
+            var btn = document.getElementById('mNovo');
+            if (btn) btn.click();
+          } : null
+        });
+      }
+    }, 600);
+  }
+
+  var _listObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      var el = m.target;
+      if (el && el.id && (
+        el.id.includes('lista') || el.id.includes('Lista') ||
+        el.classList.contains('list-relatorios')
+      )) {
+        _verificarEmptyState(el);
+      }
+    });
+  });
+  _listObserver.observe(document.body, { childList: true, subtree: true });
+
+  /* ── 9. BOTÃO VOLTAR DO CELULAR nos steps do formulário ──────
+     Cada avanço de step empurra {tela:'novo', step:N} no history.
+     O popstate intercepta e volta ao step anterior em vez de sair
+     do formulário. No step 1, se há dados preenchidos, pede
+     confirmação antes de abandonar.
+  ──────────────────────────────────────────────────────────── */
+  var _stepHistoryActive = false;
+
+  // Detecta se o formulário tem dados preenchidos (para confirmar saída)
+  function _formularioTemDados() {
+    var campos = [
+      '#aClienteSelect', '#aClienteManual', '#aClienteBusca',
+      '#bEquipamento', '#cDiagnostico', '#cAcoes'
+    ];
+    return campos.some(function(sel) {
+      var el = document.querySelector(sel);
+      return el && (el.value || '').trim().length > 0;
+    });
+  }
+
+  // Dialog de confirmação de saída (sem depender de confirm() bloqueante)
+  function _confirmarSaidaFormulario(callback) {
+    // Usa showConfirm nativo do app se disponível
+    if (typeof window.showConfirm === 'function') {
+      window.showConfirm(
+        'Sair do formulário?\n\nOs dados não salvos serão perdidos.',
+        callback
+      );
+      return;
+    }
+    // Fallback: confirm nativo
+    if (confirm('Sair do formulário? Os dados não salvos serão perdidos.')) {
+      callback(true);
+    }
+  }
+
+  // Hookar _irParaStep para empurrar estado no history a cada mudança de step
+  function _hookStepHistory() {
+    var origIrParaStep = window._irParaStep;
+    if (!origIrParaStep || origIrParaStep._stepHistoryHooked) return;
+
+    window._irParaStep = function(n) {
+      var stepAntes = window._stepAtualPublico || 1;
+      origIrParaStep(n);
+      window._stepAtualPublico = n;
+
+      // Só empurra history se avançou (não se foi chamado pelo próprio popstate)
+      if (!window._navegandoPopstateStep && n > 1) {
+        history.pushState({ tela: 'novo', step: n }, '', '');
+        _stepHistoryActive = true;
+      }
+    };
+    window._irParaStep._stepHistoryHooked = true;
+
+    // Expõe o step atual publicamente para o popstate consultar
+    window._stepAtualPublico = 1;
+  }
+
+  // Intercepta o popstate para tratar navegação por steps
+  window.addEventListener('popstate', function(e) {
+    if (!window.usuarioLogado) return;
+    if (window._logoutIntencional) return;
+
+    var state = e.state || {};
+
+    // Só age se estamos na tela "novo" e o estado tem um step
+    if (state.tela !== 'novo' || !state.step) return;
+
+    // Se o estado indica um step anterior ao atual, voltar ao step
+    var stepDestino = state.step;
+    var stepAtual = window._stepAtualPublico || 1;
+
+    if (stepDestino < stepAtual && stepDestino >= 1) {
+      window._navegandoPopstateStep = true;
+      if (typeof window._irParaStep === 'function') {
+        window._irParaStep(stepDestino);
+      }
+      window._navegandoPopstateStep = false;
+      // Impede que o handler original de popstate também processe este evento
+      e.stopImmediatePropagation();
+      return;
+    }
+  }, true); // capture=true para rodar antes do handler existente
+
+  // Intercepta saída do formulário no step 1 via botão voltar
+  window.addEventListener('popstate', function(e) {
+    if (!window.usuarioLogado) return;
+    if (window._logoutIntencional) return;
+
+    var state = e.state || {};
+    var stepAtual = window._stepAtualPublico || 1;
+
+    // Se saindo da tela 'novo' e havia dados preenchidos
+    if (state.tela && state.tela !== 'novo' && stepAtual === 1 && _stepHistoryActive) {
+      if (_formularioTemDados()) {
+        // Repõe o estado para não sair ainda
+        history.pushState({ tela: 'novo', step: 1 }, '', '');
+        _confirmarSaidaFormulario(function(confirmado) {
+          if (confirmado) {
+            _stepHistoryActive = false;
+            // Navega para a tela destino via history
+            history.go(-1);
+          }
+        });
+        e.stopImmediatePropagation();
+      } else {
+        _stepHistoryActive = false;
+      }
+    }
+  }, true);
+
+  // Publica step 1 no history quando o formulário é aberto
+  function _hookMostrarTelaStep() {
+    var origMostrar = window.mostrarTela;
+    if (!origMostrar || origMostrar._stepEntryHooked) return;
+    window.mostrarTela = async function(nome) {
+      var result = await origMostrar.apply(this, arguments);
+      if (nome === 'novo') {
+        window._stepAtualPublico = 1;
+        _stepHistoryActive = false;
+        // Não empurra aqui — mostrarTela já faz pushState({tela:'novo'})
+        // Apenas inicializa o hook de _irParaStep
+        setTimeout(_hookStepHistory, 200);
+      }
+      return result;
+    };
+    window.mostrarTela._stepEntryHooked = true;
+  }
+
+  // Tenta hookar imediatamente e observa quando as funções forem definidas
+  function _tentarHooks() {
+    if (window._irParaStep && !window._irParaStep._stepHistoryHooked) {
+      _hookStepHistory();
+    }
+    if (window.mostrarTela && !window.mostrarTela._stepEntryHooked) {
+      _hookMostrarTelaStep();
+    }
+  }
+  // Polling leve até as funções estarem disponíveis (app inicializa assíncrono)
+  // [FIX-TIMEOUT] Backoff exponencial: começa em 200ms, dobra até 2s, para em 20s total
+  var _hookDelay = 200;
+  var _hookElapsed = 0;
+  var _hookMaxTime = 20000;
+  function _agendarHook() {
+    if (_hookElapsed >= _hookMaxTime) return; // desiste após 20s
+    setTimeout(function() {
+      _tentarHooks();
+      _hookElapsed += _hookDelay;
+      if (!(window._irParaStep && window._irParaStep._stepHistoryHooked &&
+            window.mostrarTela && window.mostrarTela._stepEntryHooked)) {
+        _hookDelay = Math.min(_hookDelay * 1.5, 2000); // backoff até 2s entre tentativas
+        _agendarHook();
+      }
+    }, _hookDelay);
+  }
+  _agendarHook();
+
+  /* ── INIT ────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', function() {
+    _hookCameraCapture();
+    _hookFilters();
+    setTimeout(_hookValidacaoInline, 800);
+    setTimeout(_tentarHooks, 500);
+  });
 
 })();
 </script>
