@@ -1178,6 +1178,27 @@ html[data-role="technician"] nav button {
   }
 
 } /* end @media 880px */
+  /* ═══ MONITORAMENTO TÉCNICO ═══ */
+  #telaMonitor { padding: 16px; }
+  #monTabelaBody tr { border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .1s; }
+  #monTabelaBody tr:hover { background: #f8fafc; }
+  #monTabelaBody tr.mon-expandido { background: #eff6ff; }
+  #monTabelaBody td { padding: 7px 10px; vertical-align: top; color: #1e293b; }
+  #monTabelaBody td:first-child { white-space: nowrap; color: #64748b; font-size: .7rem; }
+  .mon-badge { display:inline-block;padding:2px 8px;border-radius:999px;font-size:.65rem;font-weight:700;white-space:nowrap; }
+  .mon-badge-erro_js     { background:#fee2e2;color:#dc2626; }
+  .mon-badge-erro_fs     { background:#ffedd5;color:#ea580c; }
+  .mon-badge-perf        { background:#fef9c3;color:#ca8a04; }
+  .mon-badge-acao        { background:#dbeafe;color:#1d4ed8; }
+  .mon-badge-critico     { background:#dc2626;color:#fff; }
+  .mon-badge-aviso       { background:#f97316;color:#fff; }
+  .mon-badge-info        { background:#0ea5e9;color:#fff; }
+  .mon-detalhe { background:#f8fafc;padding:10px 14px;font-size:.72rem;border-top:1px solid #e2e8f0; }
+  .mon-detalhe pre { margin:4px 0 0;font-size:.68rem;color:#475569;white-space:pre-wrap;word-break:break-all;max-height:180px;overflow-y:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px; }
+  html[data-role="tecnico"] #mMonitor,
+  html[data-role="supervisor"] #mMonitor,
+  html[data-role="tecnico"] #telaMonitor,
+  html[data-role="supervisor"] #telaMonitor { display: none !important; }
   </style>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -1312,6 +1333,10 @@ html[data-role="technician"] nav button {
       <button id="mPainel"><i class="ri-dashboard-3-line"></i> Painel de Gerenciamento</button>
       <button id="mCadastros"><i class="ri-contacts-book-2-line"></i> Cadastros</button>
       <button id="mSistema"><i class="ri-settings-4-line"></i> Sistema</button>
+      <!-- [MON] Botão de monitoramento — visível apenas para admin -->
+      <button id="mMonitor" style="display:none;position:relative;"><i class="ri-pulse-line"></i> Monitoramento
+        <span id="monitorBadge" style="display:none;position:absolute;top:6px;right:8px;background:#dc2626;color:#fff;border-radius:999px;font-size:.58rem;font-weight:700;padding:1px 6px;min-width:18px;text-align:center;"></span>
+      </button>
     </div>
     <div class="user-box">
       <div id="userName">Usuário</div>
@@ -2381,9 +2406,95 @@ html[data-role="technician"] nav button {
 
       </section>
 
-    </div>
-  </div>
-</div>
+      <!-- ═══ TELA DE MONITORAMENTO TÉCNICO (admin only) ═══ -->
+      <section id="telaMonitor" class="panel supervisor-panel" style="display:none;">
+        <h2 style="margin-top:0;display:flex;gap:8px;align-items:center;font-size:1.05rem;">
+          <i class="ri-pulse-line" style="color:#dc2626;"></i>
+          Monitoramento Técnico
+          <span id="monSaudeTag" style="margin-left:8px;font-size:.65rem;font-weight:700;padding:2px 10px;border-radius:999px;background:#dcfce7;color:#15803d;">● SAUDÁVEL</span>
+        </h2>
+
+        <!-- Cards de resumo -->
+        <div id="monResumoCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
+          <div class="section-card" style="padding:12px 14px;text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;color:#dc2626;" id="monCtErros">—</div>
+            <div style="font-size:.7rem;color:#64748b;margin-top:2px;">Erros JS</div>
+          </div>
+          <div class="section-card" style="padding:12px 14px;text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;color:#f97316;" id="monCtFirestore">—</div>
+            <div style="font-size:.7rem;color:#64748b;margin-top:2px;">Falhas Firestore</div>
+          </div>
+          <div class="section-card" style="padding:12px 14px;text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;color:#0ea5e9;" id="monCtAcoes">—</div>
+            <div style="font-size:.7rem;color:#64748b;margin-top:2px;">Ações</div>
+          </div>
+          <div class="section-card" style="padding:12px 14px;text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;color:#8b5cf6;" id="monLatMedia">—</div>
+            <div style="font-size:.7rem;color:#64748b;margin-top:2px;">Lat. média FS</div>
+          </div>
+          <div class="section-card" style="padding:12px 14px;text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;color:#64748b;" id="monCtTotal">—</div>
+            <div style="font-size:.7rem;color:#64748b;margin-top:2px;">Total 120 dias</div>
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="section-card" style="margin-bottom:12px;padding:12px 14px;">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <select id="monFiltroTipo" aria-label="Filtrar por tipo" style="border:1px solid rgba(148,163,184,.4);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;font-size:.8rem;">
+              <option value="">Todos os tipos</option>
+              <option value="erro_js">Erro JS</option>
+              <option value="erro_firestore">Falha Firestore</option>
+              <option value="perf">Performance</option>
+              <option value="acao">Ação do usuário</option>
+            </select>
+            <select id="monFiltroGrav" aria-label="Filtrar por gravidade" style="border:1px solid rgba(148,163,184,.4);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;font-size:.8rem;">
+              <option value="">Todas gravidades</option>
+              <option value="critico">🔴 Crítico</option>
+              <option value="aviso">🟡 Aviso</option>
+              <option value="info">🔵 Info</option>
+            </select>
+            <input id="monFiltroBusca" aria-label="Buscar nos logs" placeholder="🔍 Buscar mensagem, usuário, tela..." style="flex:1;min-width:180px;border:1px solid rgba(148,163,184,.4);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;font-size:.8rem;">
+            <button class="btn small" id="monBtnFiltrar"><i class="ri-filter-3-line"></i> Filtrar</button>
+            <button class="btn small" id="monBtnLimparFiltro" style="background:#f1f5f9;color:#475569;border-color:#cbd5e1;"><i class="ri-eraser-line"></i></button>
+            <button class="btn small" id="monBtnExport" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="ri-download-2-line"></i> CSV</button>
+            <button class="btn small" id="monBtnLimpar" style="background:#fff1f2;color:#dc2626;border-color:#fecaca;display:none;"><i class="ri-delete-bin-6-line"></i> Limpar logs</button>
+          </div>
+          <div style="font-size:.68rem;color:#94a3b8;margin-top:6px;">Logs retidos por 120 dias. Atualizado em tempo real.</div>
+        </div>
+
+        <!-- Tabela de logs -->
+        <div class="section-card" style="padding:0;overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:.75rem;">
+              <thead>
+                <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;white-space:nowrap;">Data/Hora</th>
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;">Tipo</th>
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;">Grav.</th>
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;">Usuário</th>
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;">Tela</th>
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;min-width:200px;">Mensagem</th>
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;">Valor</th>
+                </tr>
+              </thead>
+              <tbody id="monTabelaBody">
+                <tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;font-size:.78rem;"><i class="ri-loader-4-line"></i> Carregando logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="monPaginacao" style="display:flex;gap:6px;align-items:center;justify-content:flex-end;padding:8px 12px;border-top:1px solid #f1f5f9;flex-wrap:wrap;">
+            <span id="monInfoPagina" style="font-size:.7rem;color:#64748b;margin-right:auto;"></span>
+            <button class="btn small" id="monBtnAnterior" style="padding:4px 10px;"><i class="ri-arrow-left-s-line"></i> Ant.</button>
+            <button class="btn small" id="monBtnProximo" style="padding:4px 10px;">Próx. <i class="ri-arrow-right-s-line"></i></button>
+          </div>
+        </div>
+
+        <small class="help" style="display:block;margin-top:8px;color:#64748b;">
+          <i class="ri-information-line" style="font-size:.75rem;vertical-align:middle;"></i>
+          Clique em uma linha para ver stack trace e detalhes completos. Dados salvos no Firestore (coleção <code>onlineEsMonitor</code>).
+        </small>
+      </section>
 
 <!-- OVERLAY -->
 <div class="report-overlay" id="reportOverlay">
@@ -5386,10 +5497,24 @@ function autoFillCamposAtendimento(){
       // [FIX-SEC-FS1] Aviso crítico de segurança: regras de leitura de usuários
       linha('');
       linha('=== SEGURANÇA ===');
-      linha('⚠️ CRÍTICO: Verifique se a regra Firestore para onlineEsUsuarios exige');
-      linha('   "request.auth != null" para leitura. A regra padrão antiga (allow read: if true)');
-      linha('   expõe usernames e roles a qualquer pessoa com acesso à apiKey pública.');
-      linha('   Consulte o comentário REGRAS MÍNIMAS OBRIGATÓRIAS no código-fonte.');
+      // [FIX] Verifica de verdade se onlineEsUsuarios exige auth, tentando ler sem token
+      try {
+        const pid2 = firebaseConfig.projectId;
+        const key2 = firebaseConfig.apiKey;
+        const urlTest = `https://firestore.googleapis.com/v1/projects/${pid2}/databases/(default)/documents/onlineEsUsuarios?key=${key2}&pageSize=1`;
+        const rTest = await fetch(urlTest); // sem Authorization header = anônimo
+        if (rTest.ok) {
+          linha('🔴 CRÍTICO: onlineEsUsuarios permite leitura SEM autenticação!');
+          linha('   Qualquer pessoa com a apiKey pode listar usernames e roles.');
+          linha('   Corrija as regras: allow read: if request.auth != null;');
+        } else if (rTest.status === 403) {
+          linha('✅ onlineEsUsuarios: leitura sem auth bloqueada (regras corretas).');
+        } else {
+          linha('ℹ️ onlineEsUsuarios: teste retornou HTTP ' + rTest.status);
+        }
+      } catch(e) {
+        linha('ℹ️ Não foi possível testar regras de leitura anônima: ' + e.message);
+      }
       // [v38] Firebase Storage removido — plano gratuito não inclui Storage.
       linha('Usuário logado local: ' + ((window.usuarioLogado && window.usuarioLogado.username) || 'nenhum'));
     };
@@ -5398,6 +5523,11 @@ function autoFillCamposAtendimento(){
   function limparMenu(){
     [mNovo,mMeus,mPainel,mCadastros,mSistema].forEach(b=>{ if (b) b.classList.remove('active'); });
     [telaNovo,telaMeus,telaPainel,telaCadastros,telaSistema].forEach(s=>{ if (s) s.style.display='none'; });
+    // Esconde telaMonitor ao navegar para outras telas
+    var _telaMon = document.getElementById('telaMonitor');
+    if (_telaMon) _telaMon.style.display = 'none';
+    var _btnMon = document.getElementById('mMonitor');
+    if (_btnMon) _btnMon.classList.remove('active');
     // Esconde home mobile ao navegar para qualquer tela
     var _telaHome = document.getElementById('telaHome');
     if (_telaHome) { _telaHome.classList.remove('ativa'); _telaHome.style.display='none'; }
@@ -5410,14 +5540,18 @@ function autoFillCamposAtendimento(){
   async function mostrarTela(nome){
     limparMenu();
     // SEGURANÇA: RBAC — técnico não pode acessar telas restritas
+    // Monitor é exclusivo do admin (não supervisor)
     const _role = (window.usuarioLogado && window.usuarioLogado.role) || '';
-    const _telasRestritas = ['painel', 'cadastros', 'sistema'];
-    if (_role === 'tecnico' && _telasRestritas.includes(nome)) {
+    const _telasRestritas = ['painel', 'cadastros', 'sistema', 'monitor'];
+    const _telasSoAdmin   = ['monitor'];
+    if ((_role === 'tecnico' && _telasRestritas.includes(nome)) ||
+        (_role === 'supervisor' && _telasSoAdmin.includes(nome))) {
       try {
         const toast = document.getElementById('toast');
-        if (toast) { toast.textContent = 'Acesso restrito ao Supervisor/Admin.'; toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 2500); }
+        const _msg = _telasSoAdmin.includes(nome) ? 'Acesso restrito ao Administrador.' : 'Acesso restrito ao Supervisor/Admin.';
+        if (toast) { toast.textContent = _msg; toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 2500); }
       } catch(e){}
-      nome = 'meus'; // redireciona para tela permitida
+      nome = (_role === 'tecnico') ? 'meus' : 'painel'; // redireciona para tela permitida
     }
     // BUG FIX: rola para o topo ao trocar de tela (UX mobile)
     try { window.scrollTo({top: 0, behavior: 'smooth'}); } catch(e) { window.scrollTo(0, 0); }
@@ -5455,6 +5589,11 @@ function autoFillCamposAtendimento(){
       if (mSistema) mSistema.classList.add('active');
       if (telaSistema) telaSistema.style.display='block';
       if (tituloEl) tituloEl.textContent='Sistema';
+
+    } else if (nome === 'monitor'){
+      // [MON] Tela de monitoramento — lógica completa no wrapper do módulo monitor
+      // O base apenas limpa o menu (já feito por limparMenu acima)
+      if (tituloEl) tituloEl.textContent='Monitoramento Técnico';
 
     } else {
       if (mNovo) mNovo.classList.add('active');
@@ -6238,9 +6377,15 @@ function autoFillCamposAtendimento(){
     try { const r = relatorios.find(x=>x.id===id); logInfo('RAT marcada como vista', { numero: (r && r.numero) || 'N/A', id: id }); } catch(e){}
   }
 
-  filtroTexto.oninput = ()=>renderLista();
+  // [FIX-v39] Debounce de 250ms no filtro do painel — renderLista reconstrói todos os
+  // cards a cada chamada; sem debounce, digitação rápida causa múltiplos rebuilds DOM.
+  var _filtroTimer = null;
+  filtroTexto.oninput = function() {
+    clearTimeout(_filtroTimer);
+    _filtroTimer = setTimeout(function() { renderLista(); }, 250);
+  };
   filtroStatus.onchange = ()=>renderLista();
-  btnLimparFiltro.onclick = ()=>{ filtroTexto.value=''; filtroStatus.value=''; renderLista(); };
+  btnLimparFiltro.onclick = ()=>{ filtroTexto.value=''; filtroStatus.value=''; clearTimeout(_filtroTimer); renderLista(); };
 
   // Usuários
   
@@ -10357,6 +10502,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     countEl.style.cssText = 'font-size:.72rem;color:#64748b;margin:0 0 8px;font-weight:600;';
     countEl.textContent = lista.length + ' relatório(s) encontrado(s)';
     listaBusca.appendChild(countEl);
+    // [FIX-v39] DocumentFragment — mesma otimização aplicada em renderMeus e renderLista
+    var _buscaFrag = document.createDocumentFragment();
     lista.forEach(r=>{
       const card=document.createElement('div');
       const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
@@ -10378,8 +10525,9 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
           ${r.emailCliente ? `<button class="btn small" data-busca-email="${esc(r.id)}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>` : ''}
           <button class="btn small" data-busca-editar="${esc(r.id)}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
         </div>`;
-      listaBusca.appendChild(card);
+      _buscaFrag.appendChild(card);
     });
+    listaBusca.appendChild(_buscaFrag);
     listaBusca.querySelectorAll('[data-ver]').forEach(b=> b.onclick=()=>visualizarRelatorio(b.getAttribute('data-ver')));
     listaBusca.querySelectorAll('[data-pdf]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-pdf'); const r=relatorios.find(x=>x.id===id); if(!r) return;
@@ -11281,7 +11429,7 @@ window.setCustomLogoBase64 = function(b64){
 
   function _mostrarHomeScreen() {
     // Esconde todas as telas
-    ['telaNovo','telaMeus','telaPainel','telaCadastros','telaSistema'].forEach(function(id){
+    ['telaNovo','telaMeus','telaPainel','telaCadastros','telaSistema','telaMonitor'].forEach(function(id){
       var el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     // Desmarca menu lateral
@@ -14383,11 +14531,615 @@ async function fazerLogin(){
 })();
 </script>
 
-<!-- ============================================================
-     PORTAL DO CLIENTE — v1.0
-     - Token único por RAT (10 chars, ~10^17 combinações)
-     - Tela pública via ?rat=TOKEN (sem login do cliente)
-     - Histórico 30 dias pelo mesmo CNPJ/CPF
+<!-- ══════════════════════════════════════════════════════════════
+     SISTEMA DE MONITORAMENTO TÉCNICO — ONLINE-ES
+     Coleta: erros JS globais, falhas Firestore, performance, ações
+     Retenção: 120 dias | Acesso: apenas admin
+     Coleção Firestore: onlineEsMonitor
+══════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  // ── Configurações ──────────────────────────────────────────────
+  var MON_RETENCAO_DIAS = 120;
+  var MON_COLECAO       = 'onlineEsMonitor';
+  var MON_MAX_LOCAL     = 500;   // máx eventos no buffer local
+  var MON_POR_PAGINA    = 50;
+  var MON_LAT_AVISO_MS  = 3000;  // latência Firestore "aviso"
+  var MON_LAT_CRIT_MS   = 8000;  // latência Firestore "crítico"
+
+  // ── Buffer local (para quando offline ou antes do Firestore inicializar) ──
+  var _monBuffer = [];
+  var _monPaginaAtual = 1;
+  var _monLogsFiltrados = [];
+  var _monLogsTotal = [];
+
+  // ── Gera ID único para cada evento ─────────────────────────────
+  function _monId() {
+    try {
+      var a = new Uint8Array(8);
+      crypto.getRandomValues(a);
+      return 'mon-' + Array.from(a).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    } catch(e) { return 'mon-' + Date.now() + '-' + Math.random().toString(36).slice(2,8); }
+  }
+
+  // ── Dados do contexto atual ─────────────────────────────────────
+  function _monContexto() {
+    var u = window.usuarioLogado || {};
+    var telaAtiva = '';
+    try {
+      var telas = ['telaNovo','telaMeus','telaPainel','telaCadastros','telaSistema','telaMonitor','telaHome'];
+      for (var i = 0; i < telas.length; i++) {
+        var el = document.getElementById(telas[i]);
+        if (el && el.style.display !== 'none') { telaAtiva = telas[i].replace('tela',''); break; }
+      }
+    } catch(e) {}
+    return {
+      usuario:   u.username || u.usuario || '(não logado)',
+      role:      u.role || '',
+      tela:      telaAtiva,
+      userAgent: navigator.userAgent.slice(0, 120),
+      online:    navigator.onLine,
+      ts:        new Date().toISOString()
+    };
+  }
+
+  // ── Salva evento no Firestore ───────────────────────────────────
+  function _monSalvar(evento) {
+    // Adiciona ao buffer local sempre
+    _monBuffer.push(evento);
+    if (_monBuffer.length > MON_MAX_LOCAL) _monBuffer.shift();
+
+    // Atualiza badge imediatamente se é erro crítico
+    if (evento.gravidade === 'critico') _monAtualizarBadge();
+
+    // Tenta salvar no Firestore (best-effort, sem bloquear)
+    setTimeout(function() {
+      try {
+        var db = typeof window._getDb === 'function' ? window._getDb() : null;
+        if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
+        var docId = evento.id || _monId();
+        db.collection(MON_COLECAO).doc(docId).set(evento).catch(function(){});
+      } catch(e) {}
+    }, 0);
+  }
+
+  // ── Registrar evento genérico ───────────────────────────────────
+  function monRegistrar(tipo, gravidade, mensagem, detalhes) {
+    var ctx = _monContexto();
+    var ev = {
+      id:        _monId(),
+      tipo:      tipo,       // 'erro_js' | 'erro_firestore' | 'perf' | 'acao'
+      gravidade: gravidade,  // 'critico' | 'aviso' | 'info'
+      mensagem:  String(mensagem || '').slice(0, 500),
+      detalhes:  detalhes || {},
+      timestamp: ctx.ts,
+      usuario:   ctx.usuario,
+      role:      ctx.role,
+      tela:      ctx.tela,
+      online:    ctx.online,
+      expiraEm:  new Date(Date.now() + MON_RETENCAO_DIAS * 86400000).toISOString()
+    };
+    _monSalvar(ev);
+    return ev;
+  }
+  window.monRegistrar = monRegistrar;
+
+  // ── 1. Captura erros JS globais ─────────────────────────────────
+  // Flag anti-loop: evita que monRegistrar → erro → monRegistrar → erro → ...
+  var _monCapturando = false;
+
+  window.addEventListener('error', function(e) {
+    if (_monCapturando) return; // evita loop infinito
+    if (!e || !e.message) return;
+    // Ignora erros de extensões de browser e recursos externos
+    if (e.filename && (e.filename.includes('extension') || e.filename.includes('chrome-extension'))) return;
+    // Ignora erros do próprio módulo de monitoramento para evitar loops
+    if (e.filename && e.filename.includes('onlinees')) {
+      var stack = e.error && e.error.stack ? String(e.error.stack) : '';
+      if (stack.includes('_mon') || stack.includes('monRegistrar')) return;
+    }
+    _monCapturando = true;
+    try {
+      monRegistrar('erro_js', 'critico', e.message, {
+        arquivo:   e.filename || '',
+        linha:     e.lineno   || 0,
+        coluna:    e.colno    || 0,
+        stack:     e.error && e.error.stack ? String(e.error.stack).slice(0, 2000) : ''
+      });
+    } finally {
+      _monCapturando = false;
+    }
+  });
+
+  // ── 2. Captura Promises rejeitadas sem handler ──────────────────
+  window.addEventListener('unhandledrejection', function(e) {
+    if (_monCapturando) return;
+    var msg = '';
+    var stack = '';
+    try {
+      if (e.reason instanceof Error) {
+        msg = e.reason.message;
+        stack = e.reason.stack ? String(e.reason.stack).slice(0, 2000) : '';
+      } else {
+        msg = String(e.reason || 'Promise rejeitada sem motivo');
+      }
+    } catch(_) { msg = 'Promise rejeitada'; }
+    // Ignora rejeições esperadas (Firebase offline, AbortError)
+    if (msg.includes('offline') || msg.includes('AbortError') || msg.includes('Failed to fetch')) return;
+    _monCapturando = true;
+    try { monRegistrar('erro_js', 'aviso', 'Promise rejeitada: ' + msg, { stack: stack }); }
+    finally { _monCapturando = false; }
+  });
+
+  // ── 3. Monitor de Firestore — wrapper de latência ───────────────
+  // Intercepta salvarRelatorioNoFirestore para medir latência
+  var _origSalvarFS = null;
+  function _monWrapFirestore() {
+    if (typeof window.salvarRelatorioNoFirestore !== 'function') return;
+    if (window.salvarRelatorioNoFirestore._monWrapped) return;
+    _origSalvarFS = window.salvarRelatorioNoFirestore;
+    window.salvarRelatorioNoFirestore = async function(r) {
+      var t0 = Date.now();
+      try {
+        var res = await _origSalvarFS.apply(this, arguments);
+        var lat = Date.now() - t0;
+        var grav = lat > MON_LAT_CRIT_MS ? 'critico' : lat > MON_LAT_AVISO_MS ? 'aviso' : 'info';
+        if (lat > MON_LAT_AVISO_MS) {
+          monRegistrar('erro_firestore', grav, 'Latência alta ao salvar RAT: ' + lat + 'ms', {
+            latencia_ms: lat, numero: r && r.numero || '', operacao: 'set'
+          });
+        } else {
+          monRegistrar('perf', 'info', 'RAT salva no Firestore em ' + lat + 'ms', {
+            latencia_ms: lat, numero: r && r.numero || ''
+          });
+        }
+        return res;
+      } catch(e) {
+        var lat2 = Date.now() - t0;
+        monRegistrar('erro_firestore', 'critico', 'Falha ao salvar RAT: ' + (e.message || e), {
+          latencia_ms: lat2, numero: r && r.numero || '', erro: String(e.message || e).slice(0,500)
+        });
+        throw e;
+      }
+    };
+    window.salvarRelatorioNoFirestore._monWrapped = true;
+  }
+
+  // ── 4. Monitorar performance de renderização ────────────────────
+  var _monPerfObs = null;
+  function _monIniciarPerf() {
+    try {
+      if (!window.PerformanceObserver) return;
+      _monPerfObs = new PerformanceObserver(function(list) {
+        list.getEntries().forEach(function(entry) {
+          // Só reporta longtasks (> 200ms) que indicam UI travada
+          if (entry.duration > 200) {
+            monRegistrar('perf', entry.duration > 500 ? 'aviso' : 'info',
+              'Long task: ' + Math.round(entry.duration) + 'ms (UI travada)',
+              { duration_ms: Math.round(entry.duration), entryType: entry.entryType });
+          }
+        });
+      });
+      _monPerfObs.observe({ type: 'longtask', buffered: false });
+    } catch(e) {}
+  }
+
+  // ── 5. Registrar ações do usuário ───────────────────────────────
+  // Hook de login
+  var _origFazerLogin = null;
+  function _monHookLogin() {
+    if (typeof window.fazerLogin !== 'function') return;
+    if (window.fazerLogin._monH) return;
+    _origFazerLogin = window.fazerLogin;
+    window.fazerLogin = async function() {
+      var t0 = Date.now();
+      try {
+        var r = await _origFazerLogin.apply(this, arguments);
+        monRegistrar('acao', 'info', 'Login realizado', { duracao_ms: Date.now()-t0 });
+        return r;
+      } catch(e) {
+        monRegistrar('acao', 'aviso', 'Falha no login: '+(e.message||e), { duracao_ms: Date.now()-t0 });
+        throw e;
+      }
+    };
+    window.fazerLogin._monH = true;
+  }
+
+  // Hook de geração de PDF
+  var _origExportarPDF = null;
+  function _monHookPDF() {
+    if (typeof window.exportarPDF !== 'function') return;
+    if (window.exportarPDF._monH) return;
+    _origExportarPDF = window.exportarPDF;
+    window.exportarPDF = async function(r) {
+      var t0 = Date.now();
+      try {
+        var res = await _origExportarPDF.apply(this, arguments);
+        monRegistrar('acao', 'info', 'PDF gerado: RAT ' + (r && r.numero || ''), {
+          duracao_ms: Date.now()-t0, cliente: r && r.cliente || ''
+        });
+        return res;
+      } catch(e) {
+        monRegistrar('erro_js', 'aviso', 'Falha ao gerar PDF: '+(e.message||e), {
+          duracao_ms: Date.now()-t0, numero: r && r.numero || ''
+        });
+        throw e;
+      }
+    };
+    window.exportarPDF._monH = true;
+  }
+
+  // ── 6. Inicializa hooks após login ─────────────────────────────
+  function _monInicializar() {
+    _monWrapFirestore();
+    _monHookPDF();
+    _monIniciarPerf();
+    // Mostra botão no menu
+    var btnMon = document.getElementById('mMonitor');
+    if (btnMon && window.usuarioLogado && window.usuarioLogado.role === 'admin') {
+      btnMon.style.display = '';
+    }
+    monRegistrar('acao', 'info', 'Sessão iniciada', {
+      versaoSW: 'onlinees-v9',
+      plataforma: navigator.platform || ''
+    });
+    _monCarregarLogs();
+  }
+  window._monInicializar = _monInicializar;
+
+  // ── 7. Carregar logs do Firestore ──────────────────────────────
+  async function _monCarregarLogs() {
+    try {
+      var db = typeof window._getDb === 'function' ? window._getDb() : null;
+      if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) {
+        // Fallback: usa buffer local
+        _monLogsTotal = _monBuffer.slice().reverse();
+        _monAtualizarUI();
+        return;
+      }
+      var corte = new Date(Date.now() - MON_RETENCAO_DIAS * 86400000).toISOString();
+      var snap = await db.collection(MON_COLECAO)
+        .where('timestamp', '>=', corte)
+        .orderBy('timestamp', 'desc')
+        .limit(1000)
+        .get();
+      var logs = [];
+      snap.forEach(function(doc) { var d = doc.data(); d._id = doc.id; logs.push(d); });
+      // Merge com buffer local (eventos recentes que ainda não foram ao Firestore)
+      var idsFS = {};
+      logs.forEach(function(l){ if(l.id) idsFS[l.id]=true; });
+      _monBuffer.forEach(function(l){ if(l.id && !idsFS[l.id]) logs.unshift(l); });
+      _monLogsTotal = logs;
+      _monAtualizarUI();
+      _monLimparExpirados(db);
+    } catch(e) {
+      // Fallback local
+      _monLogsTotal = _monBuffer.slice().reverse();
+      _monAtualizarUI();
+      // Aviso específico para erro de permissão (Firestore Security Rules não configuradas)
+      if (e && (e.code === 'permission-denied' || (e.message && e.message.includes('permission')))) {
+        var tbody = document.getElementById('monTabelaBody');
+        if (tbody && !_monLogsTotal.length) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#dc2626;font-size:.78rem;">' +
+            '⚠️ <strong>Sem permissão para ler onlineEsMonitor.</strong><br>' +
+            '<span style="color:#64748b;">Adicione a regra no Firestore Console:<br>' +
+            '<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">' +
+            "match /onlineEsMonitor/{doc} { allow read, write: if request.auth != null; }" +
+            '</code></span></td></tr>';
+        }
+      }
+    }
+  }
+  window._monCarregarLogs = _monCarregarLogs;
+
+  // ── 8. Limpar logs expirados do Firestore ──────────────────────
+  async function _monLimparExpirados(db) {
+    try {
+      var agora = new Date().toISOString();
+      var snap = await db.collection(MON_COLECAO)
+        .where('expiraEm', '<', agora)
+        .limit(100)
+        .get();
+      if (snap.empty) return;
+      var batch = db.batch();
+      snap.forEach(function(doc){ batch.delete(doc.ref); });
+      await batch.commit();
+    } catch(e) {}
+  }
+
+  // ── 9. Atualiza UI do painel de monitoramento ──────────────────
+  function _monAplicarFiltro() {
+    var tipo  = (document.getElementById('monFiltroTipo')  || {}).value || '';
+    var grav  = (document.getElementById('monFiltroGrav')  || {}).value || '';
+    var busca = ((document.getElementById('monFiltroBusca') || {}).value || '').toLowerCase().trim();
+    _monLogsFiltrados = _monLogsTotal.filter(function(l) {
+      if (tipo && l.tipo !== tipo) return false;
+      if (grav && l.gravidade !== grav) return false;
+      if (busca) {
+        var hay = (l.mensagem + ' ' + l.usuario + ' ' + l.tela + ' ' + (l.detalhes ? JSON.stringify(l.detalhes) : '')).toLowerCase();
+        if (hay.indexOf(busca) === -1) return false;
+      }
+      return true;
+    });
+    _monPaginaAtual = 1;
+    _monRenderTabela();
+    _monAtualizarResumo();
+  }
+
+  function _monAtualizarUI() {
+    _monLogsFiltrados = _monLogsTotal.slice();
+    _monRenderTabela();
+    _monAtualizarResumo();
+    _monAtualizarBadge();
+  }
+
+  function _monAtualizarResumo() {
+    var logs = _monLogsTotal;
+    var errosJS = logs.filter(function(l){ return l.tipo === 'erro_js'; }).length;
+    var errosFS = logs.filter(function(l){ return l.tipo === 'erro_firestore'; }).length;
+    var acoes   = logs.filter(function(l){ return l.tipo === 'acao'; }).length;
+    var perfs   = logs.filter(function(l){ return l.tipo === 'perf' && l.detalhes && l.detalhes.latencia_ms; });
+    var latMedia = perfs.length ? Math.round(perfs.reduce(function(s,l){ return s + (l.detalhes.latencia_ms||0); }, 0) / perfs.length) : 0;
+    var criticos = logs.filter(function(l){ return l.gravidade === 'critico'; }).length;
+
+    var _set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+    _set('monCtErros',    errosJS);
+    _set('monCtFirestore',errosFS);
+    _set('monCtAcoes',    acoes);
+    _set('monLatMedia',   latMedia ? latMedia + 'ms' : '—');
+    _set('monCtTotal',    logs.length);
+
+    // Saúde do sistema
+    var tag = document.getElementById('monSaudeTag');
+    if (tag) {
+      if (criticos > 5)      { tag.style.background='#fee2e2'; tag.style.color='#dc2626'; tag.textContent='● CRÍTICO'; }
+      else if (criticos > 0) { tag.style.background='#fef9c3'; tag.style.color='#ca8a04'; tag.textContent='● ATENÇÃO'; }
+      else                   { tag.style.background='#dcfce7'; tag.style.color='#15803d'; tag.textContent='● SAUDÁVEL'; }
+    }
+  }
+
+  function _monAtualizarBadge() {
+    var badge = document.getElementById('monitorBadge');
+    if (!badge) return;
+    var criticos = _monLogsTotal.filter(function(l){ return l.gravidade === 'critico'; }).length;
+    if (criticos > 0) {
+      badge.style.display = 'inline-block';
+      badge.textContent = criticos > 99 ? '99+' : String(criticos);
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  function _monRenderTabela() {
+    var tbody = document.getElementById('monTabelaBody');
+    if (!tbody) return;
+    var total = _monLogsFiltrados.length;
+    var totalPag = Math.ceil(total / MON_POR_PAGINA) || 1;
+    if (_monPaginaAtual > totalPag) _monPaginaAtual = totalPag;
+    var inicio = (_monPaginaAtual - 1) * MON_POR_PAGINA;
+    var pagina = _monLogsFiltrados.slice(inicio, inicio + MON_POR_PAGINA);
+
+    var _ep = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var _dataBR = function(iso) {
+      try { var d = new Date(iso); return d.toLocaleString('pt-BR'); } catch(e){ return iso||''; }
+    };
+    var _tipoBadge = function(t) {
+      var map = { erro_js:'erro_js', erro_firestore:'erro_fs', perf:'perf', acao:'acao' };
+      var label = { erro_js:'Erro JS', erro_firestore:'Firestore', perf:'Perf', acao:'Ação' };
+      return '<span class="mon-badge mon-badge-'+(map[t]||'acao')+'">'+(label[t]||t)+'</span>';
+    };
+    var _gravBadge = function(g) {
+      var label = { critico:'🔴', aviso:'🟡', info:'🔵' };
+      return '<span class="mon-badge mon-badge-'+_ep(g)+'">'+(label[g]||g)+'</span>';
+    };
+    var _valor = function(l) {
+      if (l.detalhes && l.detalhes.latencia_ms) return l.detalhes.latencia_ms + 'ms';
+      if (l.detalhes && l.detalhes.duracao_ms) return l.detalhes.duracao_ms + 'ms';
+      if (l.detalhes && l.detalhes.duration_ms) return l.detalhes.duration_ms + 'ms';
+      return '';
+    };
+
+    if (!pagina.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;font-size:.78rem;">Nenhum evento encontrado para o filtro selecionado.</td></tr>';
+      document.getElementById('monInfoPagina').textContent = '0 eventos';
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    pagina.forEach(function(l) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+_ep(_dataBR(l.timestamp))+'</td>'+
+        '<td>'+_tipoBadge(l.tipo)+'</td>'+
+        '<td>'+_gravBadge(l.gravidade)+'</td>'+
+        '<td style="font-size:.7rem;">'+_ep(l.usuario||'')+'</td>'+
+        '<td style="font-size:.7rem;color:#64748b;">'+_ep(l.tela||'')+'</td>'+
+        '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_ep(l.mensagem||'')+'</td>'+
+        '<td style="font-size:.7rem;color:#64748b;">'+_ep(_valor(l))+'</td>';
+      // Expandir detalhes ao clicar
+      tr.onclick = function() {
+        var existe = tr.nextSibling && tr.nextSibling.classList && tr.nextSibling.classList.contains('mon-detalhe-tr');
+        if (existe) { tr.nextSibling.remove(); tr.classList.remove('mon-expandido'); return; }
+        tr.classList.add('mon-expandido');
+        var det = document.createElement('tr');
+        det.className = 'mon-detalhe-tr';
+        var td = document.createElement('td');
+        td.colSpan = 7;
+        td.className = 'mon-detalhe';
+        var detObj = Object.assign({}, l.detalhes || {});
+        var stackHtml = detObj.stack ? '<strong>Stack trace:</strong><pre>'+_ep(detObj.stack)+'</pre>' : '';
+        delete detObj.stack;
+        td.innerHTML =
+          '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;">'+
+          '<span><strong>ID:</strong> '+_ep(l.id||l._id||'')+'</span>'+
+          '<span><strong>Usuário:</strong> '+_ep(l.usuario||'—')+'</span>'+
+          '<span><strong>Role:</strong> '+_ep(l.role||'—')+'</span>'+
+          '<span><strong>Tela:</strong> '+_ep(l.tela||'—')+'</span>'+
+          '<span><strong>Online:</strong> '+(l.online?'Sim':'Não')+'</span>'+
+          '</div>'+
+          '<div style="margin-bottom:4px;"><strong>Mensagem:</strong> '+_ep(l.mensagem||'')+'</div>'+
+          (Object.keys(detObj).length ? '<div><strong>Detalhes:</strong><pre>'+_ep(JSON.stringify(detObj,null,2))+'</pre></div>' : '')+
+          stackHtml;
+        tr.parentNode.insertBefore(det, tr.nextSibling);
+        td.scrollIntoView && td.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      };
+      frag.appendChild(tr);
+    });
+    tbody.innerHTML = '';
+    tbody.appendChild(frag);
+
+    var info = document.getElementById('monInfoPagina');
+    if (info) info.textContent = 'Página ' + _monPaginaAtual + ' de ' + totalPag + ' (' + total + ' eventos)';
+    var btnAnt  = document.getElementById('monBtnAnterior');
+    var btnProx = document.getElementById('monBtnProximo');
+    if (btnAnt)  btnAnt.disabled  = _monPaginaAtual <= 1;
+    if (btnProx) btnProx.disabled = _monPaginaAtual >= totalPag;
+  }
+
+  // ── 10. Export CSV ─────────────────────────────────────────────
+  function _monExportCSV() {
+    var logs = _monLogsFiltrados.length ? _monLogsFiltrados : _monLogsTotal;
+    if (!logs.length) { if (typeof showToast === 'function') showToast('Nenhum log para exportar.'); return; }
+    var safe = function(v){ var s=String(v==null?'':v).replace(/;/g,',').replace(/[\r\n]+/g,' '); return /^[=+\-@]/.test(s)?'\''+s:s; };
+    var linhas = ['timestamp;tipo;gravidade;usuario;role;tela;mensagem;valor_ms'];
+    logs.forEach(function(l){
+      var val = (l.detalhes&&l.detalhes.latencia_ms)||(l.detalhes&&l.detalhes.duracao_ms)||(l.detalhes&&l.detalhes.duration_ms)||'';
+      linhas.push([l.timestamp,l.tipo,l.gravidade,l.usuario,l.role,l.tela,l.mensagem,val].map(safe).join(';'));
+    });
+    var blob = new Blob(['\uFEFF'+linhas.join('\n')], {type:'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href=url;
+    a.download = 'monitor-onlinees-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    if (typeof showToast==='function') showToast('✅ CSV exportado com '+(logs.length)+' eventos.');
+  }
+
+  // ── 11. Registrar botões e navegação ──────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    // Menu item
+    var btnMon = document.getElementById('mMonitor');
+    if (btnMon) {
+      btnMon.onclick = function() { window.mostrarTela && window.mostrarTela('monitor'); };
+    }
+
+    // Filtros
+    var _monFiltroTimer = null;
+    var _bindFiltro = function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener(id === 'monFiltroBusca' ? 'input' : 'change', function(){
+        clearTimeout(_monFiltroTimer);
+        _monFiltroTimer = setTimeout(_monAplicarFiltro, 300);
+      });
+    };
+    _bindFiltro('monFiltroTipo'); _bindFiltro('monFiltroGrav'); _bindFiltro('monFiltroBusca');
+
+    var _btn = function(id, fn) { var el=document.getElementById(id); if(el) el.onclick=fn; };
+    _btn('monBtnFiltrar',     _monAplicarFiltro);
+    _btn('monBtnLimparFiltro', function(){
+      var campos = ['monFiltroTipo','monFiltroGrav','monFiltroBusca'];
+      campos.forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+      _monAplicarFiltro();
+    });
+    _btn('monBtnExport', _monExportCSV);
+    _btn('monBtnAnterior', function(){ if(_monPaginaAtual>1){_monPaginaAtual--;_monRenderTabela();} });
+    _btn('monBtnProximo',  function(){
+      var tot=Math.ceil(_monLogsFiltrados.length/MON_POR_PAGINA)||1;
+      if(_monPaginaAtual<tot){_monPaginaAtual++;_monRenderTabela();}
+    });
+    _btn('monBtnLimpar', async function(){
+      if (typeof showConfirm!=='function') return;
+      if (!await showConfirm('Apagar TODOS os logs de monitoramento?\n\nEsta ação não pode ser desfeita.')) return;
+      try {
+        var db = typeof window._getDb==='function' ? window._getDb() : null;
+        if (db) {
+          var snap = await db.collection(MON_COLECAO).limit(400).get();
+          if (!snap.empty) {
+            var batch = db.batch();
+            snap.forEach(function(doc){ batch.delete(doc.ref); });
+            await batch.commit();
+          }
+        }
+        _monBuffer = []; _monLogsTotal = []; _monLogsFiltrados = [];
+        _monRenderTabela(); _monAtualizarResumo(); _monAtualizarBadge();
+        if (typeof showToast==='function') showToast('✅ Logs de monitoramento apagados.');
+        if (typeof logInfo==='function') logInfo('Logs de monitoramento apagados pelo admin', {});
+      } catch(e) {
+        if (typeof showToast==='function') showToast('❌ Erro ao apagar logs: '+(e.message||e), 4000);
+      }
+    });
+  });
+
+  // ── 12. Integrar com mostrarTela ──────────────────────────────
+  // Aguarda window.mostrarTela ser definido
+  var _monTelaInt = setInterval(function() {
+    if (typeof window.mostrarTela !== 'function') return;
+    clearInterval(_monTelaInt);
+    var _origMostrar = window.mostrarTela;
+    window.mostrarTela = async function(nome) {
+      var res = await _origMostrar.apply(this, arguments);
+      if (nome === 'monitor') {
+        // Garante que apenas admin acessa
+        if (!window.usuarioLogado || window.usuarioLogado.role !== 'admin') {
+          if (typeof showToast==='function') showToast('⚠️ Acesso restrito ao Administrador.', 3000);
+          return res;
+        }
+        // Mostra botão Limpar apenas para admin
+        var btnLimpar = document.getElementById('monBtnLimpar');
+        if (btnLimpar) btnLimpar.style.display = 'inline-flex';
+        // Mostra telaMonitor (limparMenu() já escondeu as outras)
+        var tela = document.getElementById('telaMonitor');
+        if (tela) tela.style.display = 'block';
+        // Marca botão do menu como ativo
+        var btnMon = document.getElementById('mMonitor');
+        if (btnMon) btnMon.classList.add('active');
+        // Recarrega logs
+        await _monCarregarLogs();
+        // Hook de login (pode não estar disponível ainda no primeiro acesso)
+        _monHookLogin();
+        // Stack de navegação
+        if (!window._navegandoPopstate && !window._navegandoBack) {
+          var stack = window._telaStack || [];
+          if (stack[stack.length-1] !== 'monitor') window._telaStack = stack.concat(['monitor']);
+          if (typeof window._atualizarBotaoVoltar==='function') window._atualizarBotaoVoltar();
+        }
+      }
+      return res;
+    };
+    window.mostrarTela._monWrapped = true;
+  }, 200);
+
+  // ── 13. Auto-inicializa quando usuário loga ────────────────────
+  var _monInitInt = setInterval(function() {
+    if (!window.usuarioLogado) return;
+    clearInterval(_monInitInt);
+    _monInicializar();
+    // Hook de login disponível agora
+    _monHookLogin();
+    // [FIX] Flushar eventos do buffer acumulados antes do login (erros de carregamento)
+    // Aguarda 2s para o Firestore inicializar
+    setTimeout(function() {
+      try {
+        var db = typeof window._getDb === 'function' ? window._getDb() : null;
+        if (!db || !window._firebaseAuth || !window._firebaseAuth.currentUser) return;
+        _monBuffer.forEach(function(ev) {
+          if (!ev._flushed) {
+            ev._flushed = true;
+            db.collection(MON_COLECAO).doc(ev.id).set(ev).catch(function(){});
+          }
+        });
+      } catch(e) {}
+    }, 2000);
+  }, 500);
+
+  // Expõe API pública
+  window._monCarregarLogs  = _monCarregarLogs;
+  window._monInicializar   = _monInicializar;
+
+})();
+</script>
      - Rastreamento de visualização
      - E-mail e WhatsApp com link do portal (sem Catbox)
      - Painel: botão "Gerar link" + badge "Visualizado"
