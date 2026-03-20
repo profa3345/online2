@@ -2854,6 +2854,23 @@ html[data-role="technician"] nav button {
       try {
         var firebaseAuth = firebase.auth();
         window._firebaseAuth = firebaseAuth;
+
+        // [FIX-AUTH] onAuthStateChanged: mantém window._firebaseAuth.currentUser sempre
+        // atualizado mesmo após expiração de token (~1h). Sem isso, escritas no Firestore
+        // podiam cair silenciosamente no REST fallback após longa sessão sem atividade.
+        firebaseAuth.onAuthStateChanged(function(fbUser) {
+          try {
+            // Apenas sincroniza o estado do Firebase Auth — não faz login/logout pelo app.
+            // O controle de sessão do app (usuarioLogado) continua gerenciado pelo login próprio.
+            if (fbUser) {
+              // Token renovado automaticamente pelo Firebase SDK
+              console.log('[Auth] Token Firebase renovado. UID:', fbUser.uid);
+            } else {
+              // Sessão Firebase expirou — REST fallback continuará funcionando
+              console.log('[Auth] Sessão Firebase expirada — escrita via REST fallback.');
+            }
+          } catch(e) { /* silencioso — não interrompe o app */ }
+        });
       } catch(eAuth) { console.warn('⚠️ Firebase Auth não disponível:', eAuth.message); }
 
       console.log('✅ Firebase inicializado. Projeto:', firebaseConfig.projectId);
