@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  ONLINE-ES
+  Base consolidada co conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
+  monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
+-->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -4965,7 +4970,7 @@ function autoFillCamposAtendimento(){
     const msgEl  = document.getElementById('msgErroDeletar');
     if (!modal) return;
     if (numEl)  numEl.textContent  = r.numero || r.id;
-    if (cliEl)  cliEl.textContent  = (r.cliente || '') + (r.dataHoraBr ? '  •  ' + r.dataHoraBr : '');
+    if (cliEl)  cliEl.textContent  = (typeof r.cliente === 'string' ? r.cliente : '') + (r.dataHoraBr ? '  •  ' + r.dataHoraBr : '');
     if (input)  input.value = '';
     if (msgEl)  msgEl.textContent = '';
     if (btnOk)  { btnOk.dataset.bloqueado = 'true'; btnOk.style.opacity = '.5'; btnOk.style.cursor = 'not-allowed'; btnOk.style.pointerEvents = 'none'; }
@@ -5008,6 +5013,11 @@ function autoFillCamposAtendimento(){
     showToast('Relatório ' + (r.numero || '') + ' excluído.');
   }
 
+  // [FIX] Helper: garante que campos de dados do cliente são string válida.
+  // RATs antigas/migradas podem ter r.cliente = true (boolean) causando
+  // que inputs mostrem "true" e sugestões exibam texto incorreto.
+  function _sc(v) { return typeof v === 'string' ? v.trim() : ''; }
+
   // ===== EDITAR RAT =====
   function editarRelatorio(r) {
     // Seta o número RAT ANTES de mostrarTela para evitar que ensureNumeroRat()
@@ -5032,12 +5042,12 @@ function autoFillCamposAtendimento(){
           var _buscaWrapEd = document.getElementById('aClienteBuscaWrap');
           if (_buscaWrapEd) _buscaWrapEd.style.display = 'none';
           aClienteManual.style.display = 'block';
-          aClienteManual.value = r.clienteManual || r.cliente || '';
+          aClienteManual.value = _sc(r.clienteManual) || _sc(r.cliente);
         } else if (aClienteSelect) {
-          aClienteSelect.value = r.cliente || '';
+          aClienteSelect.value = _sc(r.cliente);
           // [UX] Sincroniza campo de busca visual com o valor restaurado
           var _busca = document.getElementById('aClienteBusca');
-          if (_busca) _busca.value = r.cliente || '';
+          if (_busca) _busca.value = _sc(r.cliente);
         }
 
         const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val || ''; };
@@ -8050,16 +8060,16 @@ if (logoBase64) {
 
         // Cliente
         if (r.clienteManual && aClienteManual) {
-          aClienteManual.value = r.clienteManual;
+          aClienteManual.value = _sc(r.clienteManual) || _sc(r.cliente);
           aClienteManual.style.display = 'block';
           // [UX] Esconde o campo de busca no modo manual
           var _buscaWrapRasc = document.getElementById('aClienteBuscaWrap');
           if (_buscaWrapRasc) _buscaWrapRasc.style.display = 'none';
         } else if (r.cliente && aClienteSelect) {
-          aClienteSelect.value = r.cliente;
+          aClienteSelect.value = _sc(r.cliente);
           // [UX] Sincroniza campo de busca visual
           var _buscaRasc = document.getElementById('aClienteBusca');
-          if (_buscaRasc) _buscaRasc.value = r.cliente;
+          if (_buscaRasc) _buscaRasc.value = _sc(r.cliente);
           try { aClienteSelect.dispatchEvent(new Event('change')); } catch(e){}
         }
 
@@ -8500,9 +8510,11 @@ if (logoBase64) {
               }).sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
               var _ult = _meus[0];
               var _sugEl = document.getElementById('_clienteSugestao');
-              if (_ult && _ult.cliente && _sugEl) {
+              // [FIX] _ult.cliente pode ser boolean true em RATs antigas — garante string
+              var _nomeCliente = _ult && typeof _ult.cliente === 'string' ? _ult.cliente.trim() : '';
+              if (_nomeCliente && _sugEl) {
                 _sugEl.style.display = 'flex';
-                _sugEl.querySelector('._sugNome') && (_sugEl.querySelector('._sugNome').textContent = _ult.cliente);
+                _sugEl.querySelector('._sugNome') && (_sugEl.querySelector('._sugNome').textContent = _nomeCliente);
               } else if (_sugEl) {
                 _sugEl.style.display = 'none';
               }
@@ -9648,11 +9660,11 @@ if (logoBase64) {
           var _bw = document.getElementById('aClienteBuscaWrap');
           if (_bw) _bw.style.display = 'none';
           aClienteManual.style.display = 'block';
-          aClienteManual.value = ult.clienteManual || ult.cliente || '';
+          aClienteManual.value = _sc(ult.clienteManual) || _sc(ult.cliente);
         } else if (aClienteSelect) {
-          aClienteSelect.value = ult.cliente || '';
+          aClienteSelect.value = _sc(ult.cliente);
           var _bs = document.getElementById('aClienteBusca');
-          if (_bs) _bs.value = ult.cliente || '';
+          if (_bs) _bs.value = _sc(ult.cliente);
           aClienteSelect.dispatchEvent(new Event('change'));
         }
         setVal('aContato',      ult.contato);
@@ -9711,12 +9723,12 @@ if (logoBase64) {
               var _buscaWrapDup = document.getElementById('aClienteBuscaWrap');
               if (_buscaWrapDup) _buscaWrapDup.style.display = 'none';
               aClienteManual.style.display = 'block';
-              aClienteManual.value = ultimo.clienteManual || ultimo.cliente || '';
+              aClienteManual.value = _sc(ultimo.clienteManual) || _sc(ultimo.cliente);
             } else if (aClienteSelect) {
-              aClienteSelect.value = ultimo.cliente || '';
+              aClienteSelect.value = _sc(ultimo.cliente);
               // [UX] Sincroniza campo de busca visual
               var _buscaDup = document.getElementById('aClienteBusca');
-              if (_buscaDup) _buscaDup.value = ultimo.cliente || '';
+              if (_buscaDup) _buscaDup.value = _sc(ultimo.cliente);
             }
             setVal('aContato',      ultimo.contato);
             setVal('aTelefone',     ultimo.telefone);
@@ -11271,7 +11283,7 @@ window.setCustomLogoBase64 = function(b64){
     if (!r) return;
     try {
       relatorioSelecionado = r;
-      reportTitle.textContent = 'Relatório ' + (r.numero || '') + ' – ' + (r.cliente || '');
+      reportTitle.textContent = 'Relatório ' + (r.numero || '') + ' – ' + (typeof r.cliente === 'string' ? r.cliente : '');
       reportBody.innerHTML = montarHtmlRelatorio(r);
       reportOverlay.classList.add('active');
       try { logInfo('RAT visualizada (Meus)', { numero: r.numero || 'N/A', cliente: r.cliente || '' }); } catch(e){}
@@ -13921,7 +13933,7 @@ async function fazerLogin(){
 (function() {
   if (!('serviceWorker' in navigator)) return;
 
-  var SW_VERSION = 'onlinees-v9';
+  var SW_VERSION = 'onlinees-v10';
   var CACHE_ASSETS = [
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
@@ -13931,7 +13943,7 @@ async function fazerLogin(){
   ];
 
   var swCode = `
-    var CACHE = 'onlinees-v9';
+    var CACHE = 'onlinees-v10';
     var CACHE_FONTS = 'onlinees-fonts-v1';
 
     // Assets CDN — pré-cacheados no install
@@ -14056,7 +14068,7 @@ async function fazerLogin(){
         URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
         console.log('✅ Service Worker registrado (PWA offline ativo).');
         // [OFFLINE] Cacheia a página atual após registro do SW
-        caches.open('onlinees-v9').then(function(cache) {
+        caches.open('onlinees-v10').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
           // Também tenta cachear Poppins se disponível
           cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
@@ -14782,7 +14794,7 @@ async function fazerLogin(){
       btnMon.style.display = '';
     }
     monRegistrar('acao', 'info', 'Sessão iniciada', {
-      versaoSW: 'onlinees-v9',
+      versaoSW: 'onlinees-v10',
       plataforma: navigator.platform || ''
     });
     _monCarregarLogs();
@@ -15140,6 +15152,9 @@ async function fazerLogin(){
 
 })();
 </script>
+
+<!-- ============================================================
+     PORTAL DO CLIENTE — v1.0
      - Rastreamento de visualização
      - E-mail e WhatsApp com link do portal (sem Catbox)
      - Painel: botão "Gerar link" + badge "Visualizado"
