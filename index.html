@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v46b
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v47
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -6074,8 +6074,8 @@ function autoFillCamposAtendimento(){
       if (telaPainel) telaPainel.style.display='block';
       modoListaSupervisor='none';
       renderLista();
-      renderUsuarios();
-      renderClientes();
+      try { renderUsuarios(); } catch(e){ console.warn('renderUsuarios:', e); }
+      try { renderClientes(); } catch(e){ console.warn('renderClientes:', e); }
       atualizarDashboard();
       aplicarPermissoesConfiguracoes();
       try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
@@ -7085,7 +7085,7 @@ function renderUsuarios(){
       );
       saveUsers(usuarios); 
       _syncUsuarioFirestore(user);
-      renderUsuarios(); 
+      try { renderUsuarios(); } catch(e){ console.warn('renderUsuarios:', e); } 
       try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       showToast('Senha resetada com sucesso.');
       try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
@@ -7109,7 +7109,7 @@ function renderUsuarios(){
 
       usuarios = (Array.isArray(usuarios) ? usuarios : []).filter(x => x && x.username !== user);
       saveUsers(usuarios);
-      renderUsuarios();
+      try { renderUsuarios(); } catch(e){ console.warn('renderUsuarios:', e); }
       try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       showToast('Usuário removido com sucesso!');
 
@@ -7198,7 +7198,7 @@ function renderUsuarios(){
       });
       saveUsers(usuarios);
       _syncUsuarioFirestore(novoUser || u.username);
-      renderUsuarios();
+      try { renderUsuarios(); } catch(e){ console.warn('renderUsuarios:', e); }
       try { if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa(); } catch(e){}
       showToast('Usuário atualizado com sucesso.');
         try { logInfo('Usuário atualizado', { usuario: uname || '' }); } catch(e){}
