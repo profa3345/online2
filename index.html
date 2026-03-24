@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v40
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -1721,6 +1721,17 @@ html[data-role="technician"] nav button {
           </div>
         </div>
 
+        <!-- [FIX-CAM-v40] Contador de fotos PDF movido para fora dos steps —
+             antes estava dentro do form-step-3 (invisível quando técnico adicionava
+             fotos no step-2 via câmera). Agora fica sempre visível abaixo do stepNav. -->
+        <div id="fotoContadorBar">
+          <span class="fc-label"><i class="ri-image-line"></i> Fotos para o PDF</span>
+          <span class="fc-count" id="fcNum">0</span>
+          <span style="color:#94a3b8;font-weight:400;font-size:.75rem;">/6</span>
+          <div class="fc-bar-wrap"><div class="fc-bar" id="fcBar"></div></div>
+          <span class="fc-tip" id="fcTip">Adicione até 6 fotos</span>
+        </div>
+
         <!-- STEP 1: CLIENTE -->
         <div class="form-step" id="form-step-1">
 
@@ -1946,15 +1957,6 @@ html[data-role="technician"] nav button {
 
         <!-- STEP 3: SERVIÇO -->
         <div class="form-step" id="form-step-3" style="display:none;">
-
-        <!-- Contador de fotos para o PDF -->
-        <div id="fotoContadorBar">
-          <span class="fc-label"><i class="ri-image-line"></i> Fotos para o PDF</span>
-          <span class="fc-count" id="fcNum">0</span>
-          <span style="color:#94a3b8;font-weight:400;font-size:.75rem;">/6</span>
-          <div class="fc-bar-wrap"><div class="fc-bar" id="fcBar"></div></div>
-          <span class="fc-tip" id="fcTip">Adicione até 6 fotos</span>
-        </div>
 
         <!-- C. SERVIÇO EXECUTADO -->
         <div class="section-card">
@@ -5601,6 +5603,12 @@ function autoFillCamposAtendimento(){
           _recriarPreviewImg('bPreview', [].concat(r.imgsEquip||[]).concat(r.vidsEquip||[]));
           _recriarPreviewImg('cPreview', [].concat(r.imgsServico||[]).concat(r.vidsServico||[]));
           _recriarPreviewImg('dPreview', [].concat(r.imgsBaterias||[]).concat(r.vidsBaterias||[]));
+          // [FIX-v40b] Força atualização do contador após restaurar fotos na edição.
+          // MutationObserver pode fazer batching dos 3 appends — chamada explícita garante
+          // que o contador reflita o total correto ao abrir uma RAT existente.
+          setTimeout(function() {
+            try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
+          }, 0);
         } catch(e) { console.warn('Restaurar previews ao editar:', e); }
 
         // Restaura assinaturas nas variáveis globais ao editar
@@ -9095,10 +9103,8 @@ if (logoBase64) {
         if (formEl) formEl.scrollTo ? formEl.scrollTo(0,0) : null;
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch(e) {}
-      // Atualiza contador de fotos ao entrar no step 3
-      if (n === 3) {
-        try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
-      }
+      // [FIX-v40b] fotoContadorBar está fora dos steps agora — atualiza em qualquer step
+      try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
       // [FIX-v39] Usa requestAnimationFrame duplo ao entrar no step 4.
       // setTimeout(80) era insuficiente em devices lentos: o display:'' do step
       // ainda não havia propagado ao layout antes do getBoundingClientRect(),
@@ -15201,7 +15207,10 @@ async function fazerLogin(){
     if (typeof showToast === 'function') {
       showToast('📷 ' + enviadas + (enviadas === 1 ? ' foto adicionada!' : ' fotos adicionadas!'));
     }
+    // [FIX-CAM-v40] Força atualização do contador de fotos PDF após envio da câmera.
+    // O MutationObserver pode não disparar a tempo quando fechar() ainda está em execução.
     fechar();
+    try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
   });
 
   // ── Fallback: input nativo com capture ───────────────────────
@@ -15229,6 +15238,8 @@ async function fazerLogin(){
         adicionadas++;
         if (adicionadas === files.length) {
           if (typeof showToast === 'function') showToast('📷 ' + adicionadas + (adicionadas === 1 ? ' foto adicionada!' : ' fotos adicionadas!'));
+          // [FIX-CAM-v40] Atualiza contador de fotos PDF após fallback de câmera
+          try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
         }
       };
       files.forEach(function(file) {
