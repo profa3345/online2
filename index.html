@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v45
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v46b
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -15229,9 +15229,15 @@ async function fazerLogin(){
       });
       video.srcObject = stream;
       // Aguarda metadados do vídeo carregarem antes de liberar captura
+      // [FIX-v45b] Timeout de 8s — sem ele, em iOS/Android lentos o loadedmetadata
+      // pode nunca disparar, deixando o botão de captura bloqueado para sempre.
       await new Promise(function(resolve) {
         if (video.readyState >= 2) { resolve(); return; }
-        video.addEventListener('loadedmetadata', resolve, { once: true });
+        var _metaTimer = setTimeout(resolve, 8000); // fallback: libera após 8s
+        video.addEventListener('loadedmetadata', function() {
+          clearTimeout(_metaTimer);
+          resolve();
+        }, { once: true });
       });
       // Garante que o vídeo está de fato reproduzindo (evita frame preto no iOS/Android)
       try { await video.play(); } catch(e) {}
@@ -16641,117 +16647,6 @@ async function _renderPortal(token){
     };
   });
 }
-    var criado=new Date(rat.portalTokenCriado);
-    var limite=new Date(criado.getTime()+30*24*60*60*1000);
-    if(new Date()>limite){
-      el.innerHTML='<div class="portal-not-found"><h2><i class="ri-time-line"></i> Link expirado</h2><p>Este link de acesso ao relatório expirou após 30 dias.<br>Solicite um novo link à ONLINE-ES.</p></div>';
-      return;
-    }
-  } else {
-    // [FIX-PORTAL-EXP] Token sem data de criação: tokens antigos gerados antes desta versão.
-    // Aplica expiração de 90 dias a partir de agora para forçar renovação gradual.
-    // Registra a data de criação assumida para que na próxima consulta já haja controle.
-    var _dataAssumida = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // assume criado há 60 dias
-    rat.portalTokenCriado = _dataAssumida;
-    try {
-      var _dbLeg = _db();
-      if (_dbLeg) {
-        var _snapLeg = await _dbLeg.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
-        if (!_snapLeg.empty) _snapLeg.docs[0].ref.update({ portalTokenCriado: _dataAssumida }).catch(function(){});
-      }
-    } catch(e) {}
-    console.warn('[Portal] Token sem portalTokenCriado — tratado como criado há 60 dias. RAT:', rat.numero || rat.id);
-  }
-  _registrarVisto(token);
-  var sc=_sc(rat.status);
-  var html='<div class="portal-card">'+
-    '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
-    '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
-    '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
-    '<div class="portal-campo"><span class="rot">Técnico:</span><span class="val">'+_ep(rat.tecnico)+'</span></div>'+
-    '<div class="portal-campo"><span class="rot">Cliente:</span><span class="val">'+_ep(rat.cliente)+'</span></div>'+
-    '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
-    (rat.serie?'<div class="portal-campo"><span class="rot">Nº Série:</span><span class="val">'+_ep(rat.serie)+'</span></div>':'')+
-    '<div class="portal-campo"><span class="rot">Tipo de serviço:</span><span class="val">'+_ep(rat.tipo||'-')+'</span></div>'+
-    '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
-    (rat.problema?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Problema informado:</span><span class="val" style="margin-top:2px;">'+_ep(rat.problema).replace(/\n/g,'<br>')+'</span></div>':'')+
-    (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
-    '<br><button class="portal-pdf-btn" id="portalBtnPdf"><i class="ri-file-pdf-line"></i> Baixar PDF completo</button>'+
-    '</div>';
-
-  // Bug 4 fix: o histórico só é renderizado se o rat acessado pelo token tiver cnpjCliente
-  // e os demais RATs do histórico pertencem ao mesmo CNPJ — garantia de que um token de
-  // cliente A não revela histórico de cliente B.
-  // A verificação de CNPJ já ocorre na query do Firestore (where cnpjCliente == cnpj),
-  // mas adicionamos checagem explícita: o cnpj passado deve ser o do rat acessado.
-  if(rat.cnpjCliente){
-    var hist=await _historico(rat.cnpjCliente,rat.id||'');
-    if(hist.length>0){
-      html+='<div class="portal-card"><h2><i class="ri-history-line"></i> Histórico – últimos 30 dias</h2>';
-      hist.forEach(function(h){
-        var hsc=_sc(h.status);
-        html+='<div class="portal-hist-item">'+
-          '<div><div class="portal-hist-num">RAT '+_ep(h.numero)+'</div>'+
-          '<div class="portal-hist-data">'+_ep(h.dataHoraBr||_br(h.dataHoraIso))+' &middot; '+_ep(h.equipamento||'-')+'</div></div>'+
-          '<div style="display:flex;align-items:center;gap:8px;">'+
-          '<span class="portal-badge '+hsc+'">'+_ep(h.status||'-')+'</span>'+
-          (h.portalToken?'<button class="portal-hist-btn" data-ptoken="'+_ep(h.portalToken)+'">Ver RAT</button>':'')+
-          '</div></div>';
-      });
-      html+='</div>';
-    }
-  }
-  el.innerHTML=html;
-
-  var btnPdf=document.getElementById('portalBtnPdf');
-  if(btnPdf) btnPdf.onclick=function(){
-    var _pt=function(m){if(typeof showToast==='function'){showToast(m,4000);}else{var _t=document.getElementById('toast');if(_t){_t.textContent=m;_t.style.display='block';setTimeout(function(){_t.style.display='none';},4000);}}};
-    if(!window.jspdf||!window.jspdf.jsPDF){ _pt('⏳ Carregando gerador de PDF...'); }
-    // Verifica se as imagens são [local] (ficaram no dispositivo do técnico)
-    var _temImgLocal = (
-      ([].concat(rat.imgsEquip||[]).concat(rat.imgsServico||[]).concat(rat.imgsBaterias||[]))
-        .some(function(s){ return s === '[local]' || s === '[comprimido]'; })
-    );
-    var _temImgReal = (
-      ([].concat(rat.imgsEquip||[]).concat(rat.imgsServico||[]).concat(rat.imgsBaterias||[]))
-        .some(function(s){ return s && s.startsWith('data:'); })
-    );
-    if(_temImgLocal && !_temImgReal){
-      _pt('📄 PDF gerado! As fotos ficam salvas no dispositivo do técnico e não estarão no PDF.');
-    }
-    try{(async function(){
-      btnPdf.disabled=true;
-      btnPdf.innerHTML='<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Gerando PDF...';
-      try{
-        // [FIX-PORTAL-PDF] Garante que jsPDF está carregado antes de gerar o PDF.
-        // Quando o cliente abre o portal diretamente pelo link, o jsPDF nunca foi
-        // carregado pelo painel — sem este await o exportarPDF falha silenciosamente.
-        if (typeof window._ensureJsPDF === 'function') await window._ensureJsPDF();
-        await window.exportarPDF(Object.assign({},rat));
-      }catch(e){
-        _pt('❌ Não foi possível gerar o PDF. Verifique se o relatório está completo e tente novamente.');
-        console.error('[PDF]',e);
-      } finally {
-        btnPdf.disabled=false;
-        btnPdf.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF completo';
-      }
-    })();}catch(e){
-      _pt('❌ Não foi possível gerar o PDF.');
-      console.error('[PDF]',e);
-    }
-  };
-  el.querySelectorAll('[data-ptoken]').forEach(function(btn){
-    btn.onclick=function(){
-      var t=btn.getAttribute('data-ptoken');
-      _renderPortal(t);
-      window.history.replaceState(
-        // Preserva o estado da tela atual (se existir) para que o botão voltar funcione
-        (history.state && history.state.tela) ? history.state : null,
-        '', '?rat='+t
-      );
-    };
-  });
-}
 
 // ── Verificar URL e abrir portal ─────────────────────────
 function _verificarUrl(){
@@ -17057,10 +16952,12 @@ function _init(){
   } catch(e) {}
 })();
 
+// [FIX-v45c] if/else movido para dentro da IIFE principal — estava fora com 'use strict',
+// causando SyntaxError: Unexpected token 'else' (else sem if no nível de módulo).
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_init);
 else _init();
 
-})();
+})(/* fim IIFE principal */);
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
