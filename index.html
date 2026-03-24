@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v42
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v43
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -6269,13 +6269,18 @@ function autoFillCamposAtendimento(){
 
     // 3. Se tem tela de destino no estado, navegar para ela
     if (telaAlvo && typeof window.mostrarTela === 'function') {
+      // [FIX-v43] __init__ é estado sentinela sem usuário logado — não é tela real.
+      // Repõe estado e não navega, para não sair do app na tela de login.
+      if (telaAlvo === '__init__') {
+        try { history.pushState({ tela: '__init__' }, '', ''); } catch(e) {}
+        return;
+      }
       window._navegandoPopstate = true;
       // [NAV-BACK] Sincroniza o stack interno com o histórico do browser
       try {
         var _stackPop = window._telaStack || [];
         var _idxPop = _stackPop.lastIndexOf(telaAlvo);
         if (_idxPop >= 0) {
-          // Volta ao ponto da tela no stack
           window._telaStack = _stackPop.slice(0, _idxPop + 1);
         }
         if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar();
@@ -6295,12 +6300,15 @@ function autoFillCamposAtendimento(){
     //    para impedir que o próximo voltar feche o PWA ou recarregue a página
     var _role3 = (window.usuarioLogado && window.usuarioLogado.role) || '';
     var _isMobile4 = window.innerWidth <= 880;
+    // [FIX-v43] Sem usuário logado: repõe sentinela e não faz nada (está na tela de login)
+    if (!window.usuarioLogado) {
+      try { history.pushState({ tela: '__init__' }, '', ''); } catch(e) {}
+      return;
+    }
     if (_isMobile4 && typeof window._mostrarHomeScreen === 'function') {
       window._navegandoPopstate = true;
       try { window._mostrarHomeScreen(); } catch(e) {}
       window._navegandoPopstate = false;
-      // [FIX-BACK] Repõe sempre o estado __home__ no histórico para que o próximo
-      // pressionar voltar não esvazie o histórico e feche o PWA
       try { history.pushState({ tela: '__home__' }, '', ''); } catch(e) {}
     } else {
       var _telaPadrao2 = (_role3 === 'tecnico') ? 'novo' : 'painel';
@@ -8685,10 +8693,22 @@ if (logoBase64) {
   // Restaurar rascunho ao abrir Novo Atendimento
   async function verificarRascunho() {
     try {
+      // [FIX-v43] Só verifica após login — não exibe diálogo na tela de login
+      if (!window.usuarioLogado) return;
       const raw = localStorage.getItem(STORAGE_RASCUNHO);
       if (!raw) return;
       const r = JSON.parse(raw);
       if (!r || !r._rascunho) return;
+
+      // [FIX-v43] Só restaura se o rascunho pertence ao usuário atual
+      // O rascunho armazena r.tecnicoLogin (username) — compara com o usuário logado
+      var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
+      var _loginRasc  = (r.tecnicoLogin || r.tecnico || '').toLowerCase();
+      // Se o rascunho tem tecnicoLogin definido e não bate com o usuário atual, ignora silenciosamente
+      if (r.tecnicoLogin && _loginRasc && _loginAtual && _loginRasc !== _loginAtual) {
+        console.log('[Rascunho] Pertence a outro usuário (' + _loginRasc + ') — ignorado para ' + _loginAtual);
+        return;
+      }
 
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
       const clienteRasc = r.cliente || r.clienteManual || 'sem cliente';
@@ -8817,8 +8837,10 @@ if (logoBase64) {
         setTimeout(verificarRascunho, 300);
       };
     }
-    // Também verifica no primeiro carregamento
-    setTimeout(verificarRascunho, 1000);
+    // Também verifica quando o sistema abre tela 'novo' — chamado em mostrarTela('novo')
+    // [FIX-v43] Removido setTimeout inicial que disparava verificarRascunho ANTES do login,
+    // mostrando o diálogo de restauração para qualquer usuário na tela de login.
+    // A verificação agora só ocorre em mostrarTela('novo'), que é chamado APÓS o login.
   } catch(e){}
 
   // Limpa rascunho quando relatório é salvo com sucesso NESTE dispositivo (não em outros)
@@ -12905,6 +12927,43 @@ async function renderMeus(){
       }
     }
 
+    // [FIX-v43] Injeta pendentes offline (salvos sem conexão) na lista
+    // Eles vivem em STORAGE_PENDENTES separado e não aparecem no Firestore ainda
+    try {
+      var _pendMeus = typeof loadPendentes === 'function' ? loadPendentes() : [];
+      if (_pendMeus && _pendMeus.length) {
+        var _idsEmTodos = new Set((todos||[]).map(function(r){ return r.id; }));
+        _pendMeus.forEach(function(p) {
+          if (!p._deleted && !_idsEmTodos.has(p.id)) {
+            p._pendente = true; // marca para badge visual
+            todos = todos || [];
+            todos.push(p);
+          }
+        });
+      }
+    } catch(e) {}
+
+    // [FIX-v43] Injeta rascunho atual (auto-save) na lista se pertencer ao usuário logado
+    try {
+      var _rawRasc = localStorage.getItem('online-es-rascunho-v1');
+      if (_rawRasc) {
+        var _rRasc = JSON.parse(_rawRasc);
+        if (_rRasc && _rRasc._rascunho && _rRasc.numero) {
+          var _loginAtualMeus = ((window.usuarioLogado||{}).username || (window.usuarioLogado||{}).usuario || '').toLowerCase();
+          var _loginRascMeus  = (_rRasc.tecnicoLogin || '').toLowerCase();
+          var _pertence = !_loginRascMeus || !_loginAtualMeus || _loginRascMeus === _loginAtualMeus;
+          if (_pertence) {
+            var _idsEmTodos2 = new Set((todos||[]).map(function(r){ return r.id; }));
+            if (!_idsEmTodos2.has(_rRasc.id)) {
+              _rRasc._rascunhoCard = true; // marca para badge visual
+              todos = todos || [];
+              todos.unshift(_rRasc); // rascunho no topo
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
     if(!todos || !todos.length){
       lista.innerHTML = '<p style="font-size:.78rem;color:#475569;">Você ainda não enviou relatórios neste dispositivo.</p>';
       return;
@@ -12913,6 +12972,8 @@ async function renderMeus(){
     var nome = (user.fullName || user.nome || '').toLowerCase();
     var login = (user.username || user.usuario || '').toLowerCase();
     var filtrados = todos.filter(function(r){ if (r._deleted) return false;
+      // [FIX-v43] rascunho e pendentes já foram filtrados por dono acima — sempre incluir
+      if (r._rascunhoCard || r._pendente) return true;
       var tecNome = (r.tecnico || r.nomeTecnico || '').toLowerCase();
       var tecLogin = (r.tecnicoLogin || r.username || r.tecnicoUser || '').toLowerCase();
       if(nome && tecNome === nome) return true;
@@ -13035,9 +13096,16 @@ async function renderMeus(){
       var _e = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
       var numEsc = _e(titulo);
       var cliEsc = _e(cliente);
+      // [FIX-v43] Badge extra para rascunho e pendente offline
+      var _badgeExtra = '';
+      if (r._rascunhoCard) {
+        _badgeExtra = ' <span style="font-size:.6rem;font-weight:700;background:rgba(245,158,11,.15);color:#b45309;border:1px solid rgba(245,158,11,.4);border-radius:999px;padding:2px 8px;"><i class="ri-draft-line"></i> Rascunho</span>';
+      } else if (r._pendente) {
+        _badgeExtra = ' <span style="font-size:.6rem;font-weight:700;background:rgba(249,115,22,.15);color:#c2410c;border:1px solid rgba(249,115,22,.4);border-radius:999px;padding:2px 8px;"><i class="ri-wifi-off-line"></i> Aguardando envio</span>';
+      }
       card.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'+
-          '<div><strong>'+ numEsc +'</strong><br>'+
+          '<div><strong>'+ numEsc +'</strong>'+ _badgeExtra +'<br>'+
           '<span style="font-size:.75rem;color:#1f2937;">'+ cliEsc +'</span></div>'+
           '<span class="badge-status '+spanStatusClass+'">'+ _e(status) +'</span>'+
         '</div>'+
@@ -16178,7 +16246,7 @@ async function fazerLogin(){
      - Painel: botão "Gerar link" + badge "Visualizado"
 ============================================================ -->
 <style>
-#portalCliente{position:fixed;inset:0;z-index:8500;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);display:none;overflow-y:auto;font-family:"Poppins",system-ui,sans-serif} /* [B-03] */
+#portalCliente{position:fixed;inset:0;z-index:9500;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);display:none;overflow-y:auto;font-family:"Poppins",system-ui,sans-serif} /* [FIX-v43] z-index acima da login-screen (9000) */
 #portalCliente.ativo{display:block}
 .portal-wrap{max-width:720px;margin:0 auto;padding:24px 16px 60px}
 .portal-header{text-align:center;padding:28px 0 18px}
@@ -16519,6 +16587,11 @@ async function _renderPortal(token){
 function _verificarUrl(){
   var token=new URLSearchParams(window.location.search).get('rat');
   if(!token) return false;
+  // [FIX-v43] Oculta a tela de login (z-index:9000) para o portal não ficar por baixo dela
+  try {
+    var _tl = document.getElementById('telaLogin');
+    if (_tl) { _tl.classList.add('hidden'); _tl.style.display = 'none'; }
+  } catch(e) {}
   var portal=document.getElementById('portalCliente');
   if(portal) portal.classList.add('ativo');
   // [FIX-P1] Mostrar loading imediato para o usuário não ver tela branca
