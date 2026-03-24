@@ -13290,12 +13290,76 @@ async function _renderMeusComCache() {
       '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
         '<button class="btn small" data-meus-ver="'+_e(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
         '<button class="btn small" data-meus-editar="'+_e(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
+        '<button class="btn small" data-meus-whats="'+_e(r.id)+'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
+        (r.emailCliente ? '<button class="btn small" data-meus-email="'+_e(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
         '<button class="btn small" data-meus-pdf="'+_e(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
       '</div>';
     // Handlers
     card.querySelector('[data-meus-ver]').onclick = function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (r2 && typeof abrirRelatorioOverlay === 'function') abrirRelatorioOverlay(r2); };
     card.querySelector('[data-meus-editar]').onclick = async function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (!r2) return; if (!await showConfirm('Editar o relatório Nº ' + (r2.numero||'') + '?')) return; if (typeof editarRelatorio === 'function') editarRelatorio(r2); };
     card.querySelector('[data-meus-pdf]').onclick = async function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (!r2) return; try { await _ensureJsPDF(); await exportarPDF(r2); } catch(e) { showToast('❌ Não foi possível gerar o PDF.', 4000); } };
+    // [FIX-CACHE-1] WhatsApp e E-mail agora presentes também nos cards do cache (busca filtrada)
+    var _whatsBtn = card.querySelector('[data-meus-whats]');
+    if (_whatsBtn) {
+      _whatsBtn.onclick = async function(ev) { ev.stopPropagation();
+        var r2 = filtrados.find(function(x){ return x.id === r.id; });
+        if (!r2) return;
+        if (window.location.protocol === 'file:') { showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000); return; }
+        var num = (r2.whatsapp || r2.telefone || '').replace(/\D/g,'');
+        if (!num) { showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
+        if (num.length <= 11) num = '55' + num;
+        var portalUrl = null;
+        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
+          try {
+            showToast('🔗 Gerando link...', 2000);
+            var tok = await window._gerarTokenPortal(r2);
+            if (tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
+          } catch(eP) { console.warn('[Cache/WhatsApp] Falha ao gerar token:', eP); }
+        }
+        var msg = portalUrl
+          ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n' + portalUrl + '\n\nQualquer dúvida estamos à disposição!'
+          : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *' + (r2.numero||'') + '* – ' + (r2.cliente||'') + '.';
+        window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
+        showToast('✅ WhatsApp aberto!', 3000);
+      };
+    }
+    var _emailBtn = card.querySelector('[data-meus-email]');
+    if (_emailBtn) {
+      _emailBtn.onclick = async function(ev) { ev.stopPropagation();
+        var r2 = filtrados.find(function(x){ return x.id === r.id; });
+        if (!r2) return;
+        var email = (r2.emailCliente || '').trim();
+        if (!email) { showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
+        var portalUrl = null;
+        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
+          try {
+            showToast('🔗 Gerando link...', 2000);
+            var tok = await window._gerarTokenPortal(r2);
+            if (tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
+          } catch(eP) { console.warn('[Cache/Email] Falha ao gerar token:', eP); }
+        }
+        var assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + (r2.numero||'');
+        var linhas = [
+          'Olá' + (r2.nomeAssinaturaCliente ? ', ' + r2.nomeAssinaturaCliente : '') + '!',
+          '',
+          'Segue o Relatório Técnico de Atendimento referente à visita da Online-ES' + (r2.cliente ? ' na empresa ' + r2.cliente : '') + '.',
+          '',
+          '• Relatório nº: ' + (r2.numero||''),
+          '• Data: ' + (r2.dataHoraBr || r2.dataHoraBR || ''),
+          '• Técnico responsável: ' + (r2.tecnico||''),
+          ''
+        ];
+        if (portalUrl) {
+          linhas.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
+          linhas.push(portalUrl);
+        }
+        linhas.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
+        window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener,noreferrer');
+        showToast('✅ E-mail aberto!' + (portalUrl ? ' O cliente receberá o link para baixar o PDF.' : ''), 4000);
+      };
+    }
     _frag.appendChild(card);
   });
   lista.appendChild(_frag);
@@ -16038,10 +16102,13 @@ async function fazerLogin(){
   // Aguarda window.mostrarTela ser definido
   var _monTelaInt = setInterval(function() {
     if (typeof window.mostrarTela !== 'function') return;
+    // [FIX-WRAP] Evita duplo-wrapping: se este wrapper já foi aplicado, ignora.
+    if (window.mostrarTela._monWrapped) { clearInterval(_monTelaInt); return; }
     clearInterval(_monTelaInt);
     var _origMostrar = window.mostrarTela;
     window.mostrarTela = async function(nome) {
-      var res = await _origMostrar.apply(this, arguments);
+      var res;
+      try { res = await _origMostrar.apply(this, arguments); } catch(e) { console.warn('[Monitor] mostrarTela chain erro:', e); }
       if (nome === 'monitor') {
         // Garante que apenas admin acessa
         if (!window.usuarioLogado || window.usuarioLogado.role !== 'admin') {
@@ -16245,7 +16312,15 @@ async function _garantirAuthPortal() {
     if (_auth.currentUser) return; // já autenticado (técnico logado ou anon anterior)
     await _auth.signInAnonymously();
   } catch(e) {
-    console.warn('[Portal] signInAnonymously falhou (regras podem bloquear leitura):', e.message || e);
+    // [FIX-AUTH-ANON] Se o provedor anônimo estiver desabilitado no Firebase Console,
+    // o erro é 'auth/operation-not-allowed'. Nesse caso, o portal vai tentar
+    // ler o Firestore sem auth e provavelmente receberá PERMISSION_DENIED.
+    // Instrução: habilite "Anonymous" em Firebase Console → Authentication → Sign-in providers.
+    if (e && e.code === 'auth/operation-not-allowed') {
+      console.error('[Portal] ATENÇÃO: Login anônimo desabilitado no Firebase Console.\nAcesse: Firebase Console → Authentication → Sign-in providers → Anonymous → Habilitar.\nSem isso, o portal do cliente não consegue carregar o relatório.');
+    } else {
+      console.warn('[Portal] signInAnonymously falhou (regras podem bloquear leitura):', e.message || e);
+    }
   }
 }
 
@@ -16336,8 +16411,18 @@ async function _renderPortal(token){
     }
   } else {
     // [FIX-PORTAL-EXP] Token sem data de criação: tokens antigos gerados antes desta versão.
-    // Consideramos válidos para não quebrar links já enviados, mas registramos no console.
-    console.warn('[Portal] Token sem portalTokenCriado — link legado, expiração não verificada. RAT:', rat.numero || rat.id);
+    // Aplica expiração de 90 dias a partir de agora para forçar renovação gradual.
+    // Registra a data de criação assumida para que na próxima consulta já haja controle.
+    var _dataAssumida = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // assume criado há 60 dias
+    rat.portalTokenCriado = _dataAssumida;
+    try {
+      var _dbLeg = _db();
+      if (_dbLeg) {
+        var _snapLeg = await _dbLeg.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
+        if (!_snapLeg.empty) _snapLeg.docs[0].ref.update({ portalTokenCriado: _dataAssumida }).catch(function(){});
+      }
+    } catch(e) {}
+    console.warn('[Portal] Token sem portalTokenCriado — tratado como criado há 60 dias. RAT:', rat.numero || rat.id);
   }
   _registrarVisto(token);
   var sc=_sc(rat.status);
@@ -17057,18 +17142,17 @@ else _init();
 
   // Dialog de confirmação de saída (sem depender de confirm() bloqueante)
   function _confirmarSaidaFormulario(callback) {
-    // Usa showConfirm nativo do app se disponível
+    // [FIX-CONFIRM] showConfirm() retorna Promise — não aceita callback como 2º argumento.
+    // O código anterior passava callback como argumento e a Promise ficava ignorada,
+    // fazendo com que o formulário fosse perdido sem confirmação no botão Voltar mobile.
     if (typeof window.showConfirm === 'function') {
-      window.showConfirm(
-        'Sair do formulário?\n\nOs dados não salvos serão perdidos.',
-        callback
-      );
+      window.showConfirm('Sair do formulário?\n\nOs dados não salvos serão perdidos.')
+        .then(function(confirmado) { callback(confirmado); })
+        .catch(function() { callback(false); });
       return;
     }
-    // Fallback: confirm nativo
-    if (confirm('Sair do formulário? Os dados não salvos serão perdidos.')) {
-      callback(true);
-    }
+    // Fallback: confirm nativo síncrono
+    callback(confirm('Sair do formulário? Os dados não salvos serão perdidos.'));
   }
 
   // Hookar _irParaStep para empurrar estado no history a cada mudança de step
