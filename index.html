@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v47
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v47b
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -2909,7 +2909,12 @@ html[data-role="technician"] nav button {
           if (i === 0) fb.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
           else         fb.src = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js';
           fb.onload = function() { loaded++; if (loaded === urls.length) resolve(); else loadSerial(i+1); };
-          fb.onerror = function() { reject(new Error('[LAZY] jsPDF não carregou nem pelo fallback.')); };
+          fb.onerror = function() {
+            // [FIX-v47b] Limpa promise rejeitada para permitir retry — sem isso o técnico
+            // não consegue gerar PDF sem recarregar a página se o CDN falhar.
+            _jspdfPromise = null;
+            reject(new Error('[LAZY] jsPDF não carregou nem pelo fallback.'));
+          };
           document.head.appendChild(fb);
         };
         document.head.appendChild(s);
