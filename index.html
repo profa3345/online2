@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v40
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v41
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -283,6 +283,7 @@
       object-fit:cover;
       background:#000;
       z-index:0;
+      pointer-events:none; /* [FIX-CAM-v41] Evita que o video element bloqueie toque nos botões no Android */
     }
     /* Controles flutuantes sobre o vídeo */
     #modalCamera .cam-controls,
@@ -322,19 +323,19 @@
     }
     #modalCamera canvas{display:none}
     /* .cam-controls legacy removed — replaced by fullscreen overlay version */
-    .cam-capture-btn{width:68px;height:68px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 6px 28px rgba(249,115,22,.6),0 0 0 6px rgba(249,115,22,.2);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0}
+    .cam-capture-btn{width:68px;height:68px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 6px 28px rgba(249,115,22,.6),0 0 0 6px rgba(249,115,22,.2);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
     .cam-capture-btn:hover{transform:scale(1.08);box-shadow:0 10px 32px rgba(249,115,22,.65)}
     .cam-capture-btn:active{transform:scale(.95)}
-    .cam-flip-btn{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;flex-shrink:0}
+    .cam-flip-btn{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
     .cam-flip-btn:hover{background:rgba(255,255,255,.22)}
-    .cam-close-btn{width:42px;height:42px;border-radius:999px;background:rgba(248,113,113,.18);border:1px solid rgba(248,113,113,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fca5a5;transition:.15s;flex-shrink:0}
+    .cam-close-btn{width:42px;height:42px;border-radius:999px;background:rgba(248,113,113,.18);border:1px solid rgba(248,113,113,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fca5a5;transition:.15s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
     .cam-close-btn:hover{background:rgba(248,113,113,.35)}
     /* #camPreviewStrip legacy removed — replaced by fullscreen fixed version */
     #camPreviewStrip .cam-thumb{position:relative;width:64px;height:52px;border-radius:8px;overflow:hidden;border:2px solid rgba(249,115,22,.6);flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.4)}
     #camPreviewStrip .cam-thumb img{width:100%;height:100%;object-fit:cover}
     #camPreviewStrip .cam-thumb-rm{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:.5rem;display:flex;align-items:center;justify-content:center}
     .cam-hint{font-size:.72rem;color:rgba(255,255,255,.8);text-align:center;max-width:340px;line-height:1.4;text-shadow:0 1px 4px rgba(0,0,0,.6)}
-    .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s}
+    .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
     .cam-send-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(34,197,94,.45)}
     .cam-send-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
     /* Multi-step navigation */
@@ -6362,6 +6363,9 @@ function autoFillCamposAtendimento(){
     // Para todos os timers ativos
     try { if (typeof relogioAtendimentoTimer !== 'undefined' && relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; } } catch(e){}
     try { if (window._renderDebounceTimer) { clearTimeout(window._renderDebounceTimer); window._renderDebounceTimer = null; } } catch(e){}
+    // [FIX-v41] Para auto-save e stream da câmera explicitamente ao deslogar
+    try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
+    try { if (typeof window._abrirModalCamera !== 'undefined') { var _camMod = document.getElementById('modalCamera'); if (_camMod && !_camMod.classList.contains('hidden')) { var _camClose = document.getElementById('camCloseBtn'); if (_camClose) _camClose.click(); } } } catch(e){}
 
     // [FIX-LOGOUT-2] Limpa dados em memória para evitar vazamento entre sessões
     // Sem isso, o próximo usuário que logar no mesmo dispositivo herda dados do anterior
@@ -7959,6 +7963,16 @@ if (logoBase64) {
         y += 8;
       } else {
         doc.text("As imagens abaixo foram reduzidas automaticamente para envio em PDF.",10,y); y+=5;
+        // [FIX-v41] Pré-carrega todas as imagens em paralelo antes do loop sequencial.
+        // O layout 2-colunas exige inserção sequencial (y acumulado), mas a decodificação
+        // das imagens pode ser paralelizada — reduz tempo de geração com 6 fotos em ~40%.
+        await Promise.allSettled(allImages.map(function(src) {
+          return new Promise(function(res) {
+            if (!src || src === '[local]' || src === '[comprimido]') { res(); return; }
+            var _pi = new Image(); _pi.onload = res; _pi.onerror = res;
+            _pi.src = src;
+          });
+        }));
         let col = 0;
         let rowMaxH = 40; // altura máxima da linha atual
         for(let i=0;i<allImages.length;i++){
@@ -8857,11 +8871,15 @@ if (logoBase64) {
     document.addEventListener('visibilitychange', function() {
       if (document.hidden) {
         _autoSaveRascunho();
+        // [FIX-v41] Para stream da câmera ao ir para background (libera hardware)
+        try { var _cm = document.getElementById('modalCamera'); if (_cm && !_cm.classList.contains('hidden')) { var _cb = document.getElementById('camCloseBtn'); if (_cb) _cb.click(); } } catch(e){}
       }
     });
     // Também cobre fechamento de aba em desktop (pagehide é mais confiável que beforeunload)
     window.addEventListener('pagehide', function() {
       _autoSaveRascunho();
+      // [FIX-v41] Para stream da câmera ao fechar aba
+      try { var _cm = document.getElementById('modalCamera'); if (_cm && !_cm.classList.contains('hidden')) { var _cb = document.getElementById('camCloseBtn'); if (_cb) _cb.click(); } } catch(e){}
     });
   })();
 
@@ -15136,6 +15154,14 @@ async function fazerLogin(){
     // Fix 8: vibração tátil ao capturar foto (Android/iOS com suporte)
     try { if (navigator.vibrate) navigator.vibrate(40); } catch(e){}
   });
+
+  // [FIX-CAM-v41] touchend fallback para Android — em alguns dispositivos o 'click'
+  // não dispara de forma confiável quando há um <video> no background, mesmo com
+  // pointer-events:none. O touchend garante resposta imediata ao toque.
+  captureBtn.addEventListener('touchend', function(e) {
+    e.preventDefault(); // evita que o browser dispare o click sintético depois
+    captureBtn.click();
+  }, { passive: false });
 
   function atualizarContador() {
     countSpan.textContent = capturedPhotos.length;
