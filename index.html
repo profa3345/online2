@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v41
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v42
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -272,7 +272,7 @@
     .preview-remove{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:18px;height:18px;border-radius:999px;cursor:pointer;font-size:.55rem;display:flex;align-items:center;justify-content:center}
 
     /* ── Modal Câmera ── */
-    #modalCamera{position:fixed;inset:0;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden}
+    #modalCamera{position:fixed;inset:0;width:100%;height:100%;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden}
     #modalCamera.hidden{display:none}
     /* Vídeo ocupa toda a tela — sem tela preta, sem corte */
     #modalCamera video{
@@ -3026,27 +3026,37 @@ html[data-role="technician"] nav button {
   //       match /onlineEsUsuarios/{doc} {
   //         allow read, write: if request.auth != null;
   //       }
-  //       // Demais coleções: apenas usuários autenticados
+  //       // Relatórios: técnicos autenticados lêem/escrevem; portal do cliente lê
+  //       // via signInAnonymously (request.auth != null mas sem role).
+  //       // [FIX-v42] OBRIGATÓRIO: sem esta rule o portal mostra "Relatório não encontrado".
+  //       // Também habilite Anonymous no Firebase Console → Authentication → Sign-in method.
   //       match /onlineEsRelatorios/{doc} {
-  //         allow read, write: if request.auth != null;
+  //         allow read: if request.auth != null;
+  //         allow write: if request.auth != null
+  //                      && request.auth.token.email != null; // apenas usuários reais (não anon)
   //       }
   //       match /onlineEsClientes/{doc} {
-  //         allow read, write: if request.auth != null;
+  //         allow read, write: if request.auth != null
+  //                            && request.auth.token.email != null;
   //       }
   //       match /onlineEsEquipamentos/{doc} {
-  //         allow read, write: if request.auth != null;
+  //         allow read, write: if request.auth != null
+  //                            && request.auth.token.email != null;
   //       }
   //       match /onlineEsContadores/{doc} {
-  //         allow read, write: if request.auth != null;
+  //         allow read, write: if request.auth != null
+  //                            && request.auth.token.email != null;
   //       }
   //       match /onlineEsDiag/{doc} {
   //         allow read, write: if request.auth != null;
   //       }
   //       match /onlineEsRemovidosNegra/{doc} {
-  //         allow read, write: if request.auth != null;
+  //         allow read, write: if request.auth != null
+  //                            && request.auth.token.email != null;
   //       }
   //       match /onlineEsBackups/{doc} {
-  //         allow read, write: if request.auth != null;
+  //         allow read, write: if request.auth != null
+  //                            && request.auth.token.email != null;
   //       }
   //       match /onlineEsLogs/{doc} {
   //         allow read, write: if request.auth != null;
@@ -7565,11 +7575,11 @@ document.getElementById('btnAddCliente').onclick=()=>{
       const cores = ['linear-gradient(90deg,#f97316,#fb923c)','linear-gradient(90deg,#3b82f6,#60a5fa)','linear-gradient(90deg,#8b5cf6,#a78bfa)','linear-gradient(90deg,#14b8a6,#2dd4bf)','linear-gradient(90deg,#64748b,#94a3b8)'];
       elRanking.innerHTML = top.map(([nome, qtd], i) => {
         const pct = Math.round((qtd / maxTec) * 100);
-        const nomeCurto = nome.length > 16 ? nome.slice(0,14)+'…' : nome;
+        const _nomeEsc = esc(nome.length > 16 ? nome.slice(0,14)+'…' : nome);
         const delay = i * 80;
         return `<div style="margin-bottom:9px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:.68rem;margin-bottom:4px;">
-            <span style="color:#e2e8f0;font-weight:600;display:flex;align-items:center;gap:5px;">${medalhas[i]||'<span style="display:inline-block;width:16px;"></span>'}<span>${nomeCurto}</span></span>
+            <span style="color:#e2e8f0;font-weight:600;display:flex;align-items:center;gap:5px;">${medalhas[i]||'<span style="display:inline-block;width:16px;"></span>'}<span>${_nomeEsc}</span></span>
             <span style="color:#94a3b8;background:rgba(148,163,184,.1);padding:1px 7px;border-radius:99px;">${qtd} RAT${qtd!==1?'s':''}</span>
           </div>
           <div style="background:rgba(148,163,184,.1);border-radius:99px;height:6px;overflow:hidden;">
@@ -11305,6 +11315,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   btnExecutarBusca.onclick = ()=>{
     showLoader('Filtrando relatórios...');
     setTimeout(()=>{
+      try {
       const m = buscaModo.value;
       const d1 = (buscaDataIni.value||'').trim();
       const d2 = (buscaDataFim.value||'').trim();
@@ -11364,6 +11375,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
       renderListaBusca(data);
       hideLoader();
+      } catch(e) { hideLoader(); console.error('[Busca] Erro ao filtrar:', e); showToast('Erro ao filtrar relatórios.'); }
     }, 10);
   };
   function renderListaBusca(lista){
@@ -16220,10 +16232,29 @@ window._urlPortal=function(token){
   return window.location.href.split('?')[0]+'?rat='+token;
 };
 
+// ── Garante auth anônima para o portal (cliente não tem login) ───────────
+// [FIX-v42] As Firestore Security Rules exigem request.auth != null para ler
+// onlineEsRelatorios. O cliente abre o portal sem sessão → Firestore nega →
+// fallback vai para localStorage vazio → "Relatório não encontrado".
+// signInAnonymously dá um UID temporário que satisfaz request.auth != null
+// sem expor nenhum dado do sistema ao cliente.
+async function _garantirAuthPortal() {
+  try {
+    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+    if (!_auth) return;
+    if (_auth.currentUser) return; // já autenticado (técnico logado ou anon anterior)
+    await _auth.signInAnonymously();
+  } catch(e) {
+    console.warn('[Portal] signInAnonymously falhou (regras podem bloquear leitura):', e.message || e);
+  }
+}
+
 // ── Buscar RAT pelo token ────────────────────────────────
 async function _buscarRat(token){
   // SEGURANÇA: valida formato do token antes de qualquer consulta
   if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
+  // [FIX-v42] Garante auth antes de qualquer leitura no Firestore
+  await _garantirAuthPortal();
   try{
     var db=_db();
     if(db){
@@ -16239,6 +16270,7 @@ async function _buscarRat(token){
 
 // ── Registrar visualização ───────────────────────────────
 async function _registrarVisto(token){
+  await _garantirAuthPortal(); // [FIX-v42]
   try{
     var db=_db();
     if(db){
@@ -16258,6 +16290,7 @@ async function _registrarVisto(token){
 async function _historico(cnpj,idAtual){
   // Bug 4 fix: CNPJ obrigatório e mínimo 8 chars para evitar busca sem filtro útil
   if(!cnpj||typeof cnpj!=='string'||cnpj.trim().length<8) return [];
+  await _garantirAuthPortal(); // [FIX-v42]
   cnpj=cnpj.trim();
   var limite=new Date(); limite.setDate(limite.getDate()-30);
   var limIso=limite.toISOString();
