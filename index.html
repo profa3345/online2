@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v44
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v45
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -6592,6 +6592,7 @@ function autoFillCamposAtendimento(){
 
   // Lista Painel principal
   function renderLista(){
+    try { // [FIX-v45] try/catch top-level — qualquer exceção interna não trava o painel supervisor
     // SEGURANÇA: apenas supervisor/admin pode listar todos os relatórios
     if (!(window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor'))) return;
     listaRelatorios.innerHTML='';
@@ -6813,6 +6814,7 @@ function autoFillCamposAtendimento(){
         showToast('✅ E-mail aberto!' + (portalUrlE ? ' O cliente receberá o link para baixar o PDF.' : ''), 4000);
       };
     });
+    } catch(e) { console.error('[renderLista] Erro inesperado:', e); } // [FIX-v45]
   }
 
   btnMostrarTodos.onclick = ()=>{ modoListaSupervisor='all'; renderLista(); };
@@ -16374,17 +16376,24 @@ window._gerarTokenPortal = async function(rat){
       var _pdfB64 = window._lastPdfBase64;
       var _pdfNome = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
       if (_pdfB64) {
-        var _dbPdf = _db();
-        if (_dbPdf) {
-          await _dbPdf.collection('onlineEsPortalPdfs').doc(token).set({
-            token: token,
-            pdfB64: _pdfB64,
-            pdfNome: _pdfNome,
-            ratNumero: rat.numero || '',
-            ratId: rat.id || '',
-            criado: new Date().toISOString()
-          });
-          console.log('[Portal] PDF salvo em onlineEsPortalPdfs/' + token);
+        // [FIX-v44b] Firestore limita 1MB por documento. pdfB64 em base64 é ~1.37×
+        // o tamanho binário. Limite seguro: 950KB binário ≈ 1.3M chars base64.
+        var _PDF_MAX_B64 = 1300000; // ~950KB binário
+        if (_pdfB64.length > _PDF_MAX_B64) {
+          console.warn('[Portal] PDF muito grande (' + Math.round(_pdfB64.length/1024) + 'KB base64) — não salvo no Firestore. Portal usará geração client-side como fallback.');
+        } else {
+          var _dbPdf = _db();
+          if (_dbPdf) {
+            await _dbPdf.collection('onlineEsPortalPdfs').doc(token).set({
+              token: token,
+              pdfB64: _pdfB64,
+              pdfNome: _pdfNome,
+              ratNumero: rat.numero || '',
+              ratId: rat.id || '',
+              criado: new Date().toISOString()
+            });
+            console.log('[Portal] PDF salvo em onlineEsPortalPdfs/' + token);
+          }
         }
       }
     }
