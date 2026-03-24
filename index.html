@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v43
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v44
   Base consolidada a partir das versões mais fortes enviadas pela usuária.
   Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
   monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
@@ -3060,6 +3060,11 @@ html[data-role="technician"] nav button {
   //       }
   //       match /onlineEsLogs/{doc} {
   //         allow read, write: if request.auth != null;
+  //       }
+  //       // [FIX-v44] PDFs do portal — escrita pelo técnico autenticado, leitura por qualquer auth (anon incluso)
+  //       match /onlineEsPortalPdfs/{doc} {
+  //         allow read: if request.auth != null;
+  //         allow write: if request.auth != null && request.auth.token.email != null;
   //       }
   //       // [QR-SIG] Sessões de assinatura QR — cliente (sem login) só pode escrever;
   //       // leitura exige auth. Docs deletados automaticamente pelo técnico após uso.
@@ -12935,9 +12940,10 @@ async function renderMeus(){
         var _idsEmTodos = new Set((todos||[]).map(function(r){ return r.id; }));
         _pendMeus.forEach(function(p) {
           if (!p._deleted && !_idsEmTodos.has(p.id)) {
-            p._pendente = true; // marca para badge visual
+            // [FIX-v43b] Copia o objeto para não mutar o original em memória/storage
+            var _pCopy = Object.assign({}, p, { _pendente: true });
             todos = todos || [];
-            todos.push(p);
+            todos.push(_pCopy);
           }
         });
       }
@@ -12955,9 +12961,10 @@ async function renderMeus(){
           if (_pertence) {
             var _idsEmTodos2 = new Set((todos||[]).map(function(r){ return r.id; }));
             if (!_idsEmTodos2.has(_rRasc.id)) {
-              _rRasc._rascunhoCard = true; // marca para badge visual
+              // [FIX-v43b] Copia para não mutar o objeto do localStorage
+              var _rRascCopy = Object.assign({}, _rRasc, { _rascunhoCard: true });
               todos = todos || [];
-              todos.unshift(_rRasc); // rascunho no topo
+              todos.unshift(_rRascCopy); // rascunho no topo
             }
           }
         }
@@ -16355,6 +16362,34 @@ window._gerarTokenPortal = async function(rat){
       );
     }
   }catch(e){console.warn('[Portal] save firestore:',e);}
+
+  // [FIX-v44] Gera o PDF e salva em onlineEsPortalPdfs/{token} — coleção separada
+  // para não estourar o limite de 1MB do documento principal da RAT.
+  // O portal do cliente lê este documento diretamente, sem precisar gerar nada.
+  try {
+    if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
+      await window._ensureJsPDF();
+      var _ratPdf = Object.assign({}, rat, { _somenteMemoria: true });
+      await window.exportarPDF(_ratPdf);
+      var _pdfB64 = window._lastPdfBase64;
+      var _pdfNome = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
+      if (_pdfB64) {
+        var _dbPdf = _db();
+        if (_dbPdf) {
+          await _dbPdf.collection('onlineEsPortalPdfs').doc(token).set({
+            token: token,
+            pdfB64: _pdfB64,
+            pdfNome: _pdfNome,
+            ratNumero: rat.numero || '',
+            ratId: rat.id || '',
+            criado: new Date().toISOString()
+          });
+          console.log('[Portal] PDF salvo em onlineEsPortalPdfs/' + token);
+        }
+      }
+    }
+  } catch(ePdf) { console.warn('[Portal] Falha ao salvar PDF no Firestore (portal ainda funcionará com fallback):', ePdf.message || ePdf); }
+
   return token;
 };
 
@@ -16463,14 +16498,140 @@ async function _historico(cnpj,idAtual){
 async function _renderPortal(token){
   var el=document.getElementById('portalConteudo');
   if(!el) return;
-  el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Buscando relatório...</div>';
-  var rat=await _buscarRat(token);
+  el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório...</div>';
+
+  // [FIX-v44] Lê o PDF pré-gerado de onlineEsPortalPdfs/{token} — salvo quando o técnico
+  // gerou o link. O cliente não precisa gerar nada; apenas lê e visualiza.
+  var rat = await _buscarRat(token);
   if(!rat){
     el.innerHTML='<div class="portal-not-found"><h2><i class="ri-error-warning-line"></i> Relatório não encontrado</h2><p>O link pode ter expirado ou ser inválido.<br>Entre em contato com a ONLINE-ES.</p></div>';
     return;
   }
-  // BUG FIX: verificar expiração de 30 dias (a mensagem prometia isso mas nunca era verificado)
+
+  // Verifica expiração de 30 dias
   if(rat.portalTokenCriado){
+    var criado=new Date(rat.portalTokenCriado);
+    var limite=new Date(criado.getTime()+30*24*60*60*1000);
+    if(new Date()>limite){
+      el.innerHTML='<div class="portal-not-found"><h2><i class="ri-time-line"></i> Link expirado</h2><p>Este link expirou após 30 dias.<br>Solicite um novo link à ONLINE-ES.</p></div>';
+      return;
+    }
+  } else {
+    var _dataAssumida = new Date(Date.now() - 60*24*60*60*1000).toISOString();
+    rat.portalTokenCriado = _dataAssumida;
+    try { var _dbLeg=_db(); if(_dbLeg){ var _sl=await _dbLeg.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get(); if(!_sl.empty) _sl.docs[0].ref.update({portalTokenCriado:_dataAssumida}).catch(function(){}); } } catch(e){}
+  }
+  _registrarVisto(token);
+
+  // Busca PDF pré-gerado
+  el.innerHTML='<div class="portal-loading"><i class="ri-file-pdf-line"></i> Carregando seu PDF...</div>';
+  var pdfB64 = null;
+  var pdfNome = 'RAT-' + (rat.numero||'relatorio') + '.pdf';
+  try {
+    var _dbP = _db();
+    if (_dbP) {
+      var _pdfDoc = await _dbP.collection('onlineEsPortalPdfs').doc(token).get();
+      if (_pdfDoc.exists) {
+        var _pdfData = _pdfDoc.data();
+        pdfB64 = _pdfData.pdfB64 || null;
+        if (_pdfData.pdfNome) pdfNome = _pdfData.pdfNome;
+      }
+    }
+  } catch(e) { console.warn('[Portal] Falha ao ler PDF:', e); }
+
+  if (pdfB64) {
+    // PDF disponível — exibir inline com iframe + botão download
+    var bstr=atob(pdfB64), n=bstr.length, u8=new Uint8Array(n);
+    for(var i=0;i<n;i++) u8[i]=bstr.charCodeAt(i);
+    var blob=new Blob([u8],{type:'application/pdf'});
+    var blobUrl=URL.createObjectURL(blob);
+    window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(blobUrl);}catch(e){}},{once:true});
+
+    el.innerHTML=
+      '<div class="portal-card" style="padding:14px 16px;">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
+          '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;">'+
+            '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
+            'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
+          '</div>'+
+          '<a href="'+blobUrl+'" download="'+_ep(pdfNome)+'" '+
+            'style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:9px 20px;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none;box-shadow:0 4px 16px rgba(249,115,22,.35);">'+
+            '<i class="ri-download-2-line"></i> Baixar PDF'+
+          '</a>'+
+        '</div>'+
+        '<iframe src="'+blobUrl+'#toolbar=1&navpanes=0" '+
+          'style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;" '+
+          'title="Relatório PDF"></iframe>'+
+      '</div>';
+
+  } else {
+    // PDF não encontrado na coleção (link antigo ou falha ao salvar)
+    // Exibe resumo dos dados + botão para download manual
+    var sc=_sc(rat.status);
+    el.innerHTML=
+      '<div class="portal-card">'+
+      '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
+      '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
+        '<i class="ri-information-line"></i> O PDF completo está sendo preparado. Use o botão abaixo para baixar.'+
+      '</div>'+
+      '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
+      '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
+      '<div class="portal-campo"><span class="rot">Técnico:</span><span class="val">'+_ep(rat.tecnico)+'</span></div>'+
+      '<div class="portal-campo"><span class="rot">Cliente:</span><span class="val">'+_ep(rat.cliente)+'</span></div>'+
+      '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
+      '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
+      (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
+      '<br><button class="portal-pdf-btn" id="portalBtnPdf"><i class="ri-file-pdf-line"></i> Gerar e baixar PDF</button>'+
+      '</div>';
+
+    var btnPdf=document.getElementById('portalBtnPdf');
+    if(btnPdf) btnPdf.onclick=function(){
+      btnPdf.disabled=true;
+      btnPdf.innerHTML='<i class="ri-loader-4-line"></i> Gerando PDF...';
+      (async function(){
+        try{
+          if(typeof window._ensureJsPDF==='function') await window._ensureJsPDF();
+          await window.exportarPDF(Object.assign({},rat));
+        }catch(e){
+          if(typeof showToast==='function') showToast('❌ Não foi possível gerar o PDF.',5000);
+        }finally{
+          btnPdf.disabled=false;
+          btnPdf.innerHTML='<i class="ri-file-pdf-line"></i> Gerar e baixar PDF';
+        }
+      })();
+    };
+  }
+
+  // Histórico de atendimentos do mesmo CNPJ
+  if(rat.cnpjCliente){
+    var hist=await _historico(rat.cnpjCliente,rat.id||'');
+    if(hist.length>0){
+      var histWrap=document.createElement('div');
+      histWrap.className='portal-card';
+      var histHtml='<h2><i class="ri-history-line"></i> Histórico – últimos 30 dias</h2>';
+      hist.forEach(function(h){
+        var hsc=_sc(h.status);
+        histHtml+='<div class="portal-hist-item">'+
+          '<div><div class="portal-hist-num">RAT '+_ep(h.numero)+'</div>'+
+          '<div class="portal-hist-data">'+_ep(h.dataHoraBr||_br(h.dataHoraIso))+' &middot; '+_ep(h.equipamento||'-')+'</div></div>'+
+          '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<span class="portal-badge '+hsc+'">'+_ep(h.status||'-')+'</span>'+
+          (h.portalToken?'<button class="portal-hist-btn" data-ptoken="'+_ep(h.portalToken)+'">Ver RAT</button>':'')+
+          '</div></div>';
+      });
+      histWrap.innerHTML=histHtml;
+      el.appendChild(histWrap);
+    }
+  }
+
+  el.querySelectorAll('[data-ptoken]').forEach(function(btn){
+    btn.onclick=function(){
+      var t=btn.getAttribute('data-ptoken');
+      _renderPortal(t);
+      window.history.replaceState((history.state&&history.state.tela)?history.state:null,'','?rat='+t);
+    };
+  });
+}
     var criado=new Date(rat.portalTokenCriado);
     var limite=new Date(criado.getTime()+30*24*60*60*1000);
     if(new Date()>limite){
