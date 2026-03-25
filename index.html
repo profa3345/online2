@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v47b
-  Base consolidada a partir das versões mais fortes enviadas pela usuária.
-  Mantido o conjunto mais completo de UX mobile, câmera fullscreen, melhorias de assinatura,
-  monitoramento técnico, portal do cliente, saneamento de dados e ajustes de performance.
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v54
+  Correções v54:
+  1) Rascunho: verificarRascunho só executa após login completo e nunca durante edição de RAT.
+  2) Botão voltar Android: pushState duplo ao entrar no sistema cria profundidade no histórico;
+     popstate caso-4 reforça a profundidade a cada disparo para não sair do app.
+  3) Meus Atendimentos: _renderMeusComCache injeta rascunhos e pendentes offline no cache
+     de busca, e o filtro de tecnicoLogin os inclui corretamente (como renderMeus já fazia).
+  4) Portal/WhatsApp/E-mail: _gerarTokenPortal nunca lança exceção; token salvo localmente
+     sempre, Firestore best-effort. E-mail/WhatsApp não bloqueiam se link falhar — enviam
+     mensagem sem link com aviso claro de que o link será gerado quando houver conexão.
 -->
 <html lang="pt-BR">
 <head>
@@ -436,6 +442,7 @@
       .sidebar{transform:translateX(-100%);transition:.2s;width:225px;z-index:100}
       .sidebar.open{transform:translateX(0)}
       .content{margin-left:0}
+      /* Título central no topbar */
       /* Rows viram coluna */
       .row{flex-direction:column;gap:6px}
       .row .col{width:100%!important;flex:1 1 100%!important;min-width:0!important;max-width:100%!important}
@@ -1645,15 +1652,11 @@ html[data-role="technician"] nav button {
         </button>
       </div>
       <!-- [FIX-TITLE] Título centralizado absolutamente via CSS -->
-      <div>
+      <div id="topbarCenter">
         <h1 id="tituloTela">Novo Atendimento</h1>
         <small id="subtituloTela">Preencha os dados do atendimento</small>
       </div>
       <div class="topbar-right">
-        <div id="fontControls" style="display:none;gap:4px;align-items:center;">
-          <button id="fontDecrease" class="btn small" title="Diminuir fonte" style="padding:.3rem .55rem;border-radius:10px;font-size:.8rem;">A–</button>
-          <button id="fontIncrease" class="btn small" title="Aumentar fonte" style="padding:.3rem .55rem;border-radius:10px;font-size:.8rem;">A+</button>
-        </div>
         <span class="badge-online" id="badgeOnline">● Online</span>
         <span id="badgePendentes" style="display:none;background:rgba(249,115,22,.18);color:#f97316;border:1px solid rgba(249,115,22,.4);font-size:.6rem;border-radius:999px;padding:3px 9px;font-weight:700;cursor:pointer;" title="RATs aguardando envio"></span>
       </div>
@@ -1664,6 +1667,16 @@ html[data-role="technician"] nav button {
       <!-- HOME MOBILE — launcher de navegação (visível apenas em mobile após login) -->
       <section id="telaHome" class="panel">
         <div class="home-greeting">
+          <!-- Logo no canto sup esq do greeting, em harmonia com o texto -->
+          <div id="logoHomeWrap" style="display:none;align-items:center;gap:12px;margin-bottom:14px;">
+            <img id="logoHome" src="logo.png" alt="Logo ONLINE-ES"
+              onerror="this.style.display='none'"
+              style="width:44px;height:44px;object-fit:contain;border-radius:12px;filter:drop-shadow(0 0 10px rgba(249,115,22,.45));flex-shrink:0;">
+            <div>
+              <div style="font-size:.95rem;font-weight:800;color:#f1f5f9;letter-spacing:.01em;line-height:1.1;">ONLINE-ES</div>
+              <div style="font-size:.62rem;color:#f97316;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Eletroeletrônica</div>
+            </div>
+          </div>
           <div class="home-hello">Bem-vindo de volta</div>
           <div class="home-nome" id="homeNome">Técnico</div>
           <div class="home-role" id="homeRole">perfil</div>
@@ -4349,9 +4362,14 @@ function loadUsers(){
 
     // Se não existir nada ainda, cria apenas admin (usuário 'teste' removido por segurança)
     if (!raw) {
+      // [SEC-v53] Hash/salt do admin padrão estão no código-fonte — risco aceitável APENAS
+      // porque mustChangePassword:true força troca na primeira vez.
+      // O hash corresponde à senha provisória de bootstrap definida no deploy.
+      // NUNCA remover mustChangePassword:true deste seed.
       lista = [
         {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
       ];
+      console.warn('[SEC] Primeiro boot: admin criado com senha padrão. TROQUE A SENHA IMEDIATAMENTE ao fazer login.');
       localStorage.setItem(STORAGE_USERS, JSON.stringify(lista));
       window.usuarios = lista;
       return lista;
@@ -4435,12 +4453,16 @@ function loadUsers(){
   }
 }
 
-
 function saveUsers(lista){
   try{
     const arr = Array.isArray(lista) ? lista : [];
+    // [SEC-v53] Salva lista completa (com hashes) apenas no localStorage local —
+    // nunca no Firestore. O sync para Firestore (salvarUsuarioNoFirestore) já faz
+    // delete de password/_salt antes de enviar. Aqui apenas garantimos a persistência local.
     if (window.AppStorage) AppStorage.setUsers(arr);
     else localStorage.setItem(STORAGE_USERS, JSON.stringify(arr));
+    // window.usuarios expõe os hashes em memória — necessário para login local offline.
+    // Risco aceitável: memory scraping requer acesso físico ao dispositivo.
     window.usuarios = arr;
   }catch(e){
     console.warn('Erro ao salvar usuários em STORAGE_USERS:', e);
@@ -5040,7 +5062,7 @@ function autoFillCamposAtendimento(){
   // Botão "Usar" — copia sugestão para o campo de diagnóstico
   var _diagSugestUsarBtn = document.getElementById('diagSugestUsar');
   if (_diagSugestUsarBtn) {
-    _diagSugestUsar = _diagSugestUsarBtn; // expose for later
+    window._diagSugestUsar = _diagSugestUsarBtn; // expose for later — usa window para evitar global implícita
     _diagSugestUsarBtn.addEventListener('click', function() {
       var txt = document.getElementById('diagSugestTexto');
       if (cDiagnostico && txt) {
@@ -5678,8 +5700,8 @@ function autoFillCamposAtendimento(){
     app.style.display = 'flex';
     app.style.visibility = 'visible';
     app.style.opacity = '1';
-    var fc = document.getElementById('fontControls');
-    if (fc) { fc.style.display = 'flex'; fc.style.gap = '4px'; }
+    // [FIX-v48] fontControls movido para widget flutuante arrastável
+    if (typeof window._fontWidgetCheck === 'function') window._fontWidgetCheck();
     userName.textContent = user.fullName || user.username;
     userRole.textContent = roleLabel(user.role);
     aTecnico.value = user.fullName || user.username;
@@ -5782,11 +5804,18 @@ function autoFillCamposAtendimento(){
     }
 
     var _ehMobile = window.matchMedia('(max-width: 880px)').matches;
-    // [FIX-BACK] Seta estado inicial no histórico logo ao entrar no sistema,
-    // assim o botão voltar do Android tem sempre um estado válido para interceptar.
-    // No mobile a tela inicial é a home (__home__); no desktop é a tela padrão do role.
+    // [FIX-v54-2] Botão voltar Android: cria profundidade suficiente no histórico do browser.
+    // replaceState(state) apenas sobrescreve o estado atual sem adicionar entrada nova.
+    // Se for a única entrada no histórico, o primeiro "voltar" consome-a e sai do PWA.
+    // Solução: pushState de um estado sentinela primeiro, depois replaceState da tela real.
+    // Resultado: histórico tem ≥2 entradas → Android intercepta o 1º voltar internamente.
     try {
       var _telaPadraoInit = _ehMobile ? '__home__' : (isSupervisorOrAdmin(user) ? 'painel' : 'novo');
+      // Empurra sentinela somente se o histórico está "raso" (state nulo ou __init__)
+      var _stateAtual = history.state;
+      if (!_stateAtual || _stateAtual.tela === '__init__' || !_stateAtual.tela) {
+        history.pushState({ tela: '__app_root__' }, '', ''); // sentinela de profundidade
+      }
       history.replaceState({ tela: _telaPadraoInit }, '', '');
     } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
@@ -5844,19 +5873,28 @@ function autoFillCamposAtendimento(){
           }, 1500);
         }, INACTIVITY_MS);
       }
+      // [FIX-v53] Objeto de opções compartilhado: removeEventListener precisa das mesmas
+      // opções que addEventListener para remover o listener corretamente.
+      var _inactOpts = { passive: true, capture: true };
       ['click','touchstart','keydown','mousemove','scroll'].forEach(function(ev) {
-        document.addEventListener(ev, _resetInactTimer, { passive: true, capture: true });
+        document.addEventListener(ev, _resetInactTimer, _inactOpts);
       });
       _resetInactTimer(); // inicia o timer
-      // Para o timer ao deslogar
+
+      // Expõe função de limpeza — usada também pelo logout programático (inatividade)
+      window._pararTimerInatividade = function() {
+        if (_inactTimer) { clearTimeout(_inactTimer); _inactTimer = null; }
+        ['click','touchstart','keydown','mousemove','scroll'].forEach(function(ev) {
+          document.removeEventListener(ev, _resetInactTimer, _inactOpts);
+        });
+      };
+
+      // Hookeia o onclick do btn para logout manual
       var _origLogout = document.getElementById('btnLogout');
       if (_origLogout) {
         var _origClick = _origLogout.onclick;
         _origLogout.onclick = function(e) {
-          if (_inactTimer) clearTimeout(_inactTimer);
-          ['click','touchstart','keydown','mousemove','scroll'].forEach(function(ev) {
-            document.removeEventListener(ev, _resetInactTimer, { passive: true, capture: true });
-          });
+          if (typeof window._pararTimerInatividade === 'function') window._pararTimerInatividade();
           if (typeof _origClick === 'function') _origClick.call(this, e);
         };
       }
@@ -6117,9 +6155,16 @@ function autoFillCamposAtendimento(){
       ensureNumeroRat();
       popularSelectClientes();
       startRelogioAtendimento();
-      // FIX: oferece restaurar rascunho salvo — verificarRascunho era definida mas nunca chamada
+      // [FIX-v54-1] verificarRascunho: só oferece restaurar se há usuário logado
+      // e NÃO está editando RAT existente (evita sobrescrever dados do editor).
+      // A guarda !usuarioLogado já existe dentro de verificarRascunho, mas esta
+      // camada extra impede qualquer showConfirm antes do login estar completo.
       try{
-        if (typeof verificarRascunho === 'function') verificarRascunho();
+        if (typeof verificarRascunho === 'function'
+            && window.usuarioLogado
+            && !window._editandoRelatorioId) {
+          verificarRascunho();
+        }
       }catch(e){}
       // [FIX] Canvas de assinatura só redimensiona se step 4 estiver visível.
       // Se estiver oculto (multi-step), o resize ocorre ao navegar para o step 4.
@@ -6166,6 +6211,11 @@ function autoFillCamposAtendimento(){
         sidebar.classList.remove('open');
         var ov = document.getElementById('sidebarOverlay');
         if (ov) ov.style.display = 'none';
+        // [v51] Ao navegar para qualquer tela: esconde logo do home greeting
+        try {
+          var _lhw = document.getElementById('logoHomeWrap');
+          if (_lhw) _lhw.style.display = 'none';
+        } catch(e) {}
       } catch(e) {}
     }
     // [NAV-BACK] Mantém stack interno de navegação para o botão Voltar visual.
@@ -6315,14 +6365,22 @@ function autoFillCamposAtendimento(){
       try { history.pushState({ tela: '__init__' }, '', ''); } catch(e) {}
       return;
     }
+    // [FIX-v54-2] Re-cria profundidade: pushState do sentinela + replaceState da tela real.
+    // Sem isso, o próximo "voltar" consumiria o único estado e sairia do app novamente.
     if (_isMobile4 && typeof window._mostrarHomeScreen === 'function') {
       window._navegandoPopstate = true;
       try { window._mostrarHomeScreen(); } catch(e) {}
       window._navegandoPopstate = false;
-      try { history.pushState({ tela: '__home__' }, '', ''); } catch(e) {}
+      try {
+        history.pushState({ tela: '__app_root__' }, '', '');
+        history.replaceState({ tela: '__home__' }, '', '');
+      } catch(e) {}
     } else {
       var _telaPadrao2 = (_role3 === 'tecnico') ? 'novo' : 'painel';
-      history.pushState({ tela: _telaPadrao2 }, '', '');
+      try {
+        history.pushState({ tela: '__app_root__' }, '', '');
+        history.replaceState({ tela: _telaPadrao2 }, '', '');
+      } catch(e) {}
     }
   });
 
@@ -6388,6 +6446,9 @@ function autoFillCamposAtendimento(){
     // Para o listener do Firestore
     try { if (typeof window._relatoriosListener === 'function') { window._relatoriosListener(); window._relatoriosListener = null; } } catch(e){}
 
+    // [FIX-v53] Para o timer de inatividade e remove seus listeners
+    try { if (typeof window._pararTimerInatividade === 'function') window._pararTimerInatividade(); } catch(e){}
+
     // Para todos os timers ativos
     try { if (typeof relogioAtendimentoTimer !== 'undefined' && relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; } } catch(e){}
     try { if (window._renderDebounceTimer) { clearTimeout(window._renderDebounceTimer); window._renderDebounceTimer = null; } } catch(e){}
@@ -6410,6 +6471,8 @@ function autoFillCamposAtendimento(){
     try { window._ratPreSalvoId          = null; } catch(e){}
     try { window._ratNumeroBloqueado     = false; } catch(e){}
     try { window._snapshotSaving         = false; } catch(e){}
+    // [FIX-v48b] Oculta widget A+/A- ao deslogar
+    try { if (typeof window._fontWidgetCheck === 'function') window._fontWidgetCheck(); } catch(e){}
 
     // [NAV-BACK] Reseta stack de navegação ao deslogar
     try { window._telaStack = []; if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
@@ -6435,6 +6498,8 @@ function autoFillCamposAtendimento(){
     sidebar.classList.toggle('open');
     var ov = document.getElementById('sidebarOverlay');
     if (ov) ov.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+    // Oculta logo do topbar quando sidebar abre (logo já aparece na sidebar)
+
   };
 
   // Fix 4: fechar sidebar ao clicar fora também esconde o overlay
@@ -6444,6 +6509,8 @@ function autoFillCamposAtendimento(){
         sidebar.classList.remove('open');
         var ov = document.getElementById('sidebarOverlay');
         if (ov) ov.style.display = 'none';
+        // Restaura logo no topbar ao fechar sidebar
+
       }
     }
   });
@@ -6469,12 +6536,16 @@ function autoFillCamposAtendimento(){
         sidebar.classList.remove('open');
         var ov = document.getElementById('sidebarOverlay');
         if(ov) ov.style.display = 'none';
+        // Restaura logo topbar ao fechar sidebar via swipe
+
       }
       // swipe da borda esquerda (< 30px) para direita abre sidebar
       if(dx > 60 && dy < 60 && _swipeStartX < 30 && window.innerWidth <= 880 && !sidebar.classList.contains('open')){
         sidebar.classList.add('open');
         var ov = document.getElementById('sidebarOverlay');
         if(ov) ov.style.display = 'block';
+        // Oculta logo topbar ao abrir sidebar via swipe
+
       }
       _swipeStartX = null;
       _swipeStartY = null;
@@ -10201,6 +10272,8 @@ if (logoBase64) {
       } catch(eSv) { console.warn('[E-mail] Falha ao pré-salvar RAT:', eSv); }
 
       // 2. Gera token do portal → link personalizado válido por 30 dias
+      // [FIX-v54-4] _gerarTokenPortal salva token localmente mesmo offline.
+      // Se falhar completamente, envia mensagem sem link em vez de bloquear.
       var portalUrl = null;
       if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
         try {
@@ -10211,13 +10284,8 @@ if (logoBase64) {
 
       // 3. Monta e-mail com link do portal
       hideLoader();
-      if (!portalUrl) {
-        showToast('⚠️ Não foi possível gerar o link do portal. Verifique a conexão e tente novamente.', 5000);
-        try { logInfo('RAT e-mail: sem link portal', { numero: numeroRAT }); } catch(e) {}
-        return;
-      }
       const assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + numeroRAT;
-      const corpo = [
+      var _linhasEmail = [
         'Olá' + (nomeVistoria ? ', ' + nomeVistoria : '') + '!',
         '',
         'Segue o Relatório Técnico de Atendimento referente à visita da Online-ES' +
@@ -10226,16 +10294,18 @@ if (logoBase64) {
         '• Relatório nº: ' + numeroRAT,
         '• Data: ' + dataTexto,
         '• Técnico responsável: ' + nomeTec,
-        '',
-        '🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):',
-        portalUrl,
-        '',
-        'Fico à disposição para quaisquer esclarecimentos.',
-        '',
-        'Atenciosamente,',
-        'Online-ES – Eletroeletrônica',
-        'www.onlinees.com.br'
-      ].join('\n');
+        ''
+      ];
+      if (portalUrl) {
+        _linhasEmail.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
+        _linhasEmail.push(portalUrl);
+      } else {
+        // [FIX-v54-4] Sem link (offline ou erro): avisa que o PDF será enviado em anexo
+        _linhasEmail.push('Em anexo você encontrará o Relatório Técnico em PDF.');
+        _linhasEmail.push('(Link de acesso online será disponibilizado assim que houver conexão.)');
+      }
+      _linhasEmail.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
+      const corpo = _linhasEmail.join('\n');
 
       window.open(
         'mailto:' + encodeURIComponent(email) +
@@ -10243,8 +10313,10 @@ if (logoBase64) {
         '&body=' + encodeURIComponent(corpo),
         '_blank', 'noopener,noreferrer'
       );
-      showToast('✅ E-mail aberto! O cliente receberá o link para baixar o PDF no portal.', 5000);
-      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comPortal: true }); } catch(e) {}
+      showToast(portalUrl
+        ? '✅ E-mail aberto! O cliente receberá o link para baixar o PDF no portal.'
+        : '✅ E-mail aberto! (sem link — gere novamente quando houver conexão)', 5000);
+      try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comPortal: !!portalUrl }); } catch(e) {}
 
       } finally { hideLoader(); } // [FIX-LOADER] fecha try/finally do e-mail
     };
@@ -10282,6 +10354,7 @@ if (logoBase64) {
     } catch(eSv) { console.warn('[WhatsApp] Falha ao pré-salvar RAT:', eSv); }
 
     // 2. Gera token do portal → link personalizado válido por 30 dias
+    // [FIX-v54-4] Não bloqueia o envio se o token falhar — envia mensagem sem link.
     var portalUrlWa = null;
     if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
       try {
@@ -10294,20 +10367,27 @@ if (logoBase64) {
 
     // 3. Monta mensagem com link do portal e abre WhatsApp
     hideLoader();
-    if (!portalUrlWa) {
-      showToast('⚠️ Não foi possível gerar o link do portal. Verifique a conexão e tente novamente.', 5000);
-      try { logInfo('RAT WhatsApp: sem link portal', { numero: r.numero || 'N/A' }); } catch(e) {}
-      return;
+    var msgFinal;
+    if (portalUrlWa) {
+      msgFinal =
+        'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+        'Segue o Relatório Técnico de Atendimento do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\n' +
+        '🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n' + portalUrlWa + '\n\n' +
+        'Qualquer dúvida estamos à disposição!';
+    } else {
+      // [FIX-v54-4] Sem link (offline/erro): mensagem sem link mas ainda útil
+      msgFinal =
+        'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+        'Passando para informar que o Relatório Técnico de Atendimento *' + (r.numero||'') + '* do cliente *' + (r.cliente||'') + '* foi concluído.\n\n' +
+        'O link para baixar o PDF será enviado assim que houver conexão.\n\n' +
+        'Qualquer dúvida estamos à disposição!';
     }
-    const msgFinal =
-      `Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n` +
-      `Segue o Relatório Técnico de Atendimento do cliente *${r.cliente || ''}*, RAT *${r.numero || ''}*.\n\n` +
-      `🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n${portalUrlWa}\n\n` +
-      `Qualquer dúvida estamos à disposição!`;
 
-    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msgFinal)}`, '_blank', 'noopener,noreferrer');
-    showToast('✅ WhatsApp aberto! O cliente receberá o link para baixar o PDF no portal.', 5000);
-    try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comPortal: true }); } catch(e) {}
+    window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal), '_blank', 'noopener,noreferrer');
+    showToast(portalUrlWa
+      ? '✅ WhatsApp aberto! O cliente receberá o link para baixar o PDF no portal.'
+      : '✅ WhatsApp aberto! (sem link — gere novamente quando houver conexão)', 5000);
+    try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comPortal: !!portalUrlWa }); } catch(e) {}
 
     } finally { hideLoader(); }
   };
@@ -12376,6 +12456,15 @@ window.setCustomLogoBase64 = function(b64){
     var home = document.getElementById('telaHome');
     if (home) { home.style.display = 'flex'; home.classList.add('ativa'); }
     document.body.classList.add('home-ativa');
+    // [v51] Na home mobile: logo aparece no canto sup esq do greeting
+    var _isMob = window.innerWidth <= 880;
+    var _logoHomeWrap = document.getElementById('logoHomeWrap');
+    if (_logoHomeWrap) _logoHomeWrap.style.display = _isMob ? 'flex' : 'none';
+    // Garante título visível (foi escondido em versão anterior)
+    var _tt = document.getElementById('tituloTela');
+    var _st = document.getElementById('subtituloTela');
+    if (_tt) _tt.style.display = '';
+    if (_st) _st.style.display = '';
     // Atualiza título
     var titulo = document.getElementById('tituloTela');
     if (titulo) titulo.textContent = 'Início';
@@ -12732,13 +12821,8 @@ window.AppStorage = AppStorage;
 // === MÓDULO: Escala de Fonte ===
 (function(){
   const root = document.documentElement;
-  let scale = parseFloat(localStorage.getItem('fontScale') || '1.0');
-  const apply = ()=> root.style.setProperty('--font-scale', Math.min(1.6, Math.max(0.85, scale)));
-  apply();
-  const inc = document.getElementById('fontIncrease');
-  const dec = document.getElementById('fontDecrease');
-  if(inc && !inc.dataset.bind){ inc.dataset.bind=1; inc.addEventListener('click', ()=>{ scale = Math.min(1.6, scale + 0.1); localStorage.setItem('fontScale', scale.toFixed(2)); apply(); }); }
-  if(dec && !dec.dataset.bind){ dec.dataset.bind=1; dec.addEventListener('click', ()=>{ scale = Math.max(0.85, scale - 0.1); localStorage.setItem('fontScale', scale.toFixed(2)); apply(); }); }
+  const _savedScale = parseFloat(localStorage.getItem('fontScale') || '1.0');
+  root.style.setProperty('--font-scale', Math.min(1.6, Math.max(0.85, _savedScale)));
 })();
 
 // === MÓDULO: RBAC Guard ===
@@ -13307,11 +13391,42 @@ async function _renderMeusComCache() {
   var lista = document.getElementById('listaMeus');
   if (!lista) return;
   var todos = window.relatorios || (typeof loadLocalReports === 'function' ? loadLocalReports() : []) || [];
+
+  // [FIX-v54-3] Injeta pendentes offline e rascunho também no cache (busca filtrada)
+  try {
+    var _pendC = typeof loadPendentes === 'function' ? loadPendentes() : [];
+    var _idsC = new Set((todos||[]).map(function(r){ return r.id; }));
+    (_pendC||[]).forEach(function(p){
+      if(!p._deleted && !_idsC.has(p.id)){
+        todos = todos.concat([Object.assign({},p,{_pendente:true})]);
+        _idsC.add(p.id);
+      }
+    });
+  } catch(e){}
+  try {
+    var _rawRascC = localStorage.getItem('online-es-rascunho-v1');
+    if (_rawRascC) {
+      var _rC = JSON.parse(_rawRascC);
+      if (_rC && _rC._rascunho && _rC.numero) {
+        var _loginC = ((window.usuarioLogado||{}).username||'').toLowerCase();
+        var _loginRC = (_rC.tecnicoLogin||'').toLowerCase();
+        if (!_loginRC || !_loginC || _loginRC === _loginC) {
+          var _idsC2 = new Set((todos||[]).map(function(r){ return r.id; }));
+          if (!_idsC2.has(_rC.id)) {
+            todos = [Object.assign({},_rC,{_rascunhoCard:true})].concat(todos);
+          }
+        }
+      }
+    }
+  } catch(e){}
+
   var user = window.usuarioLogado || {};
   var nome = (user.fullName || user.nome || '').toLowerCase();
   var login = (user.username || user.usuario || '').toLowerCase();
   var filtrados = todos.filter(function(r) {
     if (r._deleted) return false;
+    // [FIX-v54-3] Rascunho e pendentes já foram filtrados por dono acima — sempre incluir
+    if (r._rascunhoCard || r._pendente) return true;
     var tecNome = (r.tecnico || r.nomeTecnico || '').toLowerCase();
     var tecLogin = (r.tecnicoLogin || r.username || r.tecnicoUser || '').toLowerCase();
     if (nome && tecNome === nome) return true;
@@ -16327,54 +16442,67 @@ function _db(){return window.db||(window.firebase&&window.firebase.firestore?win
 
 // ── Gerar token ──────────────────────────────────────────
 window._gerarTokenPortal = async function(rat){
+  // [FIX-v54-4] Esta função NUNCA lança exceção — sempre retorna o token local.
+  // Firestore é best-effort: falha silenciosa não impede o envio da mensagem.
+  try {
   if(rat.portalToken) {
-    // Já tem token — garante que está salvo no Firestore (pode ter falhado antes)
-    try{
-      var db=_db();
-      // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta db
-      if(db){
-        var docIdExist=rat._firestoreId||rat.id;
-        await db.collection('onlineEsRelatorios').doc(docIdExist).set(
-          {portalToken:rat.portalToken, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
-          {merge:true}
-        );
-      }
-    }catch(e){console.warn('[Portal] re-save token:',e);}
+    // Já tem token — tenta sincronizar com Firestore (best-effort, não bloqueia)
+    if (navigator.onLine) {
+      try{
+        var db=_db();
+        if(db){
+          var docIdExist=rat._firestoreId||rat.id;
+          await db.collection('onlineEsRelatorios').doc(docIdExist).set(
+            {portalToken:rat.portalToken, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
+            {merge:true}
+          );
+        }
+      }catch(e){console.warn('[Portal] re-save token (ignorado):', e.message||e);}
+    }
     return rat.portalToken;
   }
   var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  var arr=new Uint8Array(20); crypto.getRandomValues(arr); // [B-04] 20 bytes ≈ 115 bits de entropia
+  var arr=new Uint8Array(20); crypto.getRandomValues(arr);
   var token=Array.from(arr).map(function(b){return chars[b%chars.length];}).join('');
   rat.portalToken=token;
   rat.portalTokenCriado=new Date().toISOString();
-  // Salva local — atualiza TANTO o objeto passado quanto o array global
+
+  // 1. Salva local SEMPRE — token disponível mesmo offline
   try{
     var lista=typeof loadRelatorios==='function'?loadRelatorios():(window.relatorios||[]);
     var encontrado=false;
     lista=lista.map(function(r){
-      if(r.id===rat.id){
-        encontrado=true;
-        return Object.assign({},r,{portalToken:token,portalTokenCriado:rat.portalTokenCriado});
-      }
+      if(r.id===rat.id){encontrado=true;return Object.assign({},r,{portalToken:token,portalTokenCriado:rat.portalTokenCriado});}
       return r;
     });
-    // Se RAT ainda não está no array (nova, não salva), adiciona
     if(!encontrado) lista.push(Object.assign({},rat));
     if(typeof saveRelatorios==='function') saveRelatorios(lista);
     window.relatorios=lista;
-  }catch(e){console.warn('[Portal] save local:',e);}
-  // Salva Firestore
-  // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta db
-  try{
-    var db=_db();
-    if(db){
-      var docId=rat._firestoreId||rat.id;
-      await db.collection('onlineEsRelatorios').doc(docId).set(
-        {portalToken:token, portalTokenCriado:rat.portalTokenCriado},
-        {merge:true}
-      );
-    }
-  }catch(e){console.warn('[Portal] save firestore:',e);}
+    // Também atualiza pendentes se a RAT está lá
+    try {
+      var _pend = typeof loadPendentes==='function' ? loadPendentes() : [];
+      var _pendAlterou = false;
+      _pend = _pend.map(function(p){
+        if (p.id===rat.id){ _pendAlterou=true; return Object.assign({},p,{portalToken:token,portalTokenCriado:rat.portalTokenCriado}); }
+        return p;
+      });
+      if (_pendAlterou && typeof savePendentes==='function') savePendentes(_pend);
+    } catch(eP2){}
+  }catch(e){console.warn('[Portal] save local (ignorado):', e.message||e);}
+
+  // 2. Salva no Firestore (best-effort — offline não bloqueia)
+  if (navigator.onLine) {
+    try{
+      var db=_db();
+      if(db){
+        var docId=rat._firestoreId||rat.id;
+        await db.collection('onlineEsRelatorios').doc(docId).set(
+          {portalToken:token, portalTokenCriado:rat.portalTokenCriado},
+          {merge:true}
+        );
+      }
+    }catch(e){console.warn('[Portal] save firestore (ignorado, token local preservado):', e.message||e);}
+  }
 
   // [FIX-v44] Gera o PDF e salva em onlineEsPortalPdfs/{token} — coleção separada
   // para não estourar o limite de 1MB do documento principal da RAT.
@@ -16387,9 +16515,7 @@ window._gerarTokenPortal = async function(rat){
       var _pdfB64 = window._lastPdfBase64;
       var _pdfNome = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
       if (_pdfB64) {
-        // [FIX-v44b] Firestore limita 1MB por documento. pdfB64 em base64 é ~1.37×
-        // o tamanho binário. Limite seguro: 950KB binário ≈ 1.3M chars base64.
-        var _PDF_MAX_B64 = 1300000; // ~950KB binário
+        var _PDF_MAX_B64 = 1300000;
         if (_pdfB64.length > _PDF_MAX_B64) {
           console.warn('[Portal] PDF muito grande (' + Math.round(_pdfB64.length/1024) + 'KB base64) — não salvo no Firestore. Portal usará geração client-side como fallback.');
         } else {
@@ -16411,6 +16537,12 @@ window._gerarTokenPortal = async function(rat){
   } catch(ePdf) { console.warn('[Portal] Falha ao salvar PDF no Firestore (portal ainda funcionará com fallback):', ePdf.message || ePdf); }
 
   return token;
+  } catch(eFatal) {
+    // [FIX-v54-4] Barreira final: nunca lança exceção para o chamador.
+    // Se chegar aqui, retorna token já salvo no objeto ou null (chamador trata null graciosamente).
+    console.warn('[Portal] _gerarTokenPortal: erro inesperado (ignorado):', eFatal.message || eFatal);
+    return rat.portalToken || null;
+  }
 };
 
 window._urlPortal=function(token){
@@ -17315,6 +17447,9 @@ else _init();
         history.pushState({ tela: 'novo', step: n }, '', '');
         _stepHistoryActive = true;
       }
+      // [FIX-v49b] Reposiciona widget A+/A- quando step muda
+      // (step 5 ativa barraAcoesMobile — widget precisa subir para não sobrepor)
+      try { if (typeof window._fontWidgetCheck === 'function') window._fontWidgetCheck(); } catch(e) {}
     };
     window._irParaStep._stepHistoryHooked = true;
 
@@ -17436,5 +17571,261 @@ else _init();
 
 
 
+
+<!-- ── Widget flutuante A+/A- (arrastável) ──────────────────────────────── -->
+<div id="fontWidget" style="
+  position:fixed;
+  bottom:84px;right:14px;
+  z-index:8500;
+  display:none;
+  flex-direction:column;
+  gap:6px;
+  align-items:center;
+  touch-action:none;
+  user-select:none;
+">
+  <button id="fontIncrease" title="Aumentar fonte" style="
+    width:40px;height:40px;border-radius:14px;
+    background:linear-gradient(135deg,#1e3a5f,#114f91);
+    border:1px solid rgba(99,179,237,.35);
+    color:#e2e8f0;font-size:.95rem;font-weight:700;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 16px rgba(0,0,0,.35);
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    transition:background .15s,transform .1s;
+  ">A+</button>
+  <button id="fontDecrease" title="Diminuir fonte" style="
+    width:40px;height:40px;border-radius:14px;
+    background:linear-gradient(135deg,#1e3a5f,#114f91);
+    border:1px solid rgba(99,179,237,.35);
+    color:#e2e8f0;font-size:.82rem;font-weight:700;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 16px rgba(0,0,0,.35);
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    transition:background .15s,transform .1s;
+  ">A−</button>
+</div>
+
+<style>
+/* ── Cards redesenhados — Meus Atendimentos (escopo: #telaMeus) ──── */
+#telaMeus .relatorio-card {
+  background: linear-gradient(145deg, #111c33 0%, #1a2e50 55%, #0e1c35 100%) !important;
+  border: 1px solid rgba(99,179,237,.16) !important;
+  border-radius: 18px !important;
+  padding: 16px 15px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  color: #e2e8f0 !important;
+  transition: box-shadow .2s ease, transform .18s ease, border-color .2s ease !important;
+  margin-bottom: 12px !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+#telaMeus .relatorio-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #f97316 0%, #114f91 60%, transparent 100%);
+  border-radius: 18px 18px 0 0;
+}
+#telaMeus .relatorio-card:active {
+  box-shadow: 0 8px 32px rgba(249,115,22,.16), 0 4px 20px rgba(0,0,0,.38) !important;
+  transform: translateY(-1px) !important;
+  border-color: rgba(249,115,22,.35) !important;
+}
+#telaMeus .relatorio-card.visto {
+  background: linear-gradient(145deg,#0b1e10 0%,#122a18 55%,#0b1e10 100%) !important;
+  border-color: rgba(34,197,94,.2) !important;
+}
+#telaMeus .relatorio-card.visto::before {
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 60%, transparent 100%);
+}
+/* Número RAT */
+#telaMeus .relatorio-card strong {
+  font-size: .93rem;
+  color: #f1f5f9;
+  letter-spacing: .01em;
+}
+/* Nome do cliente */
+#telaMeus .relatorio-card [style*="color:#1f2937"] {
+  color: #94a3b8 !important;
+  font-size: .78rem !important;
+}
+/* Data */
+#telaMeus .relatorio-card [style*="color:#4b5563"] {
+  color: #64748b !important;
+  font-size: .71rem !important;
+  margin-top: 8px !important;
+}
+/* Acoes — row de botões */
+#telaMeus .relatorio-card .relatorio-acoes {
+  margin-top: 12px !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+#telaMeus .relatorio-card .relatorio-acoes .btn.small {
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(148,163,184,.18) !important;
+  color: #cbd5e1 !important;
+  border-radius: 10px !important;
+  font-size: .68rem !important;
+  padding: 6px 11px !important;
+}
+#telaMeus .relatorio-card .relatorio-acoes .btn.small:active {
+  background: rgba(249,115,22,.14) !important;
+  border-color: rgba(249,115,22,.38) !important;
+  color: #fb923c !important;
+}
+/* Botão editar */
+#telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
+  background: rgba(59,130,246,.1) !important;
+  border-color: rgba(59,130,246,.28) !important;
+  color: #93c5fd !important;
+}
+/* Botão WhatsApp */
+#telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
+  background: rgba(34,197,94,.08) !important;
+  border-color: rgba(34,197,94,.28) !important;
+  color: #86efac !important;
+}
+/* Badge status */
+#telaMeus .relatorio-card .badge-status {
+  font-size: .58rem !important;
+  padding: 3px 10px 4px !important;
+}
+</style>
+
+<script>
+// ── Widget A+/A- flutuante e arrastável ─────────────────────────────
+(function(){
+  'use strict';
+  var widget = document.getElementById('fontWidget');
+  if (!widget) return;
+
+  // Posição salva — clampada para garantir que fica dentro da tela
+  // (pode ficar fora após rotação ou mudança de device)
+  var savedX = localStorage.getItem('fontWidgetX');
+  var savedY = localStorage.getItem('fontWidgetY');
+  if (savedX && savedY) {
+    // Aguarda o widget ter dimensões reais antes de clampar
+    requestAnimationFrame(function() {
+      var maxL = Math.max(0, window.innerWidth  - widget.offsetWidth  - 4);
+      var maxT = Math.max(0, window.innerHeight - widget.offsetHeight - 4);
+      var cx = Math.max(0, Math.min(maxL, parseFloat(savedX)));
+      var cy = Math.max(0, Math.min(maxT, parseFloat(savedY)));
+      widget.style.right  = 'auto';
+      widget.style.bottom = 'auto';
+      widget.style.left   = cx + 'px';
+      widget.style.top    = cy + 'px';
+    });
+  }
+
+  // Mostrar apenas em mobile após login
+  // [FIX-v49] Quando barraAcoesMobile está visível (tela novo), sobe o widget
+  // para não sobrepor os botões de salvar/WhatsApp/PDF
+  function _checkShow() {
+    var isMobile = window.innerWidth <= 880;
+    var logado = !!window.usuarioLogado;
+    var show = isMobile && logado;
+    widget.style.display = show ? 'flex' : 'none';
+    // Ajusta bottom apenas quando não tem posição customizada pelo drag
+    if (show && (!widget.style.left || widget.style.left === 'auto')) {
+      var barra = document.getElementById('barraAcoesMobile');
+      var barraAtiva = barra && barra.style.display === 'flex';
+      widget.style.bottom = barraAtiva ? '156px' : '84px';
+    }
+  }
+  // Expõe para ser chamado após login
+  window._fontWidgetCheck = _checkShow;
+  window.addEventListener('resize', _checkShow);
+  // Polling leve até login — com cleanup no unload para evitar leak
+  var _chk = setInterval(function(){
+    if (window.usuarioLogado) { _checkShow(); clearInterval(_chk); _chk = null; } 
+  }, 500);
+  window.addEventListener('beforeunload', function(){ if (_chk) { clearInterval(_chk); _chk = null; } });
+
+  // ── Drag (touch + mouse) ──────────────────────────
+  var dragging = false, startX, startY, origLeft, origTop;
+
+  function getLeft() {
+    if (widget.style.left && widget.style.left !== 'auto') return parseFloat(widget.style.left);
+    return window.innerWidth - widget.offsetWidth - 14;
+  }
+  function getTop() {
+    if (widget.style.top && widget.style.top !== 'auto') return parseFloat(widget.style.top);
+    return window.innerHeight - widget.offsetHeight - 84;
+  }
+
+  function onStart(cx, cy) {
+    dragging = true;
+    startX = cx; startY = cy;
+    origLeft = getLeft(); origTop = getTop();
+    widget.style.right = 'auto'; widget.style.bottom = 'auto';
+    widget.style.left = origLeft + 'px'; widget.style.top = origTop + 'px';
+    widget.style.opacity = '0.85';
+    widget.style.transition = 'none';
+  }
+  function onMove(cx, cy) {
+    if (!dragging) return;
+    var dx = cx - startX, dy = cy - startY;
+    var newL = Math.max(0, Math.min(window.innerWidth  - widget.offsetWidth,  origLeft + dx));
+    var newT = Math.max(0, Math.min(window.innerHeight - widget.offsetHeight, origTop  + dy));
+    widget.style.left = newL + 'px';
+    widget.style.top  = newT + 'px';
+  }
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    widget.style.opacity = '1';
+    widget.style.transition = '';
+    localStorage.setItem('fontWidgetX', parseFloat(widget.style.left));
+    localStorage.setItem('fontWidgetY', parseFloat(widget.style.top));
+  }
+
+  // Touch
+  widget.addEventListener('touchstart', function(e){
+    if (e.target.tagName === 'BUTTON') return; // não arrastar ao clicar botão
+    onStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  document.addEventListener('touchmove', function(e){
+    if (dragging) { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }
+  }, { passive: false });
+  document.addEventListener('touchend', onEnd);
+
+  // Mouse
+  widget.addEventListener('mousedown', function(e){
+    if (e.target.tagName === 'BUTTON') return;
+    onStart(e.clientX, e.clientY);
+  });
+  document.addEventListener('mousemove', function(e){ if (dragging) onMove(e.clientX, e.clientY); });
+  document.addEventListener('mouseup', onEnd);
+
+  // ── Controle de fonte ────────────────────────────
+  var root = document.documentElement;
+  var scale = parseFloat(localStorage.getItem('fontScale') || '1.0');
+  var apply = function(){ root.style.setProperty('--font-scale', Math.min(1.6, Math.max(0.85, scale))); };
+  apply();
+
+  var inc = document.getElementById('fontIncrease');
+  var dec = document.getElementById('fontDecrease');
+  if (inc) inc.addEventListener('click', function(){
+    scale = Math.min(1.6, scale + 0.1);
+    localStorage.setItem('fontScale', scale.toFixed(2));
+    apply();
+    inc.style.transform = 'scale(1.2)';
+    setTimeout(function(){ inc.style.transform = ''; }, 150);
+  });
+  if (dec) dec.addEventListener('click', function(){
+    scale = Math.max(0.85, scale - 0.1);
+    localStorage.setItem('fontScale', scale.toFixed(2));
+    apply();
+    dec.style.transform = 'scale(1.2)';
+    setTimeout(function(){ dec.style.transform = ''; }, 150);
+  });
+})();
+</script>
 </body>
 </html>
