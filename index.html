@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v59
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v59b
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -3053,7 +3053,7 @@ html[data-role="technician"] nav button {
   //       // de signInAnonymously. Atualize as regras no Firebase Console com este bloco.
   //       match /onlineEsRelatorios/{doc} {
   //         allow read: if request.auth != null
-  //                     || resource.data.portalToken != null;
+  //                     || 'portalToken' in resource.data;
   //         allow write: if request.auth != null
   //                      && request.auth.token.email != null;
   //       }
@@ -16708,7 +16708,7 @@ async function _buscarRat(token){
   var _pid = _cfg.projectId;
   var _key = _cfg.apiKey;
 
-  // Tentativa 1: REST sem auth — funciona com regra `portalToken != null` pública
+  // Tentativa 1: REST sem auth — funciona com regra `'portalToken' in resource.data` (sintaxe correta)
   if (_pid && _key) {
     try {
       var _restUrl = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
