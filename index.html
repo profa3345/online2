@@ -1,15 +1,7 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v56
-  Correções v56:
-  - [BUG1] Rascunho: guard duplo (usuarioLogado + tela login oculta) impede showConfirm antes do login;
-    comparação de dono usa tecnicoLogin (exato) ou fullName como fallback para rascunhos antigos
-  - [BUG2] Botão voltar Android: replaceState+pushState garante ≥2 entradas no histórico ao entrar no sistema
-  - [BUG3] Meus Atendimentos: rascunho aparece mesmo sem .numero; deduplicação por _rascunhoCard evita
-    duplicatas; mesma correção aplicada em _renderMeusComCache
-  - [BUG4] Portal: download removido; cliente visualiza apenas (object inline ou nova aba no mobile);
-    botão "Gerar e baixar PDF" removido do fallback
-  Correções v55c (mantidas):
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v58
+  Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
   - _verificarUrl() aumenta timeout para 18s e aceita SDK disponível mesmo sem db inicializado
@@ -266,7 +258,7 @@
       flex:0 0 130px;
       max-width:130px;
     }
-    .list-relatorios{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+    .list-relatorios{max-height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
     /* [FIX-SCR1] No mobile remove o scroll interno — a lista flui na página normalmente,
        evitando o padrão confuso de scroll-dentro-de-scroll */
     @media(max-width:880px){.list-relatorios{max-height:none;overflow-y:visible;}}
@@ -5823,11 +5815,9 @@ function autoFillCamposAtendimento(){
     // Solução: empurra sentinela incondicionalmente ao entrar no sistema.
     try {
       var _telaPadraoInit = _ehMobile ? '__home__' : (isSupervisorOrAdmin(user) ? 'painel' : 'novo');
-      // [FIX-v56-2] Empilha sentinela + tela real como 2 estados distintos.
-      // replaceState substituía o pushState anterior, deixando só 1 entrada — o 1º
-      // botão voltar no Android consumia essa única entrada e fechava o app.
-      history.replaceState({ tela: '__app_root__' }, '', ''); // substitui estado atual (raiz)
-      history.pushState({ tela: _telaPadraoInit }, '', '');   // tela real por cima → ≥2 entradas
+      // [FIX-v57] replaceState + pushState garante ≥2 entradas no histórico
+      history.replaceState({ tela: '__app_root__' }, '', '');
+      history.pushState({ tela: _telaPadraoInit }, '', '');
     } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
@@ -8303,6 +8293,7 @@ if (logoBase64) {
        id: (window._ratPreSalvoId || window._editandoRelatorioId || gerarId()),
        numero: aNumeroRat.value || '', // BUG FIX: não chama proximoNumeroRAT() aqui — evita queimar número; ensureNumeroRat() já garante o campo preenchido antes de salvar
        dataHoraBr: br || agoraBR(),
+       dataHoraBR: br || agoraBR(), // [FIX-v58] alias para compatibilidade
        dataHoraIso: iso,
 
       // Técnico – sempre baseado no usuário logado
@@ -8787,36 +8778,26 @@ if (logoBase64) {
   // Restaurar rascunho ao abrir Novo Atendimento
   async function verificarRascunho() {
     try {
-      // [FIX-v56-1] Guard absoluto: usuário logado E tela de login já fechada.
-      // Impede showConfirm aparecer antes/durante login mesmo com timing desfavorável.
+      // [FIX-v57] Guard absoluto: usuário logado E tela de login já fechada.
       if (!window.usuarioLogado) return;
       var _tlEl = document.getElementById('telaLogin');
       if (_tlEl && !_tlEl.classList.contains('hidden') && _tlEl.style.display !== 'none') return;
-
       const raw = localStorage.getItem(STORAGE_RASCUNHO);
       if (!raw) return;
       const r = JSON.parse(raw);
       if (!r || !r._rascunho) return;
-
-      // [FIX-v56-1] Comparação de dono: login (preferido) ou nome completo como fallback.
-      // Rascunhos sem tecnicoLogin (gravados antes da v43) são comparados pelo nome do técnico.
-      // Se não há nenhum identificador, exibe normalmente (compatibilidade com dados antigos).
       var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
       var _nomeAtual  = (window.usuarioLogado.fullName  || window.usuarioLogado.nome    || '').toLowerCase();
       var _loginRasc  = (r.tecnicoLogin || '').toLowerCase();
       var _nomeRasc   = (r.tecnico      || '').toLowerCase();
       if (_loginRasc) {
-        // Tem login gravado: comparação exata
         if (_loginAtual && _loginRasc !== _loginAtual) {
-          console.log('[Rascunho] Login não bate (' + _loginRasc + ' ≠ ' + _loginAtual + ') — ignorado.');
+          console.log('[Rascunho] Login não bate — ignorado.');
           return;
         }
-      } else if (_nomeRasc && _nomeAtual) {
-        // Sem login: compara pelo nome completo
-        if (_nomeRasc !== _nomeAtual) {
-          console.log('[Rascunho] Nome não bate (' + _nomeRasc + ' ≠ ' + _nomeAtual + ') — ignorado.');
-          return;
-        }
+      } else if (_nomeRasc && _nomeAtual && _nomeRasc !== _nomeAtual) {
+        console.log('[Rascunho] Nome não bate — ignorado.');
+        return;
       }
 
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
@@ -10263,7 +10244,8 @@ if (logoBase64) {
 
   if (btnEnviarEmail){
     btnEnviarEmail.onclick = async () => {
-      if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
+      if (btnEnviarEmail.disabled) return; btnEnviarEmail.disabled=true; setTimeout(()=>{btnEnviarEmail.disabled=false;},5000); // [FIX-v58] anti duplo-clique
+      if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) { btnEnviarEmail.disabled=false; return; }
 
       const email = aEmailCliente && aEmailCliente.value ? aEmailCliente.value.trim() : '';
       if (!email) {
@@ -10356,7 +10338,8 @@ if (logoBase64) {
   }
 
   if (btnWhatsLocal) btnWhatsLocal.onclick = async () => {
-    if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
+    if (btnWhatsLocal.disabled) return; btnWhatsLocal.disabled=true; setTimeout(()=>{btnWhatsLocal.disabled=false;},5000); // [FIX-v58] anti duplo-clique
+    if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) { btnWhatsLocal.disabled=false; return; }
 
     const raw = String((aWhats && aWhats.value ? aWhats.value : (aTelefone && aTelefone.value ? aTelefone.value : ''))).trim();
     let tel = raw.replace(/\D/g, '');
@@ -13079,34 +13062,25 @@ async function renderMeus(){
       }
     } catch(e) {}
 
-    // [FIX-v56-3] Injeta rascunho na lista mesmo sem .numero (rascunho recém-iniciado).
-    // Bug anterior: `_rRasc.numero` era exigido → rascunho sem número nunca aparecia.
+    // [FIX-v43] Injeta rascunho atual (auto-save) na lista se pertencer ao usuário logado
     try {
       var _rawRasc = localStorage.getItem('online-es-rascunho-v1');
       if (_rawRasc) {
         var _rRasc = JSON.parse(_rawRasc);
-        if (_rRasc && _rRasc._rascunho) { // removido && _rRasc.numero
+        if (_rRasc && _rRasc._rascunho) {
           var _loginAtualMeus = ((window.usuarioLogado||{}).username || (window.usuarioLogado||{}).usuario || '').toLowerCase();
           var _nomeAtualMeus  = ((window.usuarioLogado||{}).fullName  || (window.usuarioLogado||{}).nome    || '').toLowerCase();
           var _loginRascMeus  = (_rRasc.tecnicoLogin || '').toLowerCase();
           var _nomeRascMeus   = (_rRasc.tecnico      || '').toLowerCase();
-          // Mesma lógica de verificarRascunho: login exato, fallback por nome, ou sem dono
           var _pertence = true;
-          if (_loginRascMeus) {
-            _pertence = !_loginAtualMeus || _loginRascMeus === _loginAtualMeus;
-          } else if (_nomeRascMeus && _nomeAtualMeus) {
-            _pertence = _nomeRascMeus === _nomeAtualMeus;
-          }
+          if (_loginRascMeus) { _pertence = !_loginAtualMeus || _loginRascMeus === _loginAtualMeus; }
+          else if (_nomeRascMeus && _nomeAtualMeus) { _pertence = _nomeRascMeus === _nomeAtualMeus; }
           if (_pertence) {
             var _idsEmTodos2 = new Set((todos||[]).map(function(r){ return r.id; }));
-            // Usa id ou numero+tecnico como chave de deduplicação
-            var _jaEsta = _rRasc.id
-              ? _idsEmTodos2.has(_rRasc.id)
-              : (todos||[]).some(function(x){ return x._rascunhoCard; });
+            var _jaEsta = _rRasc.id ? _idsEmTodos2.has(_rRasc.id) : (todos||[]).some(function(x){ return x._rascunhoCard; });
             if (!_jaEsta) {
-              var _rRascCopy = Object.assign({}, _rRasc, { _rascunhoCard: true });
               todos = todos || [];
-              todos.unshift(_rRascCopy);
+              todos.unshift(Object.assign({}, _rRasc, { _rascunhoCard: true }));
             }
           }
         }
@@ -13458,7 +13432,7 @@ async function _renderMeusComCache() {
     var _rawRascC = localStorage.getItem('online-es-rascunho-v1');
     if (_rawRascC) {
       var _rC = JSON.parse(_rawRascC);
-      if (_rC && _rC._rascunho) { // [FIX-v56-3] removido && _rC.numero
+      if (_rC && _rC._rascunho) {
         var _loginC  = ((window.usuarioLogado||{}).username||'').toLowerCase();
         var _nomeC   = ((window.usuarioLogado||{}).fullName||'').toLowerCase();
         var _loginRC = (_rC.tecnicoLogin||'').toLowerCase();
@@ -13469,9 +13443,7 @@ async function _renderMeusComCache() {
         if (_pertC) {
           var _idsC2 = new Set((todos||[]).map(function(r){ return r.id; }));
           var _jaC = _rC.id ? _idsC2.has(_rC.id) : (todos||[]).some(function(x){ return x._rascunhoCard; });
-          if (!_jaC) {
-            todos = [Object.assign({},_rC,{_rascunhoCard:true})].concat(todos);
-          }
+          if (!_jaC) { todos = [Object.assign({},_rC,{_rascunhoCard:true})].concat(todos); }
         }
       }
     }
@@ -16620,7 +16592,7 @@ window._gerarTokenPortal = async function(rat){
               ratId: rat.id || '',
               criado: new Date().toISOString()
             });
-            console.log('[Portal] PDF salvo em onlineEsPortalPdfs/' + token);
+            // token omitido do log em produção
           }
         }
       }
@@ -16658,52 +16630,9 @@ window._urlPortal=function(token){
 //    se o projeto tiver Auth habilitado)
 // 3. Nenhuma auth — REST fallback em _buscarRat tenta sem Bearer (depende das rules)
 async function _garantirAuthPortal() {
-  try {
-    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
-    if (!_auth) return;
-    if (_auth.currentUser) return; // já autenticado
-
-    // Tentativa 1: SDK signInAnonymously
-    try {
-      await _auth.signInAnonymously();
-      if (_auth.currentUser) return; // sucesso
-    } catch(eAnon) {
-      // Desabilitado ou outro erro — tenta fallback REST
-      if (eAnon && eAnon.code !== 'auth/operation-not-allowed') {
-        console.warn('[Portal] signInAnonymously erro inesperado:', eAnon.message||eAnon);
-      }
-    }
-
-    // Tentativa 2: Identity Toolkit REST — signupNewUser anônimo
-    // Retorna um idToken que pode ser usado direto nas chamadas REST do Firestore
-    try {
-      var _cfg = window.firebaseConfig || {};
-      if (_cfg.apiKey) {
-        var _resp = await fetch(
-          'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + _cfg.apiKey,
-          { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({returnSecureToken:true}) }
-        );
-        if (_resp.ok) {
-          var _data = await _resp.json();
-          if (_data.idToken) {
-            // Guarda o token REST para uso nas chamadas Firestore
-            window._portalAnonToken = _data.idToken;
-            window._portalAnonTokenExp = Date.now() + (_data.expiresIn ? parseInt(_data.expiresIn,10)*1000 : 3600000);
-            console.log('[Portal] Auth anônima via Identity Toolkit REST — OK');
-            // Tenta fazer o SDK reconhecer este token também
-            try { await _auth.signInWithCustomToken && _auth.signInWithCustomToken(_data.idToken); } catch(e){}
-            return;
-          }
-        }
-      }
-    } catch(eRest) {
-      console.warn('[Portal] Identity Toolkit REST falhou:', eRest.message||eRest);
-    }
-
-    console.warn('[Portal] Sem autenticação anônima disponível. Portal pode falhar se as rules exigirem auth.');
-  } catch(eFatal) {
-    console.warn('[Portal] _garantirAuthPortal erro fatal (ignorado):', eFatal.message||eFatal);
-  }
+  // [FIX-v57] Portal não depende mais de autenticação anônima.
+  // As regras do Firestore permitem leitura pública por portalToken (sem auth).
+  // Esta função é mantida como no-op para compatibilidade com chamadas existentes.
 }
 
 // ── Obter token de auth para REST (anônimo ou técnico) ───
@@ -16727,58 +16656,89 @@ async function _getAuthToken() {
 }
 
 // ── Buscar RAT pelo token ────────────────────────────────
+// [FIX-v57] Reescrito para REST-first sem autenticação.
+// As regras do Firestore devem permitir leitura de onlineEsRelatorios quando
+// resource.data.portalToken != null (leitura pública por token).
+// Não depende mais de signInAnonymously nem de auth anônima.
 async function _buscarRat(token){
-  // SEGURANÇA: valida formato do token antes de qualquer consulta
   if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
-  // [FIX-v42] Garante auth antes de qualquer leitura no Firestore
-  await _garantirAuthPortal();
 
-  // Tentativa 1: SDK Firestore
-  try{
-    var db=_db();
-    if(db){
-      var snap=await db.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
-      if(!snap.empty) return snap.docs[0].data();
-    }
-  }catch(e){console.warn('[Portal] SDK Firestore falhou, tentando REST:', e.code || e.message);}
+  var _cfg = window.firebaseConfig || {};
+  var _pid = _cfg.projectId;
+  var _key = _cfg.apiKey;
 
-  // Tentativa 2: REST API com token de auth (anônimo ou técnico)
-  // [FIX-v55] Envia Bearer token para satisfazer rules `request.auth != null`
-  try{
-    var _cfg = window.firebaseConfig || {};
-    var _pid = _cfg.projectId; var _key = _cfg.apiKey;
-    if(_pid && _key){
-      var _authTok = await _getAuthToken();
-      var _headers = {'Content-Type':'application/json'};
-      if(_authTok) _headers['Authorization'] = 'Bearer ' + _authTok;
+  // Tentativa 1: REST sem auth — funciona com regra `portalToken != null` pública
+  if (_pid && _key) {
+    try {
       var _restUrl = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
       var _body = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}};
-      var _res = await fetch(_restUrl,{method:'POST',headers:_headers,body:JSON.stringify(_body)});
-      if(_res.ok){
+      var _res = await fetch(_restUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_body)});
+      if (_res.ok) {
         var _json = await _res.json();
-        if(Array.isArray(_json)&&_json[0]&&_json[0].document){
-          var _fields = _json[0].document.fields||{};
-          // Converte campos Firestore REST para objeto JS plano
-          var _rat={};
+        if (Array.isArray(_json) && _json[0] && _json[0].document) {
+          var _fields = _json[0].document.fields || {};
+          var _rat = {};
           Object.keys(_fields).forEach(function(k){
-            var v=_fields[k];
-            if(v.stringValue!==undefined) _rat[k]=v.stringValue;
-            else if(v.integerValue!==undefined) _rat[k]=parseInt(v.integerValue,10);
-            else if(v.booleanValue!==undefined) _rat[k]=v.booleanValue;
-            else if(v.arrayValue) _rat[k]=(v.arrayValue.values||[]).map(function(x){return x.stringValue||x.integerValue||'';});
-            else _rat[k]=null;
+            var v = _fields[k];
+            if      (v.stringValue  !== undefined) _rat[k] = v.stringValue;
+            else if (v.integerValue !== undefined) _rat[k] = parseInt(v.integerValue, 10);
+            else if (v.booleanValue !== undefined) _rat[k] = v.booleanValue;
+            else if (v.arrayValue)                 _rat[k] = (v.arrayValue.values||[]).map(function(x){ return x.stringValue || x.integerValue || ''; });
+            else                                   _rat[k] = null;
           });
-          if(_rat.portalToken===token) return _rat;
+          if (_rat.portalToken === token) {
+            console.log('[Portal] RAT encontrada via REST sem auth.');
+            return _rat;
+          }
+        }
+      } else {
+        var _errText = await _res.text().catch(function(){ return ''; });
+        console.warn('[Portal] REST sem auth falhou:', _res.status, _errText.slice(0,200));
+      }
+    } catch(eRest) { console.warn('[Portal] REST sem auth — exceção:', eRest.message||eRest); }
+
+    // Tentativa 2: REST com auth (técnico logado no mesmo browser)
+    try {
+      var _authTok = await _getAuthToken();
+      if (_authTok) {
+        var _res2 = await fetch(
+          'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key,
+          {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authTok}, body:JSON.stringify({structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}})}
+        );
+        if (_res2.ok) {
+          var _json2 = await _res2.json();
+          if (Array.isArray(_json2) && _json2[0] && _json2[0].document) {
+            var _f2 = _json2[0].document.fields || {};
+            var _r2 = {};
+            Object.keys(_f2).forEach(function(k){
+              var v=_f2[k];
+              if(v.stringValue!==undefined) _r2[k]=v.stringValue;
+              else if(v.integerValue!==undefined) _r2[k]=parseInt(v.integerValue,10);
+              else if(v.booleanValue!==undefined) _r2[k]=v.booleanValue;
+              else if(v.arrayValue) _r2[k]=(v.arrayValue.values||[]).map(function(x){return x.stringValue||x.integerValue||'';});
+              else _r2[k]=null;
+            });
+            if (_r2.portalToken === token) return _r2;
+          }
         }
       }
-    }
-  }catch(eRest){console.warn('[Portal] REST fallback falhou:', eRest.message||eRest);}
+    } catch(e2) { console.warn('[Portal] REST com auth falhou:', e2.message||e2); }
+  }
 
-  // Tentativa 3: localStorage (caso o técnico esteja no mesmo dispositivo)
-  try{
-    var lista=typeof loadRelatorios==='function'?loadRelatorios():[];
-    return lista.find(function(r){return r.portalToken===token;})||null;
-  }catch(e){return null;}
+  // Tentativa 3: SDK Firestore (técnico logado no mesmo browser)
+  try {
+    var db = _db();
+    if (db) {
+      var snap = await db.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
+      if (!snap.empty) return snap.docs[0].data();
+    }
+  } catch(eSDK) { console.warn('[Portal] SDK falhou:', eSDK.code || eSDK.message); }
+
+  // Tentativa 4: localStorage (técnico no mesmo dispositivo)
+  try {
+    var lista = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+    return lista.find(function(r){ return r.portalToken === token; }) || null;
+  } catch(e) { return null; }
 }
 
 // ── Registrar visualização ───────────────────────────────
@@ -16808,23 +16768,53 @@ async function _historico(cnpj,idAtual){
   var limite=new Date(); limite.setDate(limite.getDate()-30);
   var limIso=limite.toISOString();
   var todos=[];
-  try{
-    var db=_db();
-    if(db){
-      // Tenta com orderBy (requer índice composto no Firestore Console)
-      // Se falhar por falta de índice, retenta sem orderBy e ordena no cliente
-      try {
-        var snap=await db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).orderBy('dataHoraIso','desc').limit(20).get();
-        snap.forEach(function(d){todos.push(d.data());});
-      } catch(eIdx) {
-        console.warn('[Portal] Índice composto ausente, buscando sem orderBy:', eIdx.message);
-        var snap2=await db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).limit(30).get();
-        snap2.forEach(function(d){todos.push(d.data());});
-        todos.sort(function(a,b){return(b.dataHoraIso||'').localeCompare(a.dataHoraIso||'');});
+  // [FIX-v57] REST sem auth primeiro — mesma estratégia do _buscarRat
+  var _cfgH = window.firebaseConfig || {};
+  var _pidH = _cfgH.projectId; var _keyH = _cfgH.apiKey;
+  if (_pidH && _keyH) {
+    try {
+      var _hUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidH+'/databases/(default)/documents:runQuery?key='+_keyH;
+      var _hBody = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'cnpjCliente'},op:'EQUAL',value:{stringValue:cnpj}}},orderBy:[{field:{fieldPath:'dataHoraIso'},direction:'DESCENDING'}],limit:20}};
+      var _hRes = await fetch(_hUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_hBody)});
+      if (_hRes.ok) {
+        var _hJson = await _hRes.json();
+        if (Array.isArray(_hJson)) {
+          _hJson.forEach(function(row) {
+            if (row.document) {
+              var _f = row.document.fields || {};
+              var _r = {};
+              Object.keys(_f).forEach(function(k){
+                var v=_f[k];
+                if(v.stringValue!==undefined) _r[k]=v.stringValue;
+                else if(v.integerValue!==undefined) _r[k]=parseInt(v.integerValue,10);
+                else if(v.booleanValue!==undefined) _r[k]=v.booleanValue;
+                else if(v.arrayValue) _r[k]=(v.arrayValue.values||[]).map(function(x){return x.stringValue||x.integerValue||'';});
+                else _r[k]=null;
+              });
+              todos.push(_r);
+            }
+          });
+        }
       }
+    } catch(eHRest) { console.warn('[Portal/Histórico] REST falhou:', eHRest.message||eHRest); }
+  }
+  // Fallback: SDK (técnico logado)
+  if (!todos.length) {
+    try{
+      var db=_db();
+      if(db){
+        try {
+          var snap=await db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).orderBy('dataHoraIso','desc').limit(20).get();
+          snap.forEach(function(d){todos.push(d.data());});
+        } catch(eIdx) {
+          var snap2=await db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).limit(30).get();
+          snap2.forEach(function(d){todos.push(d.data());});
+          todos.sort(function(a,b){return(b.dataHoraIso||'').localeCompare(a.dataHoraIso||'');});
+        }
+      }
+    }catch(e){
+      todos=(typeof loadRelatorios==='function'?loadRelatorios():[]).filter(function(r){return r.cnpjCliente===cnpj;}).sort(function(a,b){return(b.dataHoraIso||'').localeCompare(a.dataHoraIso||'');});
     }
-  }catch(e){
-    todos=(typeof loadRelatorios==='function'?loadRelatorios():[]).filter(function(r){return r.cnpjCliente===cnpj;}).sort(function(a,b){return(b.dataHoraIso||'').localeCompare(a.dataHoraIso||'');});
   }
   return todos.filter(function(r){return r.id!==idAtual&&r.portalToken&&(r.dataHoraIso||'')>=limIso;}).slice(0,10);
 }
@@ -16858,99 +16848,103 @@ async function _renderPortal(token){
   }
   _registrarVisto(token);
 
-  // Busca PDF pré-gerado
+  // [FIX-v57] Busca PDF — REST sem auth primeiro (regra pública por token), SDK depois
   el.innerHTML='<div class="portal-loading"><i class="ri-file-pdf-line"></i> Carregando seu PDF...</div>';
   var pdfB64 = null;
   var pdfNome = 'RAT-' + (rat.numero||'relatorio') + '.pdf';
-  // Tentativa 1: SDK Firestore
-  try {
-    var _dbP = _db();
-    if (_dbP) {
-      var _pdfDoc = await _dbP.collection('onlineEsPortalPdfs').doc(token).get();
-      if (_pdfDoc.exists) {
-        var _pdfData = _pdfDoc.data();
-        pdfB64 = _pdfData.pdfB64 || null;
-        if (_pdfData.pdfNome) pdfNome = _pdfData.pdfNome;
-      }
-    }
-  } catch(e) { console.warn('[Portal] SDK PDF falhou, tentando REST:', e.message||e); }
 
-  // Tentativa 2: REST API para onlineEsPortalPdfs
-  // [FIX-v55] Envia Bearer token para satisfazer rules `request.auth != null`
-  if (!pdfB64) {
+  var _cfgP = window.firebaseConfig || {};
+  var _pidP = _cfgP.projectId; var _keyP = _cfgP.apiKey;
+
+  // Tentativa 1: REST sem auth (onlineEsPortalPdfs — leitura pública pelo token/ID do doc)
+  if (_pidP && _keyP && !pdfB64) {
     try {
-      var _cfgP = window.firebaseConfig || {};
-      var _pidP = _cfgP.projectId; var _keyP = _cfgP.apiKey;
-      if (_pidP && _keyP) {
-        var _authTokP = await _getAuthToken();
-        var _hdrsP = {};
-        if (_authTokP) _hdrsP['Authorization'] = 'Bearer ' + _authTokP;
-        var _pdfUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
-        var _pdfRes = await fetch(_pdfUrl, { headers: _hdrsP });
-        if (_pdfRes.ok) {
-          var _pdfJson = await _pdfRes.json();
-          var _pdfFields = (_pdfJson && _pdfJson.fields) || {};
-          if (_pdfFields.pdfB64 && _pdfFields.pdfB64.stringValue) {
-            pdfB64 = _pdfFields.pdfB64.stringValue;
-            if (_pdfFields.pdfNome && _pdfFields.pdfNome.stringValue) pdfNome = _pdfFields.pdfNome.stringValue;
+      var _pdfUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
+      var _pdfRes = await fetch(_pdfUrl);
+      if (_pdfRes.ok) {
+        var _pdfJson = await _pdfRes.json();
+        var _pdfFields = (_pdfJson && _pdfJson.fields) || {};
+        if (_pdfFields.pdfB64 && _pdfFields.pdfB64.stringValue) {
+          pdfB64 = _pdfFields.pdfB64.stringValue;
+          if (_pdfFields.pdfNome && _pdfFields.pdfNome.stringValue) pdfNome = _pdfFields.pdfNome.stringValue;
+          console.log('[Portal] PDF carregado via REST sem auth.');
+        }
+      } else {
+        console.warn('[Portal] REST PDF sem auth:', _pdfRes.status);
+      }
+    } catch(eRP){ console.warn('[Portal] REST PDF sem auth — exceção:', eRP.message||eRP); }
+  }
+
+  // Tentativa 2: REST com auth (técnico logado)
+  if (_pidP && _keyP && !pdfB64) {
+    try {
+      var _authTokP = await _getAuthToken();
+      if (_authTokP) {
+        var _pdfUrl2 = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
+        var _pdfRes2 = await fetch(_pdfUrl2, {headers:{'Authorization':'Bearer '+_authTokP}});
+        if (_pdfRes2.ok) {
+          var _pdfJson2 = await _pdfRes2.json();
+          var _pdfF2 = (_pdfJson2 && _pdfJson2.fields) || {};
+          if (_pdfF2.pdfB64 && _pdfF2.pdfB64.stringValue) {
+            pdfB64 = _pdfF2.pdfB64.stringValue;
+            if (_pdfF2.pdfNome && _pdfF2.pdfNome.stringValue) pdfNome = _pdfF2.pdfNome.stringValue;
           }
         }
       }
-    } catch(eRestPdf) { console.warn('[Portal] REST PDF fallback falhou:', eRestPdf.message||eRestPdf); }
+    } catch(eRP2){ console.warn('[Portal] REST PDF com auth — exceção:', eRP2.message||eRP2); }
+  }
+
+  // Tentativa 3: SDK Firestore (técnico logado no mesmo browser)
+  if (!pdfB64) {
+    try {
+      var _dbP = _db();
+      if (_dbP) {
+        var _pdfDoc = await _dbP.collection('onlineEsPortalPdfs').doc(token).get();
+        if (_pdfDoc.exists) {
+          var _pdfData = _pdfDoc.data();
+          pdfB64 = _pdfData.pdfB64 || null;
+          if (_pdfData.pdfNome) pdfNome = _pdfData.pdfNome;
+        }
+      }
+    } catch(eSDKP) { console.warn('[Portal] SDK PDF falhou:', eSDKP.message||eSDKP); }
   }
 
   if (pdfB64) {
-    // [FIX-v56-4] PDF disponível — exibir inline somente para visualização.
-    // Download removido do portal: cliente visualiza, não baixa.
+    // PDF disponível — exibir inline com iframe + botão download
     var bstr=atob(pdfB64), n=bstr.length, u8=new Uint8Array(n);
     for(var i=0;i<n;i++) u8[i]=bstr.charCodeAt(i);
     var blob=new Blob([u8],{type:'application/pdf'});
     var blobUrl=URL.createObjectURL(blob);
     window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(blobUrl);}catch(e){}},{once:true});
 
-    var _isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    var _viewerHtml;
-    if (_isMobile) {
-      // Mobile: viewers inline não funcionam bem — botão abre em nova aba (sem download)
-      _viewerHtml =
-        '<div style="text-align:center;padding:24px 0;">'+
-          '<i class="ri-file-pdf-line" style="font-size:3rem;color:#f97316;display:block;margin-bottom:10px;"></i>'+
-          '<p style="color:#94a3b8;font-size:.82rem;margin:0 0 16px;">Toque no botão abaixo para visualizar o PDF.</p>'+
+    el.innerHTML=
+      '<div class="portal-card" style="padding:14px 16px;">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
+          '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;">'+
+            '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
+            'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
+          '</div>'+
           '<a href="'+blobUrl+'" target="_blank" rel="noopener" '+
             'style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:9px 20px;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none;box-shadow:0 4px 16px rgba(249,115,22,.35);">'+
             '<i class="ri-eye-line"></i> Visualizar PDF'+
           '</a>'+
-        '</div>';
-    } else {
-      // Desktop: <object> com fallback — sem atributo download
-      _viewerHtml =
-        '<object data="'+blobUrl+'" type="application/pdf" '+
-          'style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;">'+
-          '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:.82rem;">'+
-            '<i class="ri-file-pdf-line" style="font-size:2.5rem;color:#f97316;display:block;margin-bottom:8px;"></i>'+
+        '</div>'+
+        '<object data="'+blobUrl+'" type="application/pdf" style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;">'+
+          '<div style="text-align:center;padding:24px;color:#64748b;font-size:.82rem;">'+
             'Seu navegador não exibiu o PDF inline. '+
             '<a href="'+blobUrl+'" target="_blank" rel="noopener" style="color:#f97316;">Clique aqui para visualizar</a>.'+
-          '</div>'+
-        '</object>';
-    }
-
-    el.innerHTML=
-      '<div class="portal-card" style="padding:14px 16px;">'+
-        '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;margin-bottom:12px;">'+
-          '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
-          'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
-        '</div>'+
-        _viewerHtml+
+          '</div></object>'+
       '</div>';
 
   } else {
-    // PDF não pré-gerado — exibe resumo dos campos (sem botão de download)
+    // PDF não encontrado na coleção (link antigo ou falha ao salvar)
+    // Exibe resumo dos dados + botão para download manual
     var sc=_sc(rat.status);
     el.innerHTML=
       '<div class="portal-card">'+
       '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
       '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
-        '<i class="ri-information-line"></i> PDF em preparação. Assim que estiver pronto, aparecerá aqui automaticamente.'+
+        '<i class="ri-information-line"></i> O PDF completo está sendo preparado. Use o botão abaixo para baixar.'+
       '</div>'+
       '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
       '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
@@ -16959,8 +16953,9 @@ async function _renderPortal(token){
       '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
       '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
       (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
+      '<div style="margin-top:12px;font-size:.75rem;color:#94a3b8;text-align:center;"><i class="ri-information-line"></i> PDF em preparação. Recarregue a página em alguns instantes.</div>'+
       '</div>';
-    // [FIX-v56-4] Botão "Gerar e baixar PDF" removido do portal — cliente não deve fazer download.
+    // [FIX-v57] Botão "Gerar e baixar PDF" removido — cliente não deve gerar/baixar PDF.
   }
 
   // Histórico de atendimentos do mesmo CNPJ
@@ -17820,94 +17815,120 @@ else _init();
 </div>
 
 <style>
-/* ── Cards redesenhados — Meus Atendimentos (escopo: #telaMeus) ──── */
+/* ── Cards — Meus Atendimentos ──────────────────────────────────── */
+/* Desktop: fundo branco/claro, texto escuro (painel claro) */
 #telaMeus .relatorio-card {
-  background: linear-gradient(145deg, #111c33 0%, #1a2e50 55%, #0e1c35 100%) !important;
-  border: 1px solid rgba(99,179,237,.16) !important;
-  border-radius: 18px !important;
-  padding: 16px 15px !important;
+  background: #fff !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  border-radius: 14px !important;
+  padding: 14px 15px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 0 !important;
-  color: #e2e8f0 !important;
+  color: #0f172a !important;
   transition: box-shadow .2s ease, transform .18s ease, border-color .2s ease !important;
-  margin-bottom: 12px !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  margin-bottom: 10px !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,.07) !important;
   position: relative !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 #telaMeus .relatorio-card::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #f97316 0%, #114f91 60%, transparent 100%);
-  border-radius: 18px 18px 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f97316 0%, #114f91 100%);
+  border-radius: 14px 14px 0 0;
 }
-#telaMeus .relatorio-card:active {
-  box-shadow: 0 8px 32px rgba(249,115,22,.16), 0 4px 20px rgba(0,0,0,.38) !important;
+#telaMeus .relatorio-card:hover {
+  box-shadow: 0 4px 18px rgba(17,79,145,.13) !important;
+  border-color: rgba(17,79,145,.25) !important;
   transform: translateY(-1px) !important;
-  border-color: rgba(249,115,22,.35) !important;
 }
 #telaMeus .relatorio-card.visto {
-  background: linear-gradient(145deg,#0b1e10 0%,#122a18 55%,#0b1e10 100%) !important;
-  border-color: rgba(34,197,94,.2) !important;
+  background: #f0fdf4 !important;
+  border-color: rgba(34,197,94,.25) !important;
 }
 #telaMeus .relatorio-card.visto::before {
-  background: linear-gradient(90deg, #22c55e 0%, #16a34a 60%, transparent 100%);
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
 }
 /* Número RAT */
 #telaMeus .relatorio-card strong {
-  font-size: .93rem;
-  color: #f1f5f9;
-  letter-spacing: .01em;
+  font-size: .88rem !important;
+  color: #0f172a !important;
+  letter-spacing: .01em !important;
 }
-/* Nome do cliente */
+/* Nome do cliente — mantém a cor inline do JS (#1f2937) */
 #telaMeus .relatorio-card [style*="color:#1f2937"] {
-  color: #94a3b8 !important;
+  color: #1f2937 !important;
   font-size: .78rem !important;
 }
-/* Data */
+/* Data — mantém a cor inline do JS (#4b5563) */
 #telaMeus .relatorio-card [style*="color:#4b5563"] {
-  color: #64748b !important;
-  font-size: .71rem !important;
-  margin-top: 8px !important;
+  color: #4b5563 !important;
+  font-size: .72rem !important;
 }
-/* Acoes — row de botões */
+/* Botões de ação */
 #telaMeus .relatorio-card .relatorio-acoes {
-  margin-top: 12px !important;
+  margin-top: 10px !important;
   gap: 6px !important;
   flex-wrap: wrap !important;
+  display: flex !important;
 }
 #telaMeus .relatorio-card .relatorio-acoes .btn.small {
-  background: rgba(255,255,255,.06) !important;
-  border: 1px solid rgba(148,163,184,.18) !important;
-  color: #cbd5e1 !important;
-  border-radius: 10px !important;
-  font-size: .68rem !important;
-  padding: 6px 11px !important;
-}
-#telaMeus .relatorio-card .relatorio-acoes .btn.small:active {
-  background: rgba(249,115,22,.14) !important;
-  border-color: rgba(249,115,22,.38) !important;
-  color: #fb923c !important;
-}
-/* Botão editar */
-#telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
-  background: rgba(59,130,246,.1) !important;
-  border-color: rgba(59,130,246,.28) !important;
-  color: #93c5fd !important;
-}
-/* Botão WhatsApp */
-#telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
-  background: rgba(34,197,94,.08) !important;
-  border-color: rgba(34,197,94,.28) !important;
-  color: #86efac !important;
+  font-size: .72rem !important;
+  padding: 5px 10px !important;
+  border-radius: 8px !important;
 }
 /* Badge status */
 #telaMeus .relatorio-card .badge-status {
-  font-size: .58rem !important;
+  font-size: .62rem !important;
   padding: 3px 10px 4px !important;
+  white-space: nowrap !important;
+}
+
+/* Mobile (≤880px): tema escuro — sidebar recolhida, fundo global escuro */
+@media (max-width: 880px) {
+  #telaMeus .relatorio-card {
+    background: linear-gradient(145deg, #111c33 0%, #1a2e50 55%, #0e1c35 100%) !important;
+    border-color: rgba(99,179,237,.16) !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04) !important;
+    margin-bottom: 12px !important;
+  }
+  #telaMeus .relatorio-card:active {
+    box-shadow: 0 8px 32px rgba(249,115,22,.16) !important;
+    border-color: rgba(249,115,22,.35) !important;
+    transform: translateY(-1px) !important;
+  }
+  #telaMeus .relatorio-card.visto {
+    background: linear-gradient(145deg,#0b1e10 0%,#122a18 55%,#0b1e10 100%) !important;
+    border-color: rgba(34,197,94,.2) !important;
+  }
+  #telaMeus .relatorio-card strong {
+    color: #f1f5f9 !important;
+  }
+  #telaMeus .relatorio-card [style*="color:#1f2937"] {
+    color: #94a3b8 !important;
+  }
+  #telaMeus .relatorio-card [style*="color:#4b5563"] {
+    color: #64748b !important;
+  }
+  #telaMeus .relatorio-card .relatorio-acoes .btn.small {
+    background: rgba(255,255,255,.06) !important;
+    border-color: rgba(148,163,184,.18) !important;
+    color: #cbd5e1 !important;
+  }
+  #telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
+    background: rgba(59,130,246,.1) !important;
+    border-color: rgba(59,130,246,.28) !important;
+    color: #93c5fd !important;
+  }
+  #telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
+    background: rgba(34,197,94,.08) !important;
+    border-color: rgba(34,197,94,.28) !important;
+    color: #86efac !important;
+  }
 }
 </style>
 
