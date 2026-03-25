@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v55
-  Correções v55b (Portal do Cliente — tela azul em branco):
+  Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
   - _verificarUrl() aumenta timeout para 18s e aceita SDK disponível mesmo sem db inicializado
@@ -5809,19 +5809,14 @@ function autoFillCamposAtendimento(){
     }
 
     var _ehMobile = window.matchMedia('(max-width: 880px)').matches;
-    // [FIX-v54-2] Botão voltar Android: cria profundidade suficiente no histórico do browser.
-    // replaceState(state) apenas sobrescreve o estado atual sem adicionar entrada nova.
-    // Se for a única entrada no histórico, o primeiro "voltar" consome-a e sai do PWA.
-    // Solução: pushState de um estado sentinela primeiro, depois replaceState da tela real.
-    // Resultado: histórico tem ≥2 entradas → Android intercepta o 1º voltar internamente.
+    // [FIX-v55c] Botão voltar Android: garante SEMPRE ≥2 entradas no histórico.
+    // A versão anterior só empurrava sentinela se o state era nulo — mas em PWA
+    // instalado o state pode ter valor de sessão anterior, pulando o sentinela.
+    // Solução: empurra sentinela incondicionalmente ao entrar no sistema.
     try {
       var _telaPadraoInit = _ehMobile ? '__home__' : (isSupervisorOrAdmin(user) ? 'painel' : 'novo');
-      // Empurra sentinela somente se o histórico está "raso" (state nulo ou __init__)
-      var _stateAtual = history.state;
-      if (!_stateAtual || _stateAtual.tela === '__init__' || !_stateAtual.tela) {
-        history.pushState({ tela: '__app_root__' }, '', ''); // sentinela de profundidade
-      }
-      history.replaceState({ tela: _telaPadraoInit }, '', '');
+      history.pushState({ tela: '__app_root__' }, '', ''); // sentinela — garante profundidade
+      history.replaceState({ tela: _telaPadraoInit }, '', ''); // tela real por cima
     } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
@@ -8922,7 +8917,14 @@ if (logoBase64) {
       const oldNovoClick = mNovoEl.onclick;
       mNovoEl.onclick = function(ev) {
         if (typeof oldNovoClick === 'function') oldNovoClick(ev);
-        setTimeout(verificarRascunho, 300);
+        // [FIX-v55c] Guarda dupla: só verifica rascunho após login completo
+        setTimeout(function() {
+          if (typeof verificarRascunho === 'function'
+              && window.usuarioLogado
+              && !window._editandoRelatorioId) {
+            verificarRascunho();
+          }
+        }, 300);
       };
     }
     // Também verifica quando o sistema abre tela 'novo' — chamado em mostrarTela('novo')
@@ -13028,18 +13030,24 @@ async function renderMeus(){
       }
     }
 
-    // [FIX-v43] Injeta pendentes offline (salvos sem conexão) na lista
-    // Eles vivem em STORAGE_PENDENTES separado e não aparecem no Firestore ainda
+    // [FIX-v55c] Injeta pendentes offline — marca TODOS os itens que estão em STORAGE_PENDENTES
+    // com _pendente:true, mesmo que já estejam em todos[] (podem ter chegado via saveRelatorios).
+    // Versão anterior só adicionava itens AUSENTES de todos[], deixando pendentes já presentes
+    // sem o badge "Aguardando envio".
     try {
       var _pendMeus = typeof loadPendentes === 'function' ? loadPendentes() : [];
       if (_pendMeus && _pendMeus.length) {
+        var _idsPend = new Set(_pendMeus.filter(function(p){ return !p._deleted; }).map(function(p){ return p.id; }));
+        // Marca como pendente os que já estão em todos
+        todos = (todos||[]).map(function(r) {
+          if (_idsPend.has(r.id) && !r._pendente) return Object.assign({}, r, { _pendente: true });
+          return r;
+        });
+        // Adiciona os que ainda não estão em todos
         var _idsEmTodos = new Set((todos||[]).map(function(r){ return r.id; }));
         _pendMeus.forEach(function(p) {
           if (!p._deleted && !_idsEmTodos.has(p.id)) {
-            // [FIX-v43b] Copia o objeto para não mutar o original em memória/storage
-            var _pCopy = Object.assign({}, p, { _pendente: true });
-            todos = todos || [];
-            todos.push(_pCopy);
+            todos.push(Object.assign({}, p, { _pendente: true }));
           }
         });
       }
@@ -15134,17 +15142,18 @@ async function fazerLogin(){
 (function() {
   if (!('serviceWorker' in navigator)) return;
 
-  var SW_VERSION = 'onlinees-v10';
+  // [FIX-v55c] SW_VERSION incrementado a cada deploy para forçar activate
+  // e limpar cache antigo nos dispositivos dos técnicos.
+  var SW_VERSION = 'onlinees-v11';
   var CACHE_ASSETS = [
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
     'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
     'https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css',
-    // [LAZY] jsPDF e Chart.js removidos do pré-cache: carregados sob demanda.
   ];
 
   var swCode = `
-    var CACHE = 'onlinees-v10';
+    var CACHE = 'onlinees-v11';
     var CACHE_FONTS = 'onlinees-fonts-v1';
 
     // Assets CDN — pré-cacheados no install
@@ -15266,18 +15275,40 @@ async function fazerLogin(){
     var swUrl = URL.createObjectURL(blob);
     navigator.serviceWorker.register(swUrl)
       .then(function(reg) {
-        URL.revokeObjectURL(swUrl); // [Y-06] libera blob após registro bem-sucedido
+        URL.revokeObjectURL(swUrl);
         console.log('✅ Service Worker registrado (PWA offline ativo).');
-        // [OFFLINE] Cacheia a página atual após registro do SW
-        caches.open('onlinees-v10').then(function(cache) {
+        caches.open('onlinees-v11').then(function(cache) {
           cache.add(window.location.href).catch(function(){});
-          // Também tenta cachear Poppins se disponível
           cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
         });
+
+        // [FIX-v55c] Detecta atualização disponível e avisa o usuário para recarregar.
+        // Sem isso, o SW antigo continua ativo mesmo após deploy — bugs "corrigidos" voltam.
+        reg.addEventListener('updatefound', function() {
+          var newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', function() {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Há uma nova versão instalada aguardando ativação
+              // Mostra banner de atualização não intrusivo
+              try {
+                var _banner = document.createElement('div');
+                _banner.id = 'swUpdateBanner';
+                _banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#114f91;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:Poppins,system-ui,sans-serif;font-size:.82rem;box-shadow:0 -4px 20px rgba(0,0,0,.3);';
+                _banner.innerHTML =
+                  '<span><i class="ri-refresh-line" style="margin-right:6px;"></i>Nova versão disponível.</span>' +
+                  '<button onclick="window.location.reload()" style="background:#f97316;border:none;color:#fff;padding:7px 16px;border-radius:999px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">Atualizar agora</button>';
+                document.body.appendChild(_banner);
+              } catch(eBanner) {}
+            }
+          });
+        });
+
+        // Verifica se já há uma atualização pendente ao registrar
+        reg.update().catch(function(){});
       })
       .catch(function(err) {
-        URL.revokeObjectURL(swUrl); // [Y-06] libera blob mesmo em caso de falha
-        // Fallback: tenta via data URL
+        URL.revokeObjectURL(swUrl);
         try {
           var swDataUrl = 'data:application/javascript;charset=utf-8,' + encodeURIComponent(swCode);
           navigator.serviceWorker.register(swDataUrl)
