@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v60
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v61
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16671,9 +16671,54 @@ window._urlPortal=function(token){
 //    se o projeto tiver Auth habilitado)
 // 3. Nenhuma auth — REST fallback em _buscarRat tenta sem Bearer (depende das rules)
 async function _garantirAuthPortal() {
-  // [FIX-v57] Portal não depende mais de autenticação anônima.
-  // As regras do Firestore permitem leitura pública por portalToken (sem auth).
-  // Esta função é mantida como no-op para compatibilidade com chamadas existentes.
+  // [FIX-v60] Restaura autenticação anônima — necessária porque a API key tem
+  // restrições de referrer que bloqueiam chamadas REST sem Bearer token.
+  // signInAnonymously dá um uid temporário que satisfaz request.auth != null.
+  try {
+    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+    if (!_auth) return;
+    if (_auth.currentUser) return; // já autenticado (técnico logado ou sessão anon anterior)
+
+    // Tentativa 1: SDK signInAnonymously
+    try {
+      await _auth.signInAnonymously();
+      if (_auth.currentUser) {
+        console.log('[Portal] Auth anônima via SDK — OK');
+        return;
+      }
+    } catch(eAnon) {
+      if (eAnon && eAnon.code !== 'auth/operation-not-allowed') {
+        console.warn('[Portal] signInAnonymously erro:', eAnon.message||eAnon);
+      }
+      // Se desabilitado, tenta REST
+    }
+
+    // Tentativa 2: Identity Toolkit REST signup anônimo
+    try {
+      var _cfg = window.firebaseConfig || {};
+      if (_cfg.apiKey) {
+        var _resp = await fetch(
+          'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + _cfg.apiKey,
+          { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({returnSecureToken:true}) }
+        );
+        if (_resp.ok) {
+          var _data = await _resp.json();
+          if (_data.idToken) {
+            window._portalAnonToken = _data.idToken;
+            window._portalAnonTokenExp = Date.now() + (_data.expiresIn ? parseInt(_data.expiresIn,10)*1000 : 3600000);
+            console.log('[Portal] Auth anônima via Identity Toolkit REST — OK');
+            return;
+          }
+        }
+      }
+    } catch(eRest) {
+      console.warn('[Portal] Identity Toolkit REST falhou:', eRest.message||eRest);
+    }
+
+    console.warn('[Portal] Sem auth anônima — portal depende de regras públicas.');
+  } catch(eFatal) {
+    console.warn('[Portal] _garantirAuthPortal erro (ignorado):', eFatal.message||eFatal);
+  }
 }
 
 // ── Obter token de auth para REST (anônimo ou técnico) ───
@@ -16722,6 +16767,9 @@ function _aguardarAuth() {
 
 async function _buscarRat(token){
   if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
+
+  // [FIX-v61] Garante auth anônima antes de qualquer chamada REST
+  await _garantirAuthPortal();
 
   var _cfg = window.firebaseConfig || {};
   var _pid = _cfg.projectId;
@@ -16903,6 +16951,8 @@ async function _renderPortal(token){
   }
   _registrarVisto(token);
 
+  // [FIX-v60] Garante auth anônima antes de buscar PDF (mesma razão do _buscarRat)
+  await _garantirAuthPortal();
   // [FIX-v57] Busca PDF — REST sem auth primeiro (regra pública por token), SDK depois
   el.innerHTML='<div class="portal-loading"><i class="ri-file-pdf-line"></i> Carregando seu PDF...</div>';
   var pdfB64 = null;
