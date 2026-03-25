@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v58b
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v58c
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16640,9 +16640,9 @@ window._gerarTokenPortal = async function(rat){
     }
   } catch(ePdf) { console.warn('[Portal] Falha ao salvar PDF no Firestore (portal ainda funcionará com fallback):', ePdf.message || ePdf); }
 
-  return token;tal) {
+  return token;
+  } catch(eFatal) {
     // [FIX-v54-4] Barreira final: nunca lança exceção para o chamador.
-    // Se chegar aqui, retorna token já salvo no objeto ou null (chamador trata null graciosamente).
     console.warn('[Portal] _gerarTokenPortal: erro inesperado (ignorado):', eFatal.message || eFatal);
     return rat.portalToken || null;
   }
