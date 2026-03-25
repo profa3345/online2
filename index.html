@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v59b
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v59c
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -2139,8 +2139,8 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinatura">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
-            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
-              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar canvas</span>
+            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar assinatura</span>
             </button>
             <button type="button" class="btn small" id="btnModoTouchpad">
               <i class="ri-mouse-line"></i> Modo Touchpad: OFF
@@ -2211,8 +2211,8 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinaturaTec">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
-            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
-              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar canvas</span>
+            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar assinatura</span>
             </button>
             <small id="sigStatusTec" style="font-size:.68rem;color:#0f172a;"></small>
           </div>
@@ -11059,14 +11059,14 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _btnTravarSigCli.style.borderColor = 'rgba(220,38,38,.4)';
       _btnTravarSigCli.style.color = '#dc2626';
       if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-line';
-      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Canvas travado';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Assinatura travada';
       if (sigCanvas) { sigCanvas.style.opacity = '0.7'; sigCanvas.style.cursor = 'not-allowed'; }
     } else {
       _btnTravarSigCli.style.background = 'rgba(148,163,184,.12)';
       _btnTravarSigCli.style.borderColor = 'rgba(148,163,184,.35)';
       _btnTravarSigCli.style.color = '#475569';
       if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-unlock-line';
-      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar canvas';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar assinatura';
       if (sigCanvas) { sigCanvas.style.opacity = ''; sigCanvas.style.cursor = ''; }
     }
   }
@@ -11076,8 +11076,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _sigClienteTravado = !_sigClienteTravado;
       _atualizarBotaoTravaCli();
       showToast(_sigClienteTravado
-        ? '🔒 Canvas travado — role a tela livremente.'
-        : '🔓 Canvas desbloqueado — pode assinar agora.');
+        ? '🔒 Assinatura travada — role a tela livremente.'
+        : '🔓 Assinatura desbloqueada — pode assinar agora.');
       try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
     });
   }
@@ -11238,7 +11238,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _btnTravarSigTec.style.borderColor = 'rgba(220,38,38,.4)';
         _btnTravarSigTec.style.color = '#dc2626';
         if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-line';
-        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Canvas travado';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Assinatura travada';
         sigTecnicoCanvas.style.opacity = '0.7';
         sigTecnicoCanvas.style.cursor  = 'not-allowed';
       } else {
@@ -11246,7 +11246,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _btnTravarSigTec.style.borderColor = 'rgba(148,163,184,.35)';
         _btnTravarSigTec.style.color = '#475569';
         if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-unlock-line';
-        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar canvas';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar assinatura';
         sigTecnicoCanvas.style.opacity = '';
         sigTecnicoCanvas.style.cursor  = '';
       }
@@ -11257,8 +11257,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _sigTecTravado = !_sigTecTravado;
         _atualizarBotaoTravaTec();
         showToast(_sigTecTravado
-          ? '🔒 Canvas travado — role a tela livremente.'
-          : '🔓 Canvas desbloqueado — pode assinar agora.');
+          ? '🔒 Assinatura travada — role a tela livremente.'
+          : '🔓 Assinatura desbloqueada — pode assinar agora.');
         try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
       });
     }
