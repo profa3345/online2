@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v55
-  Correções v55c:
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v55fix
+  Correções v55fix:
+  - [PORTAL] CSP: adicionado frame-src blob: para permitir blob URLs em object/iframe
+  - [PORTAL] Substituído <iframe> por <object> com fallback — corrige tela azul no Edge
+  - [PORTAL] Mobile: detectado automaticamente, exibe botão de download direto (sem viewer inline)
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
   - _verificarUrl() aumenta timeout para 18s e aceita SDK disponível mesmo sem db inicializado
@@ -38,6 +41,7 @@
       https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com
       https://www.gstatic.com https://api.cep.la https://viacep.com.br https://images.unsplash.com;
     worker-src blob:;
+    frame-src blob:;
     object-src 'none';
     base-uri 'self';
   " />
@@ -16863,6 +16867,27 @@ async function _renderPortal(token){
     var blobUrl=URL.createObjectURL(blob);
     window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(blobUrl);}catch(e){}},{once:true});
 
+    // [FIX-v55c-IFRAME] Edge/corporativo bloqueia blob: em <iframe> — usar <object> com fallback para link de download
+    var _isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    var _viewerHtml;
+    if (_isMobile) {
+      // Mobile: iframe não funciona bem para PDF — mostra botão de download direto
+      _viewerHtml = '<div style="text-align:center;padding:24px 0;">'+
+        '<i class="ri-file-pdf-line" style="font-size:3rem;color:#f97316;display:block;margin-bottom:10px;"></i>'+
+        '<p style="color:#94a3b8;font-size:.82rem;margin:0 0 16px;">Toque no botão abaixo para abrir o PDF.</p>'+
+        '</div>';
+    } else {
+      // Desktop: <object> é mais compatível que <iframe> para blob: URLs
+      _viewerHtml =
+        '<object data="'+blobUrl+'" type="application/pdf" '+
+          'style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;">'+
+          // Fallback quando <object> também não funciona (Edge com policy restrita)
+          '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:.82rem;">'+
+            '<i class="ri-file-pdf-line" style="font-size:2.5rem;color:#f97316;display:block;margin-bottom:8px;"></i>'+
+            'Seu navegador não exibiu o PDF inline. Use o botão <strong>"Baixar PDF"</strong> acima.'+
+          '</div>'+
+        '</object>';
+    }
     el.innerHTML=
       '<div class="portal-card" style="padding:14px 16px;">'+
         '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
@@ -16875,9 +16900,7 @@ async function _renderPortal(token){
             '<i class="ri-download-2-line"></i> Baixar PDF'+
           '</a>'+
         '</div>'+
-        '<iframe src="'+blobUrl+'#toolbar=1&navpanes=0" '+
-          'style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;" '+
-          'title="Relatório PDF"></iframe>'+
+        _viewerHtml+
       '</div>';
 
   } else {
