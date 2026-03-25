@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v61
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v62
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16811,13 +16811,14 @@ async function _buscarRat(token){
   }
 
   if (_pid && _key) {
-    // Tentativa 1: REST sem auth — funciona com regra `'portalToken' in resource.data`
+    // Tentativa 1: REST sem auth — regra `'portalToken' in resource.data`
     try {
       var _rat1 = await _runQuery({});
       if (_rat1) { console.log('[Portal] RAT encontrada via REST sem auth.'); return _rat1; }
     } catch(e1) { console.warn('[Portal] REST sem auth falhou:', e1.message); }
 
-    // Tentativa 2: REST com auth (aguardado acima)
+    // Tentativa 2: REST com Bearer token (anônimo ou técnico)
+    // [FIX-v62] Envia o token já obtido por _aguardarAuth / _getAuthToken / _portalAnonToken
     try {
       var _authTok = _authUser ? await _authUser.getIdToken() : await _getAuthToken();
       if (_authTok) {
@@ -16965,7 +16966,8 @@ async function _renderPortal(token){
   if (_pidP && _keyP && !pdfB64) {
     try {
       var _pdfUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
-      var _pdfRes = await fetch(_pdfUrl);
+      var _pdfTok1 = await _getAuthToken(); // [FIX-v62] envia token anônimo se disponível
+      var _pdfRes = await fetch(_pdfUrl, _pdfTok1 ? {headers:{'Authorization':'Bearer '+_pdfTok1}} : {});
       if (_pdfRes.ok) {
         var _pdfJson = await _pdfRes.json();
         var _pdfFields = (_pdfJson && _pdfJson.fields) || {};
