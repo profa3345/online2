@@ -1,10 +1,15 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v55fix
-  Correções v55fix:
-  - [PORTAL] CSP: adicionado frame-src blob: para permitir blob URLs em object/iframe
-  - [PORTAL] Substituído <iframe> por <object> com fallback — corrige tela azul no Edge
-  - [PORTAL] Mobile: detectado automaticamente, exibe botão de download direto (sem viewer inline)
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v56
+  Correções v56:
+  - [BUG1] Rascunho: guard duplo (usuarioLogado + tela login oculta) impede showConfirm antes do login;
+    comparação de dono usa tecnicoLogin (exato) ou fullName como fallback para rascunhos antigos
+  - [BUG2] Botão voltar Android: replaceState+pushState garante ≥2 entradas no histórico ao entrar no sistema
+  - [BUG3] Meus Atendimentos: rascunho aparece mesmo sem .numero; deduplicação por _rascunhoCard evita
+    duplicatas; mesma correção aplicada em _renderMeusComCache
+  - [BUG4] Portal: download removido; cliente visualiza apenas (object inline ou nova aba no mobile);
+    botão "Gerar e baixar PDF" removido do fallback
+  Correções v55c (mantidas):
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
   - _verificarUrl() aumenta timeout para 18s e aceita SDK disponível mesmo sem db inicializado
@@ -41,7 +46,6 @@
       https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com
       https://www.gstatic.com https://api.cep.la https://viacep.com.br https://images.unsplash.com;
     worker-src blob:;
-    frame-src blob:;
     object-src 'none';
     base-uri 'self';
   " />
@@ -5819,8 +5823,11 @@ function autoFillCamposAtendimento(){
     // Solução: empurra sentinela incondicionalmente ao entrar no sistema.
     try {
       var _telaPadraoInit = _ehMobile ? '__home__' : (isSupervisorOrAdmin(user) ? 'painel' : 'novo');
-      history.pushState({ tela: '__app_root__' }, '', ''); // sentinela — garante profundidade
-      history.replaceState({ tela: _telaPadraoInit }, '', ''); // tela real por cima
+      // [FIX-v56-2] Empilha sentinela + tela real como 2 estados distintos.
+      // replaceState substituía o pushState anterior, deixando só 1 entrada — o 1º
+      // botão voltar no Android consumia essa única entrada e fechava o app.
+      history.replaceState({ tela: '__app_root__' }, '', ''); // substitui estado atual (raiz)
+      history.pushState({ tela: _telaPadraoInit }, '', '');   // tela real por cima → ≥2 entradas
     } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
@@ -8780,21 +8787,36 @@ if (logoBase64) {
   // Restaurar rascunho ao abrir Novo Atendimento
   async function verificarRascunho() {
     try {
-      // [FIX-v43] Só verifica após login — não exibe diálogo na tela de login
+      // [FIX-v56-1] Guard absoluto: usuário logado E tela de login já fechada.
+      // Impede showConfirm aparecer antes/durante login mesmo com timing desfavorável.
       if (!window.usuarioLogado) return;
+      var _tlEl = document.getElementById('telaLogin');
+      if (_tlEl && !_tlEl.classList.contains('hidden') && _tlEl.style.display !== 'none') return;
+
       const raw = localStorage.getItem(STORAGE_RASCUNHO);
       if (!raw) return;
       const r = JSON.parse(raw);
       if (!r || !r._rascunho) return;
 
-      // [FIX-v43] Só restaura se o rascunho pertence ao usuário atual
-      // O rascunho armazena r.tecnicoLogin (username) — compara com o usuário logado
+      // [FIX-v56-1] Comparação de dono: login (preferido) ou nome completo como fallback.
+      // Rascunhos sem tecnicoLogin (gravados antes da v43) são comparados pelo nome do técnico.
+      // Se não há nenhum identificador, exibe normalmente (compatibilidade com dados antigos).
       var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
-      var _loginRasc  = (r.tecnicoLogin || r.tecnico || '').toLowerCase();
-      // Se o rascunho tem tecnicoLogin definido e não bate com o usuário atual, ignora silenciosamente
-      if (r.tecnicoLogin && _loginRasc && _loginAtual && _loginRasc !== _loginAtual) {
-        console.log('[Rascunho] Pertence a outro usuário (' + _loginRasc + ') — ignorado para ' + _loginAtual);
-        return;
+      var _nomeAtual  = (window.usuarioLogado.fullName  || window.usuarioLogado.nome    || '').toLowerCase();
+      var _loginRasc  = (r.tecnicoLogin || '').toLowerCase();
+      var _nomeRasc   = (r.tecnico      || '').toLowerCase();
+      if (_loginRasc) {
+        // Tem login gravado: comparação exata
+        if (_loginAtual && _loginRasc !== _loginAtual) {
+          console.log('[Rascunho] Login não bate (' + _loginRasc + ' ≠ ' + _loginAtual + ') — ignorado.');
+          return;
+        }
+      } else if (_nomeRasc && _nomeAtual) {
+        // Sem login: compara pelo nome completo
+        if (_nomeRasc !== _nomeAtual) {
+          console.log('[Rascunho] Nome não bate (' + _nomeRasc + ' ≠ ' + _nomeAtual + ') — ignorado.');
+          return;
+        }
       }
 
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
@@ -13057,22 +13079,34 @@ async function renderMeus(){
       }
     } catch(e) {}
 
-    // [FIX-v43] Injeta rascunho atual (auto-save) na lista se pertencer ao usuário logado
+    // [FIX-v56-3] Injeta rascunho na lista mesmo sem .numero (rascunho recém-iniciado).
+    // Bug anterior: `_rRasc.numero` era exigido → rascunho sem número nunca aparecia.
     try {
       var _rawRasc = localStorage.getItem('online-es-rascunho-v1');
       if (_rawRasc) {
         var _rRasc = JSON.parse(_rawRasc);
-        if (_rRasc && _rRasc._rascunho && _rRasc.numero) {
+        if (_rRasc && _rRasc._rascunho) { // removido && _rRasc.numero
           var _loginAtualMeus = ((window.usuarioLogado||{}).username || (window.usuarioLogado||{}).usuario || '').toLowerCase();
+          var _nomeAtualMeus  = ((window.usuarioLogado||{}).fullName  || (window.usuarioLogado||{}).nome    || '').toLowerCase();
           var _loginRascMeus  = (_rRasc.tecnicoLogin || '').toLowerCase();
-          var _pertence = !_loginRascMeus || !_loginAtualMeus || _loginRascMeus === _loginAtualMeus;
+          var _nomeRascMeus   = (_rRasc.tecnico      || '').toLowerCase();
+          // Mesma lógica de verificarRascunho: login exato, fallback por nome, ou sem dono
+          var _pertence = true;
+          if (_loginRascMeus) {
+            _pertence = !_loginAtualMeus || _loginRascMeus === _loginAtualMeus;
+          } else if (_nomeRascMeus && _nomeAtualMeus) {
+            _pertence = _nomeRascMeus === _nomeAtualMeus;
+          }
           if (_pertence) {
             var _idsEmTodos2 = new Set((todos||[]).map(function(r){ return r.id; }));
-            if (!_idsEmTodos2.has(_rRasc.id)) {
-              // [FIX-v43b] Copia para não mutar o objeto do localStorage
+            // Usa id ou numero+tecnico como chave de deduplicação
+            var _jaEsta = _rRasc.id
+              ? _idsEmTodos2.has(_rRasc.id)
+              : (todos||[]).some(function(x){ return x._rascunhoCard; });
+            if (!_jaEsta) {
               var _rRascCopy = Object.assign({}, _rRasc, { _rascunhoCard: true });
               todos = todos || [];
-              todos.unshift(_rRascCopy); // rascunho no topo
+              todos.unshift(_rRascCopy);
             }
           }
         }
@@ -13424,12 +13458,18 @@ async function _renderMeusComCache() {
     var _rawRascC = localStorage.getItem('online-es-rascunho-v1');
     if (_rawRascC) {
       var _rC = JSON.parse(_rawRascC);
-      if (_rC && _rC._rascunho && _rC.numero) {
-        var _loginC = ((window.usuarioLogado||{}).username||'').toLowerCase();
+      if (_rC && _rC._rascunho) { // [FIX-v56-3] removido && _rC.numero
+        var _loginC  = ((window.usuarioLogado||{}).username||'').toLowerCase();
+        var _nomeC   = ((window.usuarioLogado||{}).fullName||'').toLowerCase();
         var _loginRC = (_rC.tecnicoLogin||'').toLowerCase();
-        if (!_loginRC || !_loginC || _loginRC === _loginC) {
+        var _nomeRC  = (_rC.tecnico||'').toLowerCase();
+        var _pertC = true;
+        if (_loginRC) { _pertC = !_loginC || _loginRC === _loginC; }
+        else if (_nomeRC && _nomeC) { _pertC = _nomeRC === _nomeC; }
+        if (_pertC) {
           var _idsC2 = new Set((todos||[]).map(function(r){ return r.id; }));
-          if (!_idsC2.has(_rC.id)) {
+          var _jaC = _rC.id ? _idsC2.has(_rC.id) : (todos||[]).some(function(x){ return x._rascunhoCard; });
+          if (!_jaC) {
             todos = [Object.assign({},_rC,{_rascunhoCard:true})].concat(todos);
           }
         }
@@ -16860,58 +16900,57 @@ async function _renderPortal(token){
   }
 
   if (pdfB64) {
-    // PDF disponível — exibir inline com iframe + botão download
+    // [FIX-v56-4] PDF disponível — exibir inline somente para visualização.
+    // Download removido do portal: cliente visualiza, não baixa.
     var bstr=atob(pdfB64), n=bstr.length, u8=new Uint8Array(n);
     for(var i=0;i<n;i++) u8[i]=bstr.charCodeAt(i);
     var blob=new Blob([u8],{type:'application/pdf'});
     var blobUrl=URL.createObjectURL(blob);
     window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(blobUrl);}catch(e){}},{once:true});
 
-    // [FIX-v55c-IFRAME] Edge/corporativo bloqueia blob: em <iframe> — usar <object> com fallback para link de download
     var _isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     var _viewerHtml;
     if (_isMobile) {
-      // Mobile: iframe não funciona bem para PDF — mostra botão de download direto
-      _viewerHtml = '<div style="text-align:center;padding:24px 0;">'+
-        '<i class="ri-file-pdf-line" style="font-size:3rem;color:#f97316;display:block;margin-bottom:10px;"></i>'+
-        '<p style="color:#94a3b8;font-size:.82rem;margin:0 0 16px;">Toque no botão abaixo para abrir o PDF.</p>'+
+      // Mobile: viewers inline não funcionam bem — botão abre em nova aba (sem download)
+      _viewerHtml =
+        '<div style="text-align:center;padding:24px 0;">'+
+          '<i class="ri-file-pdf-line" style="font-size:3rem;color:#f97316;display:block;margin-bottom:10px;"></i>'+
+          '<p style="color:#94a3b8;font-size:.82rem;margin:0 0 16px;">Toque no botão abaixo para visualizar o PDF.</p>'+
+          '<a href="'+blobUrl+'" target="_blank" rel="noopener" '+
+            'style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:9px 20px;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none;box-shadow:0 4px 16px rgba(249,115,22,.35);">'+
+            '<i class="ri-eye-line"></i> Visualizar PDF'+
+          '</a>'+
         '</div>';
     } else {
-      // Desktop: <object> é mais compatível que <iframe> para blob: URLs
+      // Desktop: <object> com fallback — sem atributo download
       _viewerHtml =
         '<object data="'+blobUrl+'" type="application/pdf" '+
           'style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;">'+
-          // Fallback quando <object> também não funciona (Edge com policy restrita)
           '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:.82rem;">'+
             '<i class="ri-file-pdf-line" style="font-size:2.5rem;color:#f97316;display:block;margin-bottom:8px;"></i>'+
-            'Seu navegador não exibiu o PDF inline. Use o botão <strong>"Baixar PDF"</strong> acima.'+
+            'Seu navegador não exibiu o PDF inline. '+
+            '<a href="'+blobUrl+'" target="_blank" rel="noopener" style="color:#f97316;">Clique aqui para visualizar</a>.'+
           '</div>'+
         '</object>';
     }
+
     el.innerHTML=
       '<div class="portal-card" style="padding:14px 16px;">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
-          '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;">'+
-            '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
-            'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
-          '</div>'+
-          '<a href="'+blobUrl+'" download="'+_ep(pdfNome)+'" '+
-            'style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:9px 20px;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none;box-shadow:0 4px 16px rgba(249,115,22,.35);">'+
-            '<i class="ri-download-2-line"></i> Baixar PDF'+
-          '</a>'+
+        '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;margin-bottom:12px;">'+
+          '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
+          'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
         '</div>'+
         _viewerHtml+
       '</div>';
 
   } else {
-    // PDF não encontrado na coleção (link antigo ou falha ao salvar)
-    // Exibe resumo dos dados + botão para download manual
+    // PDF não pré-gerado — exibe resumo dos campos (sem botão de download)
     var sc=_sc(rat.status);
     el.innerHTML=
       '<div class="portal-card">'+
       '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
       '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
-        '<i class="ri-information-line"></i> O PDF completo está sendo preparado. Use o botão abaixo para baixar.'+
+        '<i class="ri-information-line"></i> PDF em preparação. Assim que estiver pronto, aparecerá aqui automaticamente.'+
       '</div>'+
       '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
       '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
@@ -16920,25 +16959,8 @@ async function _renderPortal(token){
       '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
       '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
       (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
-      '<br><button class="portal-pdf-btn" id="portalBtnPdf"><i class="ri-file-pdf-line"></i> Gerar e baixar PDF</button>'+
       '</div>';
-
-    var btnPdf=document.getElementById('portalBtnPdf');
-    if(btnPdf) btnPdf.onclick=function(){
-      btnPdf.disabled=true;
-      btnPdf.innerHTML='<i class="ri-loader-4-line"></i> Gerando PDF...';
-      (async function(){
-        try{
-          if(typeof window._ensureJsPDF==='function') await window._ensureJsPDF();
-          await window.exportarPDF(Object.assign({},rat));
-        }catch(e){
-          if(typeof showToast==='function') showToast('❌ Não foi possível gerar o PDF.',5000);
-        }finally{
-          btnPdf.disabled=false;
-          btnPdf.innerHTML='<i class="ri-file-pdf-line"></i> Gerar e baixar PDF';
-        }
-      })();
-    };
+    // [FIX-v56-4] Botão "Gerar e baixar PDF" removido do portal — cliente não deve fazer download.
   }
 
   // Histórico de atendimentos do mesmo CNPJ
