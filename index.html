@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v58c
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v59
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -6477,6 +6477,7 @@ function autoFillCamposAtendimento(){
 
     // [NAV-BACK] Reseta stack de navegação ao deslogar
     try { window._telaStack = []; if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
+    try { if (window._syncPendentesInterval) { clearInterval(window._syncPendentesInterval); window._syncPendentesInterval = null; } } catch(e) {} // [FIX-v58c]
 
     app.style.display='none';
     var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden';
@@ -10133,7 +10134,7 @@ if (logoBase64) {
     }, 2000);
   });
   // [OFFLINE] Sync inteligente: roda a cada 30s se há pendentes, idle se não há
-  setInterval(function(){
+  window._syncPendentesInterval = setInterval(function(){
     try {
       var _n = (typeof loadPendentes === 'function' ? loadPendentes() : pendentes || []).length;
       if (_n > 0 && navigator.onLine) syncPendentes();
@@ -16864,6 +16865,7 @@ async function _renderPortal(token){
   var el=document.getElementById('portalConteudo');
   if(!el) return;
   el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório...</div>';
+  try { // [FIX-v58c] Guard global — impede tela azul vazia em caso de exceção inesperada
 
   // [FIX-v44] Lê o PDF pré-gerado de onlineEsPortalPdfs/{token} — salvo quando o técnico
   // gerou o link. O cliente não precisa gerar nada; apenas lê e visualiza.
@@ -17027,6 +17029,16 @@ async function _renderPortal(token){
       window.history.replaceState((history.state&&history.state.tela)?history.state:null,'','?rat='+t);
     };
   });
+  } catch(eFatalPortal) {
+    // [FIX-v58c] Captura qualquer exceção — nunca deixa tela azul vazia
+    console.error('[Portal] Erro fatal em _renderPortal:', eFatalPortal);
+    if (el) el.innerHTML =
+      '<div class="portal-not-found">' +
+        '<h2><i class="ri-error-warning-line"></i> Erro ao carregar</h2>' +
+        '<p>Ocorreu um erro inesperado.<br>Recarregue a página ou entre em contato com a ONLINE-ES.</p>' +
+        '<button onclick="location.reload()" style="margin-top:12px;padding:8px 18px;border-radius:8px;background:#114f91;color:#fff;border:none;cursor:pointer;font-size:.9rem;">Tentar novamente</button>' +
+      '</div>';
+  }
 }
 
 // ── Verificar URL e abrir portal ─────────────────────────
