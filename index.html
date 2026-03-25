@@ -16646,8 +16646,9 @@ async function _garantirAuthPortal() {
             window._portalAnonToken = _data.idToken;
             window._portalAnonTokenExp = Date.now() + (_data.expiresIn ? parseInt(_data.expiresIn,10)*1000 : 3600000);
             console.log('[Portal] Auth anônima via Identity Toolkit REST — OK');
-            // Tenta fazer o SDK reconhecer este token também
-            try { await _auth.signInWithCustomToken && _auth.signInWithCustomToken(_data.idToken); } catch(e){}
+            // [FIX-v56] signInWithCustomToken NÃO aceita idToken do Identity Toolkit —
+            // são formatos incompatíveis. Removido para evitar exceção silenciosa.
+            // O _portalAnonToken já é suficiente para as chamadas REST do Firestore.
             return;
           }
         }
@@ -16706,7 +16707,13 @@ async function _buscarRat(token){
     if(_pid && _key){
       var _authTok = await _getAuthToken();
       var _headers = {'Content-Type':'application/json'};
-      if(_authTok) _headers['Authorization'] = 'Bearer ' + _authTok;
+      if(_authTok) {
+        _headers['Authorization'] = 'Bearer ' + _authTok;
+      } else {
+        // [FIX-v56] Sem token de auth — as Security Rules provavelmente vão negar.
+        // Solução: habilite Anonymous Auth no Firebase Console (Authentication → Sign-in method → Anônimo).
+        console.warn('[Portal] Sem token de auth para REST. Habilite Anonymous Auth no Firebase Console.');
+      }
       var _restUrl = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
       var _body = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}};
       var _res = await fetch(_restUrl,{method:'POST',headers:_headers,body:JSON.stringify(_body)});
@@ -16795,7 +16802,7 @@ async function _renderPortal(token){
   // gerou o link. O cliente não precisa gerar nada; apenas lê e visualiza.
   var rat = await _buscarRat(token);
   if(!rat){
-    el.innerHTML='<div class="portal-not-found"><h2><i class="ri-error-warning-line"></i> Relatório não encontrado</h2><p>O link pode ter expirado ou ser inválido.<br>Entre em contato com a ONLINE-ES.</p></div>';
+    el.innerHTML='<div class="portal-not-found"><h2><i class="ri-error-warning-line"></i> Relatório não encontrado</h2><p>O link pode ter expirado, ser inválido ou ainda estar sendo processado.<br>Aguarde alguns segundos e <a href="javascript:location.reload()" style="color:#f97316;">tente novamente</a>.<br><br>Se o problema persistir, entre em contato com a ONLINE-ES.</p></div>';
     return;
   }
 
@@ -16812,7 +16819,8 @@ async function _renderPortal(token){
     rat.portalTokenCriado = _dataAssumida;
     try { var _dbLeg=_db(); if(_dbLeg){ var _sl=await _dbLeg.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get(); if(!_sl.empty) _sl.docs[0].ref.update({portalTokenCriado:_dataAssumida}).catch(function(){}); } } catch(e){}
   }
-  _registrarVisto(token);
+  // [FIX-v56] fire-and-forget — não bloqueia o carregamento do PDF se o update falhar
+  _registrarVisto(token).catch(function(){});
 
   // Busca PDF pré-gerado
   el.innerHTML='<div class="portal-loading"><i class="ri-file-pdf-line"></i> Carregando seu PDF...</div>';
@@ -16840,7 +16848,12 @@ async function _renderPortal(token){
       if (_pidP && _keyP) {
         var _authTokP = await _getAuthToken();
         var _hdrsP = {};
-        if (_authTokP) _hdrsP['Authorization'] = 'Bearer ' + _authTokP;
+        if (_authTokP) {
+          _hdrsP['Authorization'] = 'Bearer ' + _authTokP;
+        } else {
+          // [FIX-v56] Sem token — leitura de onlineEsPortalPdfs será negada pelas rules.
+          console.warn('[Portal] Sem token de auth para leitura do PDF. Habilite Anonymous Auth no Firebase Console.');
+        }
         var _pdfUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
         var _pdfRes = await fetch(_pdfUrl, { headers: _hdrsP });
         if (_pdfRes.ok) {
