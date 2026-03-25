@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v59c
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v60
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16701,6 +16701,25 @@ async function _getAuthToken() {
 // As regras do Firestore devem permitir leitura de onlineEsRelatorios quando
 // resource.data.portalToken != null (leitura pública por token).
 // Não depende mais de signInAnonymously nem de auth anônima.
+// [FIX-v60] Aguarda auth estar disponível (máx 5s) antes de tentar chamadas autenticadas
+function _aguardarAuth() {
+  return new Promise(function(resolve) {
+    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+    if (!_auth) { resolve(null); return; }
+    if (_auth.currentUser) { resolve(_auth.currentUser); return; }
+    var _unsub;
+    var _timer = setTimeout(function() {
+      if (_unsub) _unsub();
+      resolve(null);
+    }, 5000);
+    _unsub = _auth.onAuthStateChanged(function(user) {
+      clearTimeout(_timer);
+      if (_unsub) _unsub();
+      resolve(user);
+    });
+  });
+}
+
 async function _buscarRat(token){
   if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
 
@@ -16708,74 +16727,68 @@ async function _buscarRat(token){
   var _pid = _cfg.projectId;
   var _key = _cfg.apiKey;
 
-  // Tentativa 1: REST sem auth — funciona com regra `'portalToken' in resource.data` (sintaxe correta)
-  if (_pid && _key) {
-    try {
-      var _restUrl = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
-      var _body = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}};
-      var _res = await fetch(_restUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_body)});
-      if (_res.ok) {
-        var _json = await _res.json();
-        if (Array.isArray(_json) && _json[0] && _json[0].document) {
-          var _fields = _json[0].document.fields || {};
-          var _rat = {};
-          Object.keys(_fields).forEach(function(k){
-            var v = _fields[k];
-            if      (v.stringValue  !== undefined) _rat[k] = v.stringValue;
-            else if (v.integerValue !== undefined) _rat[k] = parseInt(v.integerValue, 10);
-            else if (v.booleanValue !== undefined) _rat[k] = v.booleanValue;
-            else if (v.arrayValue)                 _rat[k] = (v.arrayValue.values||[]).map(function(x){ return x.stringValue || x.integerValue || ''; });
-            else                                   _rat[k] = null;
-          });
-          if (_rat.portalToken === token) {
-            console.log('[Portal] RAT encontrada via REST sem auth.');
-            return _rat;
-          }
-        }
-      } else {
-        var _errText = await _res.text().catch(function(){ return ''; });
-        console.warn('[Portal] REST sem auth falhou:', _res.status, _errText.slice(0,200));
-      }
-    } catch(eRest) { console.warn('[Portal] REST sem auth — exceção:', eRest.message||eRest); }
+  // [FIX-v60] Aguarda auth state (máx 5s) — resolve o race condition onde
+  // _getAuthToken() retornava null porque currentUser ainda não estava disponível
+  var _authUser = await _aguardarAuth();
 
-    // Tentativa 2: REST com auth (técnico logado no mesmo browser)
-    try {
-      var _authTok = await _getAuthToken();
-      if (_authTok) {
-        var _res2 = await fetch(
-          'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key,
-          {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authTok}, body:JSON.stringify({structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}})}
-        );
-        if (_res2.ok) {
-          var _json2 = await _res2.json();
-          if (Array.isArray(_json2) && _json2[0] && _json2[0].document) {
-            var _f2 = _json2[0].document.fields || {};
-            var _r2 = {};
-            Object.keys(_f2).forEach(function(k){
-              var v=_f2[k];
-              if(v.stringValue!==undefined) _r2[k]=v.stringValue;
-              else if(v.integerValue!==undefined) _r2[k]=parseInt(v.integerValue,10);
-              else if(v.booleanValue!==undefined) _r2[k]=v.booleanValue;
-              else if(v.arrayValue) _r2[k]=(v.arrayValue.values||[]).map(function(x){return x.stringValue||x.integerValue||'';});
-              else _r2[k]=null;
-            });
-            if (_r2.portalToken === token) return _r2;
-          }
-        }
-      }
-    } catch(e2) { console.warn('[Portal] REST com auth falhou:', e2.message||e2); }
+  // Helper: converte campos Firestore REST para objeto JS
+  function _parseFields(fields) {
+    var obj = {};
+    Object.keys(fields).forEach(function(k){
+      var v = fields[k];
+      if      (v.stringValue  !== undefined) obj[k] = v.stringValue;
+      else if (v.integerValue !== undefined) obj[k] = parseInt(v.integerValue, 10);
+      else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
+      else if (v.arrayValue)                obj[k] = (v.arrayValue.values||[]).map(function(x){ return x.stringValue||x.integerValue||''; });
+      else                                  obj[k] = null;
+    });
+    return obj;
   }
 
-  // Tentativa 3: SDK Firestore (técnico logado no mesmo browser)
+  // Helper: faz runQuery e extrai RAT
+  async function _runQuery(headers) {
+    var _url = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
+    var _body = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}};
+    var _res = await fetch(_url, {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, headers), body:JSON.stringify(_body)});
+    if (!_res.ok) {
+      var _errText = await _res.text().catch(function(){ return ''; });
+      throw new Error(_res.status + ' ' + _errText.slice(0,200));
+    }
+    var _json = await _res.json();
+    if (Array.isArray(_json) && _json[0] && _json[0].document) {
+      var _rat = _parseFields(_json[0].document.fields || {});
+      if (_rat.portalToken === token) return _rat;
+    }
+    return null;
+  }
+
+  if (_pid && _key) {
+    // Tentativa 1: REST sem auth — funciona com regra `'portalToken' in resource.data`
+    try {
+      var _rat1 = await _runQuery({});
+      if (_rat1) { console.log('[Portal] RAT encontrada via REST sem auth.'); return _rat1; }
+    } catch(e1) { console.warn('[Portal] REST sem auth falhou:', e1.message); }
+
+    // Tentativa 2: REST com auth (aguardado acima)
+    try {
+      var _authTok = _authUser ? await _authUser.getIdToken() : await _getAuthToken();
+      if (_authTok) {
+        var _rat2 = await _runQuery({'Authorization':'Bearer '+_authTok});
+        if (_rat2) { console.log('[Portal] RAT encontrada via REST com auth.'); return _rat2; }
+      }
+    } catch(e2) { console.warn('[Portal] REST com auth falhou:', e2.message); }
+  }
+
+  // Tentativa 3: SDK Firestore
   try {
     var db = _db();
     if (db) {
       var snap = await db.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
-      if (!snap.empty) return snap.docs[0].data();
+      if (!snap.empty) { console.log('[Portal] RAT encontrada via SDK.'); return snap.docs[0].data(); }
     }
   } catch(eSDK) { console.warn('[Portal] SDK falhou:', eSDK.code || eSDK.message); }
 
-  // Tentativa 4: localStorage (técnico no mesmo dispositivo)
+  // Tentativa 4: localStorage
   try {
     var lista = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
     return lista.find(function(r){ return r.portalToken === token; }) || null;
@@ -16917,10 +16930,11 @@ async function _renderPortal(token){
     } catch(eRP){ console.warn('[Portal] REST PDF sem auth — exceção:', eRP.message||eRP); }
   }
 
-  // Tentativa 2: REST com auth (técnico logado)
+  // Tentativa 2: REST com auth (aguarda auth state — fix race condition)
   if (_pidP && _keyP && !pdfB64) {
     try {
-      var _authTokP = await _getAuthToken();
+      var _authUserP = await _aguardarAuth();
+      var _authTokP = _authUserP ? await _authUserP.getIdToken() : await _getAuthToken();
       if (_authTokP) {
         var _pdfUrl2 = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
         var _pdfRes2 = await fetch(_pdfUrl2, {headers:{'Authorization':'Bearer '+_authTokP}});
