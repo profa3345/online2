@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v58
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v58b
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16509,20 +16509,64 @@ window._gerarTokenPortal = async function(rat){
   // Firestore é best-effort: falha silenciosa não impede o envio da mensagem.
   try {
   if(rat.portalToken) {
-    // Já tem token — tenta sincronizar com Firestore (best-effort, não bloqueia)
+    // [FIX-v58] Token já existe — mas o PDF pode não ter sido salvo ainda (RATs antigas ou falha anterior).
+    // Sempre tenta (re)gerar e salvar o PDF antes de retornar o token.
+    var _tokenExist = rat.portalToken;
     if (navigator.onLine) {
-      try{
+      // Re-sincroniza o token no Firestore (merge, não sobrescreve)
+      try {
         var db=_db();
         if(db){
           var docIdExist=rat._firestoreId||rat.id;
           await db.collection('onlineEsRelatorios').doc(docIdExist).set(
-            {portalToken:rat.portalToken, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
+            {portalToken:_tokenExist, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
             {merge:true}
           );
         }
       }catch(e){console.warn('[Portal] re-save token (ignorado):', e.message||e);}
+
+      // Verifica se o PDF já existe — só regera se ausente (evita overhead desnecessário)
+      var _pdfJaExiste = false;
+      try {
+        var _cfgChk = window.firebaseConfig || {};
+        if (_cfgChk.projectId && _cfgChk.apiKey) {
+          var _chkRes = await fetch(
+            'https://firestore.googleapis.com/v1/projects/'+_cfgChk.projectId+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(_tokenExist)+'?key='+_cfgChk.apiKey
+          );
+          _pdfJaExiste = _chkRes.ok; // 200 = existe, 404 = não existe
+        }
+      } catch(eChk) {}
+
+      if (!_pdfJaExiste) {
+        // PDF ausente — gera e salva agora
+        try {
+          if (typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
+            await window._ensureJsPDF();
+            var _ratPdfEx = Object.assign({}, rat, { _somenteMemoria: true });
+            await window.exportarPDF(_ratPdfEx);
+            var _pdfB64Ex = window._lastPdfBase64;
+            var _pdfNomeEx = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
+            if (_pdfB64Ex && _pdfB64Ex.length <= 1300000) {
+              var _dbPdfEx = _db();
+              if (_dbPdfEx) {
+                await _dbPdfEx.collection('onlineEsPortalPdfs').doc(_tokenExist).set({
+                  token: _tokenExist,
+                  pdfB64: _pdfB64Ex,
+                  pdfNome: _pdfNomeEx,
+                  ratNumero: rat.numero || '',
+                  ratId: rat.id || '',
+                  criado: new Date().toISOString()
+                });
+                console.log('[Portal] PDF (re)gerado e salvo para token existente.');
+              }
+            } else if (_pdfB64Ex) {
+              console.warn('[Portal] PDF muito grande — não salvo no Firestore.');
+            }
+          }
+        } catch(ePdfEx) { console.warn('[Portal] Falha ao (re)gerar PDF (ignorado):', ePdfEx.message||ePdfEx); }
+      }
     }
-    return rat.portalToken;
+    return _tokenExist;
   }
   var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   var arr=new Uint8Array(20); crypto.getRandomValues(arr);
@@ -16553,7 +16597,7 @@ window._gerarTokenPortal = async function(rat){
     } catch(eP2){}
   }catch(e){console.warn('[Portal] save local (ignorado):', e.message||e);}
 
-  // 2. Salva no Firestore (best-effort — offline não bloqueia)
+  // 2. Salva token no Firestore (best-effort — offline não bloqueia)
   if (navigator.onLine) {
     try{
       var db=_db();
@@ -16567,9 +16611,7 @@ window._gerarTokenPortal = async function(rat){
     }catch(e){console.warn('[Portal] save firestore (ignorado, token local preservado):', e.message||e);}
   }
 
-  // [FIX-v44] Gera o PDF e salva em onlineEsPortalPdfs/{token} — coleção separada
-  // para não estourar o limite de 1MB do documento principal da RAT.
-  // O portal do cliente lê este documento diretamente, sem precisar gerar nada.
+  // 3. Gera PDF e salva em onlineEsPortalPdfs/{token} — só se online e PDF couber no Firestore
   try {
     if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
       await window._ensureJsPDF();
@@ -16592,15 +16634,13 @@ window._gerarTokenPortal = async function(rat){
               ratId: rat.id || '',
               criado: new Date().toISOString()
             });
-            // token omitido do log em produção
           }
         }
       }
     }
   } catch(ePdf) { console.warn('[Portal] Falha ao salvar PDF no Firestore (portal ainda funcionará com fallback):', ePdf.message || ePdf); }
 
-  return token;
-  } catch(eFatal) {
+  return token;tal) {
     // [FIX-v54-4] Barreira final: nunca lança exceção para o chamador.
     // Se chegar aqui, retorna token já salvo no objeto ou null (chamador trata null graciosamente).
     console.warn('[Portal] _gerarTokenPortal: erro inesperado (ignorado):', eFatal.message || eFatal);
