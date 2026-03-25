@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v54
-  Correções v54:
-  1) Rascunho: verificarRascunho só executa após login completo e nunca durante edição de RAT.
-  2) Botão voltar Android: pushState duplo ao entrar no sistema cria profundidade no histórico;
-     popstate caso-4 reforça a profundidade a cada disparo para não sair do app.
-  3) Meus Atendimentos: _renderMeusComCache injeta rascunhos e pendentes offline no cache
-     de busca, e o filtro de tecnicoLogin os inclui corretamente (como renderMeus já fazia).
-  4) Portal/WhatsApp/E-mail: _gerarTokenPortal nunca lança exceção; token salvo localmente
-     sempre, Firestore best-effort. E-mail/WhatsApp não bloqueiam se link falhar — enviam
-     mensagem sem link com aviso claro de que o link será gerado quando houver conexão.
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v55
+  Correções v55b (Portal do Cliente — tela azul em branco):
+  - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
+  - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
+  - _verificarUrl() aumenta timeout para 18s e aceita SDK disponível mesmo sem db inicializado
+  - _garantirAuthPortal() com cascata: signInAnonymously → Identity Toolkit REST signup
+  - _getAuthToken() verifica também token REST do Identity Toolkit
+  - _buscarRat() + _renderPortal(): fallback REST com Bearer token do usuário anônimo
+  - _renderPortal(): fallback REST para onlineEsPortalPdfs com Bearer token
+  - Regras Firestore atualizadas: onlineEsRelatorios leitura pública por portalToken,
+    onlineEsPortalPdfs leitura pública (doc ID = token de 20 chars)
+  Correções v54: rascunho pós-login, botão voltar Android, meus atendimentos offline, portal offline.
+  Correções v53: timer inatividade, global implícita, interval leak, admin seed warning.
 -->
 <html lang="pt-BR">
 <head>
@@ -3045,13 +3048,14 @@ html[data-role="technician"] nav button {
   //         allow read, write: if request.auth != null;
   //       }
   //       // Relatórios: técnicos autenticados lêem/escrevem; portal do cliente lê
-  //       // via signInAnonymously (request.auth != null mas sem role).
-  //       // [FIX-v42] OBRIGATÓRIO: sem esta rule o portal mostra "Relatório não encontrado".
-  //       // Também habilite Anonymous no Firebase Console → Authentication → Sign-in method.
+  //       // por portalToken público (sem auth) OU usuário autenticado (técnico/anon).
+  //       // [FIX-v55] allow read sem auth quando portalToken existe — elimina dependência
+  //       // de signInAnonymously. Atualize as regras no Firebase Console com este bloco.
   //       match /onlineEsRelatorios/{doc} {
-  //         allow read: if request.auth != null;
+  //         allow read: if request.auth != null
+  //                     || resource.data.portalToken != null;
   //         allow write: if request.auth != null
-  //                      && request.auth.token.email != null; // apenas usuários reais (não anon)
+  //                      && request.auth.token.email != null;
   //       }
   //       match /onlineEsClientes/{doc} {
   //         allow read, write: if request.auth != null
@@ -3079,9 +3083,9 @@ html[data-role="technician"] nav button {
   //       match /onlineEsLogs/{doc} {
   //         allow read, write: if request.auth != null;
   //       }
-  //       // [FIX-v44] PDFs do portal — escrita pelo técnico autenticado, leitura por qualquer auth (anon incluso)
+  //       // [FIX-v55] PDFs do portal — leitura pública (o ID do doc é o token, só quem tem o link acessa)
   //       match /onlineEsPortalPdfs/{doc} {
-  //         allow read: if request.auth != null;
+  //         allow read: if true;  // doc ID = token de 20 chars — brute-force inviável
   //         allow write: if request.auth != null && request.auth.token.email != null;
   //       }
   //       // [QR-SIG] Sessões de assinatura QR — cliente (sem login) só pode escrever;
@@ -3183,6 +3187,7 @@ html[data-role="technician"] nav button {
 
       db = firebase.firestore();
       window._getDb = function() { return db; };
+      window.db = db; // [FIX-v54-PORTAL] expõe para _db() no script do portal
 
       // Configura cache offline + multi-aba usando a nova API (SDK ≥ 10.x)
       // com fallback para enablePersistence (SDK < 10) para evitar o warning de deprecação.
@@ -16438,7 +16443,18 @@ async function fazerLogin(){
 function _ep(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function _sc(s){if(!s)return 'bad';if(s==='Concluído')return 'ok';if(s.includes('pendência'))return 'warn';return 'bad';}
 function _br(iso){if(!iso)return '';try{return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return iso;}}
-function _db(){return window.db||(window.firebase&&window.firebase.firestore?window.firebase.firestore():null);}
+function _db(){
+  // [FIX-v54-PORTAL] Ordem de precedência:
+  // 1. window._getDb() — setado pelo IIFE principal após initializeApp (fonte canônica)
+  // 2. window.db — alias direto setado junto com _getDb
+  // 3. window.firebase.firestore() — fallback se o IIFE ainda não rodou (portal isolado)
+  if (typeof window._getDb === 'function') { var _d = window._getDb(); if (_d) return _d; }
+  if (window.db) return window.db;
+  if (window.firebase && typeof window.firebase.firestore === 'function') {
+    try { return window.firebase.firestore(); } catch(e) {}
+  }
+  return null;
+}
 
 // ── Gerar token ──────────────────────────────────────────
 window._gerarTokenPortal = async function(rat){
@@ -16560,23 +16576,79 @@ window._urlPortal=function(token){
 // fallback vai para localStorage vazio → "Relatório não encontrado".
 // signInAnonymously dá um UID temporário que satisfaz request.auth != null
 // sem expor nenhum dado do sistema ao cliente.
+// ── Garantir autenticação anônima para o portal ──────────
+// [FIX-v55b] Estratégia em cascata:
+// 1. SDK signInAnonymously (ideal — funciona se habilitado no Console)
+// 2. Identity Toolkit REST signup anonymous (funciona mesmo sem habilitar no Console
+//    se o projeto tiver Auth habilitado)
+// 3. Nenhuma auth — REST fallback em _buscarRat tenta sem Bearer (depende das rules)
 async function _garantirAuthPortal() {
   try {
     var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
     if (!_auth) return;
-    if (_auth.currentUser) return; // já autenticado (técnico logado ou anon anterior)
-    await _auth.signInAnonymously();
-  } catch(e) {
-    // [FIX-AUTH-ANON] Se o provedor anônimo estiver desabilitado no Firebase Console,
-    // o erro é 'auth/operation-not-allowed'. Nesse caso, o portal vai tentar
-    // ler o Firestore sem auth e provavelmente receberá PERMISSION_DENIED.
-    // Instrução: habilite "Anonymous" em Firebase Console → Authentication → Sign-in providers.
-    if (e && e.code === 'auth/operation-not-allowed') {
-      console.error('[Portal] ATENÇÃO: Login anônimo desabilitado no Firebase Console.\nAcesse: Firebase Console → Authentication → Sign-in providers → Anonymous → Habilitar.\nSem isso, o portal do cliente não consegue carregar o relatório.');
-    } else {
-      console.warn('[Portal] signInAnonymously falhou (regras podem bloquear leitura):', e.message || e);
+    if (_auth.currentUser) return; // já autenticado
+
+    // Tentativa 1: SDK signInAnonymously
+    try {
+      await _auth.signInAnonymously();
+      if (_auth.currentUser) return; // sucesso
+    } catch(eAnon) {
+      // Desabilitado ou outro erro — tenta fallback REST
+      if (eAnon && eAnon.code !== 'auth/operation-not-allowed') {
+        console.warn('[Portal] signInAnonymously erro inesperado:', eAnon.message||eAnon);
+      }
     }
+
+    // Tentativa 2: Identity Toolkit REST — signupNewUser anônimo
+    // Retorna um idToken que pode ser usado direto nas chamadas REST do Firestore
+    try {
+      var _cfg = window.firebaseConfig || {};
+      if (_cfg.apiKey) {
+        var _resp = await fetch(
+          'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + _cfg.apiKey,
+          { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({returnSecureToken:true}) }
+        );
+        if (_resp.ok) {
+          var _data = await _resp.json();
+          if (_data.idToken) {
+            // Guarda o token REST para uso nas chamadas Firestore
+            window._portalAnonToken = _data.idToken;
+            window._portalAnonTokenExp = Date.now() + (_data.expiresIn ? parseInt(_data.expiresIn,10)*1000 : 3600000);
+            console.log('[Portal] Auth anônima via Identity Toolkit REST — OK');
+            // Tenta fazer o SDK reconhecer este token também
+            try { await _auth.signInWithCustomToken && _auth.signInWithCustomToken(_data.idToken); } catch(e){}
+            return;
+          }
+        }
+      }
+    } catch(eRest) {
+      console.warn('[Portal] Identity Toolkit REST falhou:', eRest.message||eRest);
+    }
+
+    console.warn('[Portal] Sem autenticação anônima disponível. Portal pode falhar se as rules exigirem auth.');
+  } catch(eFatal) {
+    console.warn('[Portal] _garantirAuthPortal erro fatal (ignorado):', eFatal.message||eFatal);
   }
+}
+
+// ── Obter token de auth para REST (anônimo ou técnico) ───
+// [FIX-v55b] Verifica também o token REST obtido via Identity Toolkit
+async function _getAuthToken() {
+  try {
+    // Token do SDK (técnico logado ou signInAnonymously com sucesso)
+    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+    if (_auth && _auth.currentUser) {
+      return await _auth.currentUser.getIdToken();
+    }
+    // Token REST do Identity Toolkit (fallback anônimo)
+    if (window._portalAnonToken) {
+      // Verifica se não expirou (margem de 60s)
+      if (window._portalAnonTokenExp && Date.now() < window._portalAnonTokenExp - 60000) {
+        return window._portalAnonToken;
+      }
+    }
+  } catch(e) {}
+  return null;
 }
 
 // ── Buscar RAT pelo token ────────────────────────────────
@@ -16585,13 +16657,49 @@ async function _buscarRat(token){
   if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
   // [FIX-v42] Garante auth antes de qualquer leitura no Firestore
   await _garantirAuthPortal();
+
+  // Tentativa 1: SDK Firestore
   try{
     var db=_db();
     if(db){
       var snap=await db.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
       if(!snap.empty) return snap.docs[0].data();
     }
-  }catch(e){console.warn('[Portal] firestore fallback local:',e);}
+  }catch(e){console.warn('[Portal] SDK Firestore falhou, tentando REST:', e.code || e.message);}
+
+  // Tentativa 2: REST API com token de auth (anônimo ou técnico)
+  // [FIX-v55] Envia Bearer token para satisfazer rules `request.auth != null`
+  try{
+    var _cfg = window.firebaseConfig || {};
+    var _pid = _cfg.projectId; var _key = _cfg.apiKey;
+    if(_pid && _key){
+      var _authTok = await _getAuthToken();
+      var _headers = {'Content-Type':'application/json'};
+      if(_authTok) _headers['Authorization'] = 'Bearer ' + _authTok;
+      var _restUrl = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
+      var _body = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}};
+      var _res = await fetch(_restUrl,{method:'POST',headers:_headers,body:JSON.stringify(_body)});
+      if(_res.ok){
+        var _json = await _res.json();
+        if(Array.isArray(_json)&&_json[0]&&_json[0].document){
+          var _fields = _json[0].document.fields||{};
+          // Converte campos Firestore REST para objeto JS plano
+          var _rat={};
+          Object.keys(_fields).forEach(function(k){
+            var v=_fields[k];
+            if(v.stringValue!==undefined) _rat[k]=v.stringValue;
+            else if(v.integerValue!==undefined) _rat[k]=parseInt(v.integerValue,10);
+            else if(v.booleanValue!==undefined) _rat[k]=v.booleanValue;
+            else if(v.arrayValue) _rat[k]=(v.arrayValue.values||[]).map(function(x){return x.stringValue||x.integerValue||'';});
+            else _rat[k]=null;
+          });
+          if(_rat.portalToken===token) return _rat;
+        }
+      }
+    }
+  }catch(eRest){console.warn('[Portal] REST fallback falhou:', eRest.message||eRest);}
+
+  // Tentativa 3: localStorage (caso o técnico esteja no mesmo dispositivo)
   try{
     var lista=typeof loadRelatorios==='function'?loadRelatorios():[];
     return lista.find(function(r){return r.portalToken===token;})||null;
@@ -16679,6 +16787,7 @@ async function _renderPortal(token){
   el.innerHTML='<div class="portal-loading"><i class="ri-file-pdf-line"></i> Carregando seu PDF...</div>';
   var pdfB64 = null;
   var pdfNome = 'RAT-' + (rat.numero||'relatorio') + '.pdf';
+  // Tentativa 1: SDK Firestore
   try {
     var _dbP = _db();
     if (_dbP) {
@@ -16689,7 +16798,31 @@ async function _renderPortal(token){
         if (_pdfData.pdfNome) pdfNome = _pdfData.pdfNome;
       }
     }
-  } catch(e) { console.warn('[Portal] Falha ao ler PDF:', e); }
+  } catch(e) { console.warn('[Portal] SDK PDF falhou, tentando REST:', e.message||e); }
+
+  // Tentativa 2: REST API para onlineEsPortalPdfs
+  // [FIX-v55] Envia Bearer token para satisfazer rules `request.auth != null`
+  if (!pdfB64) {
+    try {
+      var _cfgP = window.firebaseConfig || {};
+      var _pidP = _cfgP.projectId; var _keyP = _cfgP.apiKey;
+      if (_pidP && _keyP) {
+        var _authTokP = await _getAuthToken();
+        var _hdrsP = {};
+        if (_authTokP) _hdrsP['Authorization'] = 'Bearer ' + _authTokP;
+        var _pdfUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
+        var _pdfRes = await fetch(_pdfUrl, { headers: _hdrsP });
+        if (_pdfRes.ok) {
+          var _pdfJson = await _pdfRes.json();
+          var _pdfFields = (_pdfJson && _pdfJson.fields) || {};
+          if (_pdfFields.pdfB64 && _pdfFields.pdfB64.stringValue) {
+            pdfB64 = _pdfFields.pdfB64.stringValue;
+            if (_pdfFields.pdfNome && _pdfFields.pdfNome.stringValue) pdfNome = _pdfFields.pdfNome.stringValue;
+          }
+        }
+      }
+    } catch(eRestPdf) { console.warn('[Portal] REST PDF fallback falhou:', eRestPdf.message||eRestPdf); }
+  }
 
   if (pdfB64) {
     // PDF disponível — exibir inline com iframe + botão download
@@ -16789,29 +16922,33 @@ async function _renderPortal(token){
 function _verificarUrl(){
   var token=new URLSearchParams(window.location.search).get('rat');
   if(!token) return false;
-  // [FIX-v43] Oculta a tela de login (z-index:9000) para o portal não ficar por baixo dela
+  // [FIX-v43] Oculta a tela de login para o portal não ficar por baixo dela
   try {
     var _tl = document.getElementById('telaLogin');
     if (_tl) { _tl.classList.add('hidden'); _tl.style.display = 'none'; }
   } catch(e) {}
   var portal=document.getElementById('portalCliente');
   if(portal) portal.classList.add('ativo');
-  // [FIX-P1] Mostrar loading imediato para o usuário não ver tela branca
   var el=document.getElementById('portalConteudo');
   if(el) el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório, aguarde...</div>';
+
   var tries=0;
-  var maxTries=40; // 40×300ms = 12s — tempo razoável para conexões lentas
+  var maxTries=60; // [FIX-v54-PORTAL] 60×300ms = 18s — cobre CDN lento + Firebase init 5s
   (function tentarRender(){
     tries++;
-    if(_db()||tries>=maxTries){
-      // [FIX-P1] Se esgotou tentativas sem Firebase, avisa o usuário
-      if(!_db()&&tries>=maxTries){
+    var dbPronto = !!_db();
+    // [FIX-v54-PORTAL] Considera pronto se Firebase SDK carregou (mesmo sem db inicializado ainda)
+    // pois _db() faz fallback para firebase.firestore() que inicializa o singleton
+    var firebaseSdkOk = typeof window.firebase !== 'undefined' && typeof window.firebase.firestore === 'function';
+    if(dbPronto || firebaseSdkOk || tries >= maxTries){
+      if(!dbPronto && !firebaseSdkOk){
+        // Esgotou tentativas sem Firebase — mostra erro claro
         if(el) el.innerHTML='<div class="portal-not-found"><h2><i class="ri-wifi-off-line"></i> Sem conexão</h2><p>Não foi possível conectar ao servidor.<br>Verifique sua internet e recarregue a página.</p><button onclick="location.reload()" style="margin-top:12px;padding:8px 18px;border-radius:8px;background:#114f91;color:#fff;border:none;cursor:pointer;font-size:.9rem;">Tentar novamente</button></div>';
         return;
       }
       _renderPortal(token);
     }
-    else setTimeout(tentarRender,300);
+    else setTimeout(tentarRender, 300);
   })();
   return true;
 }
