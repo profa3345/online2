@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v63
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v64
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -17057,25 +17057,73 @@ async function _renderPortal(token){
       '</div>';
 
   } else {
-    // PDF não encontrado na coleção (link antigo ou falha ao salvar)
-    // Exibe resumo dos dados + botão para download manual
-    var sc=_sc(rat.status);
-    el.innerHTML=
-      '<div class="portal-card">'+
-      '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
-      '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
-        '<i class="ri-information-line"></i> O PDF completo está sendo preparado. Use o botão abaixo para baixar.'+
-      '</div>'+
-      '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
-      '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
-      '<div class="portal-campo"><span class="rot">Técnico:</span><span class="val">'+_ep(rat.tecnico)+'</span></div>'+
-      '<div class="portal-campo"><span class="rot">Cliente:</span><span class="val">'+_ep(rat.cliente)+'</span></div>'+
-      '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
-      '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
-      (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
-      '<div style="margin-top:12px;font-size:.75rem;color:#94a3b8;text-align:center;"><i class="ri-information-line"></i> PDF em preparação. Recarregue a página em alguns instantes.</div>'+
-      '</div>';
-    // [FIX-v57] Botão "Gerar e baixar PDF" removido — cliente não deve gerar/baixar PDF.
+    // PDF não encontrado — tenta gerar agora a partir dos dados da RAT já buscados
+    // [FIX-v63] Geração client-side no portal quando onlineEsPortalPdfs não tem o doc
+    var _pdfGerado = false;
+    if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
+      try {
+        el.innerHTML = '<div class="portal-loading"><i class="ri-loader-4-line"></i> Gerando relatório...</div>';
+        await window._ensureJsPDF();
+        var _ratGen = Object.assign({}, rat, { _somenteMemoria: true });
+        await window.exportarPDF(_ratGen);
+        var _b64Gen = window._lastPdfBase64;
+        var _nomeGen = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
+        if (_b64Gen && _b64Gen.length <= 1300000) {
+          // Salva para próximos acessos
+          try {
+            var _dbGen = _db();
+            if (_dbGen) {
+              var _authTokGen = await _getAuthToken();
+              if (_authTokGen) {
+                await _dbGen.collection('onlineEsPortalPdfs').doc(token).set({
+                  token: token, pdfB64: _b64Gen, pdfNome: _nomeGen,
+                  ratNumero: rat.numero||'', ratId: rat.id||'',
+                  criado: new Date().toISOString()
+                });
+                console.log('[Portal] PDF gerado e salvo pelo portal.');
+              }
+            }
+          } catch(eSave) { console.warn('[Portal] Falha ao salvar PDF gerado:', eSave.message||eSave); }
+          // Exibe
+          var _bstrG=atob(_b64Gen),_nG=_bstrG.length,_u8G=new Uint8Array(_nG);
+          for(var _iG=0;_iG<_nG;_iG++) _u8G[_iG]=_bstrG.charCodeAt(_iG);
+          var _blobG=new Blob([_u8G],{type:'application/pdf'});
+          var _blobUrlG=URL.createObjectURL(_blobG);
+          window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(_blobUrlG);}catch(e){}},{once:true});
+          var _isMobG = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          el.innerHTML=
+            '<div class="portal-card" style="padding:14px 16px;">'+
+              '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;margin-bottom:12px;">'+
+                '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
+                'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
+              '</div>'+
+              (_isMobG
+                ? '<div style="text-align:center;padding:16px 0;"><a href="'+_blobUrlG+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:10px 22px;font-size:.85rem;font-weight:700;text-decoration:none;"><i class="ri-eye-line"></i> Visualizar PDF</a></div>'
+                : '<object data="'+_blobUrlG+'" type="application/pdf" style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;"><div style="text-align:center;padding:24px;color:#64748b;font-size:.82rem;"><a href="'+_blobUrlG+'" target="_blank" rel="noopener" style="color:#f97316;">Clique aqui para visualizar</a>.</div></object>'
+              )+
+            '</div>';
+          _pdfGerado = true;
+        }
+      } catch(eGen) { console.warn('[Portal] Falha ao gerar PDF client-side:', eGen.message||eGen); }
+    }
+    if (!_pdfGerado) {
+      // Último recurso: resumo dos campos
+      var sc=_sc(rat.status);
+      el.innerHTML=
+        '<div class="portal-card">'+
+        '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
+        '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
+          '<i class="ri-information-line"></i> PDF em preparação. Recarregue em alguns instantes.'+
+        '</div>'+
+        '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
+        '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
+        '<div class="portal-campo"><span class="rot">Técnico:</span><span class="val">'+_ep(rat.tecnico)+'</span></div>'+
+        '<div class="portal-campo"><span class="rot">Cliente:</span><span class="val">'+_ep(rat.cliente)+'</span></div>'+
+        '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
+        '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
+        (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
+        '</div>';
+    }
   }
 
   // Histórico de atendimentos do mesmo CNPJ
