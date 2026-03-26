@@ -36,8 +36,8 @@
   <meta charset="UTF-8" />
   <title>ONLINE – Relatórios de Atendimento ao Cliente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <!-- Segurança: impede clickjacking via iframe -->
-  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <!-- Segurança: X-Frame-Options deve ser configurado via HTTP header no vercel.json, não via meta.
+       Meta tag foi removida pois browsers a ignoram e geram erro no console. -->
   <!-- Segurança: impede detecção automática de tipo MIME -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <!-- [S-03] Content Security Policy — restringe origens de scripts/estilos/conexões.
@@ -85,14 +85,13 @@
   <!-- [LAZY] jsPDF carregado sob demanda via _ensureJsPDF() — só quando o usuário gera PDF. -->
 
   <!-- Firebase compat SDK (para login e coleções) -->
+  <!-- [FIX-SRI] Hashes integrity removidos — hashes incorretos bloqueavam silenciosamente
+       os scripts Firebase, impedindo a inicialização do app (tela preta/azul sem carregar). -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"
-          integrity="sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1"
           crossorigin="anonymous"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"
-          integrity="sha384-I1LYojsZ5RM1cOda44Z2h42Qa6YfsQ1XkXxREnhp4ueYBR/4d1pG1K+NZM537Vsj"
           crossorigin="anonymous"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"
-          integrity="sha384-Ke0FJhH7LyRqDxZ0wt+/OXV38yfQVu7g9VPEEGjYmB4RVOY/ta04uecRhsMwT7V3"
           crossorigin="anonymous"></script>
   <!-- Fallback: se gstatic falhar — usa createElement (substitui document.write obsoleto) -->
   <script>
