@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v78
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v55
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -38,7 +38,6 @@
       https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com
       https://www.gstatic.com https://api.cep.la https://viacep.com.br https://images.unsplash.com;
     worker-src blob:;
-    frame-src blob:;
     object-src 'none';
     base-uri 'self';
   " />
@@ -259,7 +258,7 @@
       flex:0 0 130px;
       max-width:130px;
     }
-    .list-relatorios{max-height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+    .list-relatorios{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
     /* [FIX-SCR1] No mobile remove o scroll interno — a lista flui na página normalmente,
        evitando o padrão confuso de scroll-dentro-de-scroll */
     @media(max-width:880px){.list-relatorios{max-height:none;overflow-y:visible;}}
@@ -2140,8 +2139,8 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinatura">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
-            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
-              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar assinatura</span>
+            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar canvas</span>
             </button>
             <button type="button" class="btn small" id="btnModoTouchpad">
               <i class="ri-mouse-line"></i> Modo Touchpad: OFF
@@ -2212,8 +2211,8 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinaturaTec">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
-            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
-              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar assinatura</span>
+            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar canvas</span>
             </button>
             <small id="sigStatusTec" style="font-size:.68rem;color:#0f172a;"></small>
           </div>
@@ -3054,7 +3053,7 @@ html[data-role="technician"] nav button {
   //       // de signInAnonymously. Atualize as regras no Firebase Console com este bloco.
   //       match /onlineEsRelatorios/{doc} {
   //         allow read: if request.auth != null
-  //                     || 'portalToken' in resource.data;
+  //                     || resource.data.portalToken != null;
   //         allow write: if request.auth != null
   //                      && request.auth.token.email != null;
   //       }
@@ -5816,9 +5815,8 @@ function autoFillCamposAtendimento(){
     // Solução: empurra sentinela incondicionalmente ao entrar no sistema.
     try {
       var _telaPadraoInit = _ehMobile ? '__home__' : (isSupervisorOrAdmin(user) ? 'painel' : 'novo');
-      // [FIX-v57] replaceState + pushState garante ≥2 entradas no histórico
-      history.replaceState({ tela: '__app_root__' }, '', '');
-      history.pushState({ tela: _telaPadraoInit }, '', '');
+      history.pushState({ tela: '__app_root__' }, '', ''); // sentinela — garante profundidade
+      history.replaceState({ tela: _telaPadraoInit }, '', ''); // tela real por cima
     } catch(e) {}
     if (!isSupervisorOrAdmin(user)){
       if (mPainel) mPainel.style.display='none';
@@ -6478,7 +6476,6 @@ function autoFillCamposAtendimento(){
 
     // [NAV-BACK] Reseta stack de navegação ao deslogar
     try { window._telaStack = []; if (typeof _atualizarBotaoVoltar === 'function') _atualizarBotaoVoltar(); } catch(e) {}
-    try { if (window._syncPendentesInterval) { clearInterval(window._syncPendentesInterval); window._syncPendentesInterval = null; } } catch(e) {} // [FIX-v58c]
 
     app.style.display='none';
     var _sb=document.getElementById('sidebar'); if(_sb) _sb.style.visibility='hidden';
@@ -7872,7 +7869,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
         }
       }catch(e){}
     }
-const doc = new jsPDF({ orientation:"p", unit:"mm", format:"a4", compress:true });
+const doc = new jsPDF("p","mm","a4");
 
     doc.setFillColor(15,23,42); doc.rect(0,0,210,22,'F');
 
@@ -8040,22 +8037,18 @@ if (logoBase64) {
       };
 
       // Tenta recuperar versão local completa do relatório
-      // [FIX-v74] Se _somenteMemoria=true (portal), usa r diretamente — não sobrescreve
-      // com dados do localStorage que podem ter imagens em alta resolução
       var _rComImgs = r;
-      if (!r._somenteMemoria) {
-        try {
-          var _localList = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
-          var _rLocal2 = _localList.find(function(x) { return x.id === r.id; });
-          if (_rLocal2 && (
-            (_rLocal2.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
-            (_rLocal2.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
-            (_rLocal2.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
-          )) {
-            _rComImgs = _rLocal2;
-          }
-        } catch(e) {}
-      }
+      try {
+        var _localList = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+        var _rLocal2 = _localList.find(function(x) { return x.id === r.id; });
+        if (_rLocal2 && (
+          (_rLocal2.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
+          (_rLocal2.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
+          (_rLocal2.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
+        )) {
+          _rComImgs = _rLocal2;
+        }
+      } catch(e) {}
 
       // [FIX-PDF] Filtra imagens válidas — remove placeholders '[local]' e '[comprimido]'
       const allImages = [].concat(_rComImgs.imgsEquip||[]).concat(_rComImgs.imgsServico||[]).concat(_rComImgs.imgsBaterias||[])
@@ -8299,7 +8292,6 @@ if (logoBase64) {
        id: (window._ratPreSalvoId || window._editandoRelatorioId || gerarId()),
        numero: aNumeroRat.value || '', // BUG FIX: não chama proximoNumeroRAT() aqui — evita queimar número; ensureNumeroRat() já garante o campo preenchido antes de salvar
        dataHoraBr: br || agoraBR(),
-       dataHoraBR: br || agoraBR(), // [FIX-v58] alias para compatibilidade
        dataHoraIso: iso,
 
       // Técnico – sempre baseado no usuário logado
@@ -8577,14 +8569,6 @@ if (logoBase64) {
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
-      // [FIX-v78] Gera/renova credenciais do portal do cliente ao salvar RAT
-      try {
-        if (novo.cnpjCliente && String(novo.cnpjCliente).replace(/[^0-9]/g,'').length >= 8
-            && typeof window._criarCredenciaisCliente === 'function') {
-          var _emails = [novo.emailCliente].filter(Boolean);
-          window._criarCredenciaisCliente(novo.cnpjCliente, _emails, novo.cliente||'');
-        }
-      } catch(e) { console.warn('[Credenciais] Erro ao gerar:', e.message||e); }
       showToast('Relatório salvo e enviado para o painel.');
       // [UX-VIB] Vibração de confirmação ao salvar RAT com sucesso
       try { if (navigator.vibrate) navigator.vibrate([40, 30, 80]); } catch(e) {}
@@ -8618,13 +8602,6 @@ if (logoBase64) {
       // Offline: salva local e em pendentes
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
       pendentes.push(novo); savePendentes(pendentes);
-      // [FIX-v78] Gera/renova credenciais (best-effort, pode falhar offline)
-      try {
-        if (novo.cnpjCliente && String(novo.cnpjCliente).replace(/[^0-9]/g,'').length >= 8
-            && typeof window._criarCredenciaisCliente === 'function') {
-          window._criarCredenciaisCliente(novo.cnpjCliente, [novo.emailCliente].filter(Boolean), novo.cliente||'');
-        }
-      } catch(e) {}
       // [UX] Atualiza badge de pendentes
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
@@ -8799,25 +8776,20 @@ if (logoBase64) {
   // Restaurar rascunho ao abrir Novo Atendimento
   async function verificarRascunho() {
     try {
-      // [FIX-v57] Guard absoluto: usuário logado E tela de login já fechada.
+      // [FIX-v43] Só verifica após login — não exibe diálogo na tela de login
       if (!window.usuarioLogado) return;
-      var _tlEl = document.getElementById('telaLogin');
-      if (_tlEl && !_tlEl.classList.contains('hidden') && _tlEl.style.display !== 'none') return;
       const raw = localStorage.getItem(STORAGE_RASCUNHO);
       if (!raw) return;
       const r = JSON.parse(raw);
       if (!r || !r._rascunho) return;
+
+      // [FIX-v43] Só restaura se o rascunho pertence ao usuário atual
+      // O rascunho armazena r.tecnicoLogin (username) — compara com o usuário logado
       var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
-      var _nomeAtual  = (window.usuarioLogado.fullName  || window.usuarioLogado.nome    || '').toLowerCase();
-      var _loginRasc  = (r.tecnicoLogin || '').toLowerCase();
-      var _nomeRasc   = (r.tecnico      || '').toLowerCase();
-      if (_loginRasc) {
-        if (_loginAtual && _loginRasc !== _loginAtual) {
-          console.log('[Rascunho] Login não bate — ignorado.');
-          return;
-        }
-      } else if (_nomeRasc && _nomeAtual && _nomeRasc !== _nomeAtual) {
-        console.log('[Rascunho] Nome não bate — ignorado.');
+      var _loginRasc  = (r.tecnicoLogin || r.tecnico || '').toLowerCase();
+      // Se o rascunho tem tecnicoLogin definido e não bate com o usuário atual, ignora silenciosamente
+      if (r.tecnicoLogin && _loginRasc && _loginAtual && _loginRasc !== _loginAtual) {
+        console.log('[Rascunho] Pertence a outro usuário (' + _loginRasc + ') — ignorado para ' + _loginAtual);
         return;
       }
 
@@ -10154,7 +10126,7 @@ if (logoBase64) {
     }, 2000);
   });
   // [OFFLINE] Sync inteligente: roda a cada 30s se há pendentes, idle se não há
-  window._syncPendentesInterval = setInterval(function(){
+  setInterval(function(){
     try {
       var _n = (typeof loadPendentes === 'function' ? loadPendentes() : pendentes || []).length;
       if (_n > 0 && navigator.onLine) syncPendentes();
@@ -10265,8 +10237,7 @@ if (logoBase64) {
 
   if (btnEnviarEmail){
     btnEnviarEmail.onclick = async () => {
-      if (btnEnviarEmail.disabled) return; btnEnviarEmail.disabled=true; setTimeout(()=>{btnEnviarEmail.disabled=false;},5000); // [FIX-v58] anti duplo-clique
-      if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) { btnEnviarEmail.disabled=false; return; }
+      if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
 
       const email = aEmailCliente && aEmailCliente.value ? aEmailCliente.value.trim() : '';
       if (!email) {
@@ -10311,11 +10282,18 @@ if (logoBase64) {
       // [FIX-v54-4] _gerarTokenPortal salva token localmente mesmo offline.
       // Se falhar completamente, envia mensagem sem link em vez de bloquear.
       var portalUrl = null;
-      if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
+      if (window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
         try {
-          var _ptok = await window._gerarTokenPortal(r);
-          if (_ptok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(_ptok);
-        } catch(eP) { console.warn('[E-mail] Falha ao gerar token portal:', eP); }
+          showToast('🔗 Gerando credencial...', 2000);
+          var _credEmail = await window._gerarCredencialPortal(r);
+          if (_credEmail && _credEmail.cnpj) {
+            r._portalCnpj  = _credEmail.cnpj;
+            r._portalSenha = _credEmail.nova ? _credEmail.senha : null;
+            portalUrl      = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj) : null;
+            if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
+              salvarRelatorioNoFirestore(r).catch(function(){});
+          }
+        } catch(eP) { console.warn('[E-mail] Falha ao gerar credencial portal:', eP); }
       }
 
       // 3. Monta e-mail com link do portal
@@ -10333,19 +10311,15 @@ if (logoBase64) {
         ''
       ];
       if (portalUrl) {
-        _linhasEmail.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
+        _linhasEmail.push('🔗 Acesse o Portal do Cliente para visualizar e baixar o PDF:');
         _linhasEmail.push(portalUrl);
-      }
-      // [FIX-v78] Adiciona acesso ao portal do cliente se credenciais novas
-      if (_credEmail && _credEmail.senha && _credEmail.jaExiste === false) {
-        var _pcUrlE = typeof window._urlPortalCliente === 'function' ? window._urlPortalCliente() : '';
-        _linhasEmail.push('');
-        _linhasEmail.push('🔐 ACESSO AO PORTAL DO CLIENTE:');
-        _linhasEmail.push('🔗 ' + _pcUrlE);
-        _linhasEmail.push('👤 CNPJ: ' + (r.cnpjCliente||''));
-        _linhasEmail.push('🔑 Senha: ' + _credEmail.senha + ' (valida por 30 dias)');
-      }
-      if (!portalUrl && !_credEmail) {
+        if (r._portalSenha) {
+          _linhasEmail.push('👤 Usuário (CNPJ/CPF): ' + (r.cnpjCliente || ''));
+          _linhasEmail.push('🔑 Senha de acesso: ' + r._portalSenha + ' (válida por 30 dias)');
+        } else {
+          _linhasEmail.push('👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já cadastrada');
+        }
+      } else {
         // [FIX-v54-4] Sem link (offline ou erro): avisa que o PDF será enviado em anexo
         _linhasEmail.push('Em anexo você encontrará o Relatório Técnico em PDF.');
         _linhasEmail.push('(Link de acesso online será disponibilizado assim que houver conexão.)');
@@ -10369,8 +10343,7 @@ if (logoBase64) {
   }
 
   if (btnWhatsLocal) btnWhatsLocal.onclick = async () => {
-    if (btnWhatsLocal.disabled) return; btnWhatsLocal.disabled=true; setTimeout(()=>{btnWhatsLocal.disabled=false;},5000); // [FIX-v58] anti duplo-clique
-    if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) { btnWhatsLocal.disabled=false; return; }
+    if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
 
     const raw = String((aWhats && aWhats.value ? aWhats.value : (aTelefone && aTelefone.value ? aTelefone.value : ''))).trim();
     let tel = raw.replace(/\D/g, '');
@@ -10400,22 +10373,21 @@ if (logoBase64) {
       }
     } catch(eSv) { console.warn('[WhatsApp] Falha ao pré-salvar RAT:', eSv); }
 
-    // 2. Gera token do portal → link personalizado válido por 30 dias
-    // [FIX-v54-4] Não bloqueia o envio se o token falhar — envia mensagem sem link.
+    // 2. Gera credencial do portal (CNPJ + senha) — Portal v2
     var portalUrlWa = null;
-    if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
+    if (window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
       try {
-        var _ptokWa = await window._gerarTokenPortal(r);
-        if (_ptokWa && typeof window._urlPortal === 'function') portalUrlWa = window._urlPortal(_ptokWa);
-      } catch(eP) { console.warn('[WhatsApp] Falha ao gerar token portal:', eP); }
-    }
-    // [FIX-v77] Gera/renova credenciais do portal do cliente
-    var _credWa = null;
-    if (r.cnpjCliente && r.cnpjCliente.replace(/\D/g,'').length >= 8 && typeof window._criarCredenciaisCliente === 'function') {
-      try {
-        var _emailsWa = [r.emailCliente].filter(Boolean);
-        _credWa = await window._criarCredenciaisCliente(r.cnpjCliente, _emailsWa, r.cliente||'');
-      } catch(e) { console.warn('[WA] Credenciais cliente:', e.message||e); }
+        showToast('🔗 Gerando credencial...', 2000);
+        var _credWa = await window._gerarCredencialPortal(r);
+        if (_credWa && _credWa.cnpj) {
+          r._portalCnpj  = _credWa.cnpj;
+          r._portalSenha = _credWa.nova ? _credWa.senha : null;
+          portalUrlWa    = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj) : null;
+          // Atualiza também no Firestore e localmente
+          if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
+            salvarRelatorioNoFirestore(r).catch(function(){});
+        }
+      } catch(eP) { console.warn('[WhatsApp] Falha ao gerar credencial portal:', eP); }
     } else if (window.location.protocol === 'file:') {
       showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.');
     }
@@ -10423,29 +10395,23 @@ if (logoBase64) {
     // 3. Monta mensagem com link do portal e abre WhatsApp
     hideLoader();
     var msgFinal;
-    // [FIX-v77] Inclui acesso ao portal do cliente se credenciais foram geradas
-    var _pcUrl = typeof window._urlPortalCliente === 'function' ? window._urlPortalCliente() : '';
-    var _credInfo = '';
-    if (_credWa && _credWa.senha && _credWa.jaExiste === false) {
-      _credInfo = '\n\n🔐 *Acesso ao Portal do Cliente (novo):*\n' +
-        '🔗 ' + _pcUrl + '\n' +
-        '👤 CNPJ: ' + _formatarCnpjSimples(r.cnpjCliente||'') + '\n' +
-        '🔑 Senha: ' + _credWa.senha + '\n_(válida por 30 dias)_';
-    } else if (_credWa && _credWa.jaExiste && _pcUrl) {
-      _credInfo = '\n\n🔐 Portal do cliente: ' + _pcUrl;
-    }
-    if (portalUrlWa) {
+    // [PORTAL-V2] Usa mensagem com credenciais se o portal v2 gerou credencial
+    if (typeof window._montarMensagemPortalV2 === 'function' && r._portalCnpj) {
+      var _credResultWa = { cnpj: r._portalCnpj, nova: !!r._portalSenha, senha: r._portalSenha || null };
+      msgFinal = window._montarMensagemPortalV2(r, _credResultWa, 'whats');
+    } else if (portalUrlWa) {
       msgFinal =
         'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
         'Segue o Relatório Técnico de Atendimento do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\n' +
-        '🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n' + portalUrlWa +
-        _credInfo + '\n\n' +
+        '🔗 Acesse seus relatórios no Portal do Cliente:\n' + portalUrlWa + '\n\n' +
         'Qualquer dúvida estamos à disposição!';
     } else {
+      // [FIX-v54-4] Sem link (offline/erro): mensagem sem link mas ainda útil
       msgFinal =
         'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
-        'Passando para informar que o Relatório Técnico de Atendimento *' + (r.numero||'') + '* do cliente *' + (r.cliente||'') + '* foi concluído.' +
-        _credInfo + '\n\nQualquer dúvida estamos à disposição!';
+        'Passando para informar que o Relatório Técnico de Atendimento *' + (r.numero||'') + '* do cliente *' + (r.cliente||'') + '* foi concluído.\n\n' +
+        'O link para baixar o PDF será enviado assim que houver conexão.\n\n' +
+        'Qualquer dúvida estamos à disposição!';
     }
 
     window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal), '_blank', 'noopener,noreferrer');
@@ -11064,7 +11030,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
           return;
         }
       } catch(e) {}
-      assinaturaClienteAtual = sigCanvas.toDataURL('image/jpeg', 0.50); // [FIX-v69] PNG→JPEG comprimido
+      assinaturaClienteAtual = sigCanvas.toDataURL('image/png');
       window.assinaturaClienteAtual = assinaturaClienteAtual;
       _marcarCanvasAssinado(sigCanvas, sigStatus, true);
       if (sigStatus) sigStatus.innerHTML += ' — Digite o nome completo abaixo.';
@@ -11107,14 +11073,14 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _btnTravarSigCli.style.borderColor = 'rgba(220,38,38,.4)';
       _btnTravarSigCli.style.color = '#dc2626';
       if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-line';
-      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Assinatura travada';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Canvas travado';
       if (sigCanvas) { sigCanvas.style.opacity = '0.7'; sigCanvas.style.cursor = 'not-allowed'; }
     } else {
       _btnTravarSigCli.style.background = 'rgba(148,163,184,.12)';
       _btnTravarSigCli.style.borderColor = 'rgba(148,163,184,.35)';
       _btnTravarSigCli.style.color = '#475569';
       if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-unlock-line';
-      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar assinatura';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar canvas';
       if (sigCanvas) { sigCanvas.style.opacity = ''; sigCanvas.style.cursor = ''; }
     }
   }
@@ -11124,8 +11090,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _sigClienteTravado = !_sigClienteTravado;
       _atualizarBotaoTravaCli();
       showToast(_sigClienteTravado
-        ? '🔒 Assinatura travada — role a tela livremente.'
-        : '🔓 Assinatura desbloqueada — pode assinar agora.');
+        ? '🔒 Canvas travado — role a tela livremente.'
+        : '🔓 Canvas desbloqueado — pode assinar agora.');
       try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
     });
   }
@@ -11286,7 +11252,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _btnTravarSigTec.style.borderColor = 'rgba(220,38,38,.4)';
         _btnTravarSigTec.style.color = '#dc2626';
         if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-line';
-        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Assinatura travada';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Canvas travado';
         sigTecnicoCanvas.style.opacity = '0.7';
         sigTecnicoCanvas.style.cursor  = 'not-allowed';
       } else {
@@ -11294,7 +11260,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _btnTravarSigTec.style.borderColor = 'rgba(148,163,184,.35)';
         _btnTravarSigTec.style.color = '#475569';
         if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-unlock-line';
-        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar assinatura';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar canvas';
         sigTecnicoCanvas.style.opacity = '';
         sigTecnicoCanvas.style.cursor  = '';
       }
@@ -11305,8 +11271,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _sigTecTravado = !_sigTecTravado;
         _atualizarBotaoTravaTec();
         showToast(_sigTecTravado
-          ? '🔒 Assinatura travada — role a tela livremente.'
-          : '🔓 Assinatura desbloqueada — pode assinar agora.');
+          ? '🔒 Canvas travado — role a tela livremente.'
+          : '🔓 Canvas desbloqueado — pode assinar agora.');
         try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
       });
     }
@@ -11379,7 +11345,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
             return;
           }
         } catch(e) {}
-        assinaturaTecnicoAtual = sigTecnicoCanvas.toDataURL('image/jpeg', 0.50); // [FIX-v69]
+        assinaturaTecnicoAtual = sigTecnicoCanvas.toDataURL('image/png');
         window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
         _marcarCanvasAssinado(sigTecnicoCanvas, sigStatusTec, true);
         // [UX-VIB-SIG] Vibração dupla ao confirmar assinatura do técnico
@@ -13116,20 +13082,17 @@ async function renderMeus(){
       var _rawRasc = localStorage.getItem('online-es-rascunho-v1');
       if (_rawRasc) {
         var _rRasc = JSON.parse(_rawRasc);
-        if (_rRasc && _rRasc._rascunho) {
+        if (_rRasc && _rRasc._rascunho && _rRasc.numero) {
           var _loginAtualMeus = ((window.usuarioLogado||{}).username || (window.usuarioLogado||{}).usuario || '').toLowerCase();
-          var _nomeAtualMeus  = ((window.usuarioLogado||{}).fullName  || (window.usuarioLogado||{}).nome    || '').toLowerCase();
           var _loginRascMeus  = (_rRasc.tecnicoLogin || '').toLowerCase();
-          var _nomeRascMeus   = (_rRasc.tecnico      || '').toLowerCase();
-          var _pertence = true;
-          if (_loginRascMeus) { _pertence = !_loginAtualMeus || _loginRascMeus === _loginAtualMeus; }
-          else if (_nomeRascMeus && _nomeAtualMeus) { _pertence = _nomeRascMeus === _nomeAtualMeus; }
+          var _pertence = !_loginRascMeus || !_loginAtualMeus || _loginRascMeus === _loginAtualMeus;
           if (_pertence) {
             var _idsEmTodos2 = new Set((todos||[]).map(function(r){ return r.id; }));
-            var _jaEsta = _rRasc.id ? _idsEmTodos2.has(_rRasc.id) : (todos||[]).some(function(x){ return x._rascunhoCard; });
-            if (!_jaEsta) {
+            if (!_idsEmTodos2.has(_rRasc.id)) {
+              // [FIX-v43b] Copia para não mutar o objeto do localStorage
+              var _rRascCopy = Object.assign({}, _rRasc, { _rascunhoCard: true });
               todos = todos || [];
-              todos.unshift(Object.assign({}, _rRasc, { _rascunhoCard: true }));
+              todos.unshift(_rRascCopy); // rascunho no topo
             }
           }
         }
@@ -13481,18 +13444,14 @@ async function _renderMeusComCache() {
     var _rawRascC = localStorage.getItem('online-es-rascunho-v1');
     if (_rawRascC) {
       var _rC = JSON.parse(_rawRascC);
-      if (_rC && _rC._rascunho) {
-        var _loginC  = ((window.usuarioLogado||{}).username||'').toLowerCase();
-        var _nomeC   = ((window.usuarioLogado||{}).fullName||'').toLowerCase();
+      if (_rC && _rC._rascunho && _rC.numero) {
+        var _loginC = ((window.usuarioLogado||{}).username||'').toLowerCase();
         var _loginRC = (_rC.tecnicoLogin||'').toLowerCase();
-        var _nomeRC  = (_rC.tecnico||'').toLowerCase();
-        var _pertC = true;
-        if (_loginRC) { _pertC = !_loginC || _loginRC === _loginC; }
-        else if (_nomeRC && _nomeC) { _pertC = _nomeRC === _nomeC; }
-        if (_pertC) {
+        if (!_loginRC || !_loginC || _loginRC === _loginC) {
           var _idsC2 = new Set((todos||[]).map(function(r){ return r.id; }));
-          var _jaC = _rC.id ? _idsC2.has(_rC.id) : (todos||[]).some(function(x){ return x._rascunhoCard; });
-          if (!_jaC) { todos = [Object.assign({},_rC,{_rascunhoCard:true})].concat(todos); }
+          if (!_idsC2.has(_rC.id)) {
+            todos = [Object.assign({},_rC,{_rascunhoCard:true})].concat(todos);
+          }
         }
       }
     }
@@ -16476,1013 +16435,990 @@ async function fazerLogin(){
 </script>
 
 <!-- ============================================================
-     PORTAL DO CLIENTE — v1.0
-     - Rastreamento de visualização
-     - E-mail e WhatsApp com link do portal (sem Catbox)
-     - Painel: botão "Gerar link" + badge "Visualizado"
+     PORTAL DO CLIENTE — v2.0
+     - Login: CNPJ + senha temporária (6 dígitos, 30 dias)
+     - Credenciais em onlineEsPortalClientes/{cnpj_normalizado}
+     - Geradas automaticamente ao enviar RAT (WhatsApp / E-mail)
+     - Cliente vê apenas RATs da própria empresa
+     - Senha expirada: reenvio automático por e-mail aos contatos
+     - PDF gerado on-demand no browser do cliente (sem Storage)
 ============================================================ -->
 <style>
-#portalCliente{position:fixed;inset:0;z-index:9500;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);display:none;overflow-y:auto;font-family:"Poppins",system-ui,sans-serif} /* [FIX-v43] z-index acima da login-screen (9000) */
+/* ─── Portal v2 — reset completo, fundo branco/neutro ─── */
+#portalCliente{
+  position:fixed;inset:0;z-index:9500;
+  background:#f1f5f9;
+  display:none;overflow-y:auto;
+  font-family:"Poppins",system-ui,-apple-system,sans-serif;
+}
 #portalCliente.ativo{display:block}
-.portal-wrap{max-width:720px;margin:0 auto;padding:24px 16px 60px}
-.portal-header{text-align:center;padding:28px 0 18px}
-.portal-header img{width:140px;margin-bottom:10px}
-.portal-header h1{font-size:1.15rem;color:#f1f5f9;margin:0 0 4px}
-.portal-header p{font-size:.78rem;color:#94a3b8;margin:0}
-.portal-card{background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:18px 20px;margin-bottom:16px}
-.portal-card h2{font-size:.9rem;color:#f97316;margin:0 0 12px;display:flex;align-items:center;gap:6px}
-.portal-campo{display:flex;gap:6px;font-size:.78rem;margin-bottom:5px}
-.portal-campo .rot{color:#94a3b8;min-width:130px;flex-shrink:0}
-.portal-campo .val{color:#e2e8f0;font-weight:500;word-break:break-word}
-.portal-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:700}
-.portal-badge.ok{background:#dcfce7;color:#15803d}
-.portal-badge.warn{background:#fef9c3;color:#854d0e}
-.portal-badge.bad{background:#fee2e2;color:#b91c1c}
-.portal-pdf-btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:10px 22px;font-size:.82rem;font-weight:700;cursor:pointer;margin-top:10px;box-shadow:0 6px 20px rgba(249,115,22,.35);transition:.15s}
-.portal-pdf-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(249,115,22,.5)}
-.portal-hist-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(148,163,184,.1);gap:8px;flex-wrap:wrap}
-.portal-hist-item:last-child{border-bottom:none}
-.portal-hist-num{font-size:.82rem;font-weight:700;color:#f1f5f9}
-.portal-hist-data{font-size:.72rem;color:#94a3b8}
-.portal-hist-btn{background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.3);border-radius:999px;padding:4px 14px;font-size:.72rem;font-weight:600;cursor:pointer;transition:.12s;white-space:nowrap}
-.portal-hist-btn:hover{background:rgba(249,115,22,.3)}
-.portal-footer{text-align:center;font-size:.72rem;color:#475569;margin-top:32px;padding-top:16px;border-top:1px solid rgba(148,163,184,.1)}
-.portal-loading{text-align:center;padding:60px 0;color:#94a3b8;font-size:.88rem}
-.portal-not-found{text-align:center;padding:60px 0}
-.portal-not-found h2{color:#f87171;font-size:1rem;margin-bottom:8px}
-.portal-not-found p{color:#94a3b8;font-size:.82rem}
-.badge-portal-visto{background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700}
-.badge-portal-naovisto{background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700}
+
+/* Wrapper central */
+.pv2-wrap{
+  max-width:680px;margin:0 auto;padding:24px 16px 60px;
+}
+
+/* Header */
+.pv2-header{
+  display:flex;flex-direction:column;align-items:center;
+  padding:28px 0 20px;text-align:center;
+}
+.pv2-header img{width:120px;margin-bottom:12px;border-radius:12px;}
+.pv2-header h1{
+  margin:0 0 4px;font-size:1.2rem;font-weight:700;color:#0f172a;
+}
+.pv2-header p{margin:0;font-size:.78rem;color:#64748b;}
+
+/* Card base */
+.pv2-card{
+  background:#fff;border:1px solid #e2e8f0;border-radius:18px;
+  padding:22px 22px 18px;margin-bottom:16px;
+  box-shadow:0 2px 16px rgba(15,23,42,.06);
+}
+.pv2-card h2{
+  font-size:.95rem;font-weight:700;color:#0f172a;
+  margin:0 0 16px;display:flex;align-items:center;gap:8px;
+}
+
+/* Login form */
+.pv2-label{display:block;font-size:.75rem;font-weight:600;color:#334155;margin-bottom:5px;}
+.pv2-input{
+  width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:12px;
+  font-size:.9rem;color:#0f172a;background:#f8fafc;outline:none;
+  transition:border-color .15s,box-shadow .15s;box-sizing:border-box;
+}
+.pv2-input:focus{border-color:#f97316;box-shadow:0 0 0 3px rgba(249,115,22,.12);}
+.pv2-btn{
+  width:100%;padding:12px;border:none;border-radius:12px;
+  background:linear-gradient(90deg,#f97316,#ea580c);
+  color:#fff;font-size:.95rem;font-weight:700;cursor:pointer;
+  box-shadow:0 6px 20px rgba(249,115,22,.35);
+  transition:transform .12s,box-shadow .12s;margin-top:14px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.pv2-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(249,115,22,.45);}
+.pv2-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+.pv2-btn-sec{
+  width:100%;padding:10px;border:1.5px solid #e2e8f0;border-radius:12px;
+  background:#fff;color:#475569;font-size:.85rem;font-weight:600;cursor:pointer;
+  margin-top:8px;transition:border-color .15s,background .15s;
+}
+.pv2-btn-sec:hover{border-color:#f97316;background:#fff7ed;color:#c2410c;}
+.pv2-err{
+  background:#fef2f2;border:1px solid #fecaca;border-radius:10px;
+  padding:8px 12px;font-size:.78rem;color:#b91c1c;
+  margin-bottom:12px;display:none;
+}
+.pv2-info{
+  background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;
+  padding:8px 12px;font-size:.78rem;color:#0369a1;margin-bottom:12px;
+}
+.pv2-ok{
+  background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;
+  padding:8px 12px;font-size:.78rem;color:#15803d;margin-bottom:12px;
+}
+
+/* Campo-valor */
+.pv2-campo{display:flex;gap:8px;font-size:.8rem;margin-bottom:6px;align-items:flex-start;}
+.pv2-campo .rot{color:#94a3b8;min-width:130px;flex-shrink:0;font-size:.75rem;}
+.pv2-campo .val{color:#1e293b;font-weight:500;word-break:break-word;flex:1;}
+
+/* Badge status */
+.pv2-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.7rem;font-weight:700;}
+.pv2-badge.ok{background:#dcfce7;color:#15803d;}
+.pv2-badge.warn{background:#fef9c3;color:#854d0e;}
+.pv2-badge.bad{background:#fee2e2;color:#b91c1c;}
+
+/* Lista de RATs */
+.pv2-rat-item{
+  background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+  padding:14px 16px;margin-bottom:10px;cursor:pointer;
+  transition:box-shadow .18s,border-color .18s,transform .15s;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
+.pv2-rat-item:hover{box-shadow:0 6px 20px rgba(249,115,22,.12);border-color:rgba(249,115,22,.3);transform:translateY(-1px);}
+.pv2-rat-num{font-size:.88rem;font-weight:700;color:#0f172a;}
+.pv2-rat-data{font-size:.73rem;color:#64748b;margin-top:2px;}
+.pv2-rat-equip{font-size:.73rem;color:#475569;margin-top:2px;}
+
+/* PDF viewer */
+.pv2-pdf-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;margin-bottom:14px;
+  padding:12px 16px;background:#f8fafc;border-radius:12px;
+  border:1px solid #e2e8f0;
+}
+.pv2-pdf-title{font-size:.88rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:6px;}
+.pv2-pdf-dl{
+  display:inline-flex;align-items:center;gap:7px;
+  background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;
+  border:none;border-radius:999px;padding:9px 20px;
+  font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none;
+  box-shadow:0 4px 14px rgba(249,115,22,.32);transition:.15s;
+}
+.pv2-pdf-dl:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(249,115,22,.45);}
+
+/* Footer */
+.pv2-footer{
+  text-align:center;font-size:.72rem;color:#94a3b8;
+  margin-top:32px;padding-top:16px;
+  border-top:1px solid #e2e8f0;
+}
+
+/* Divider */
+.pv2-divider{height:1px;background:#f1f5f9;margin:14px 0;}
+
+/* Loading / empty */
+.pv2-loading{text-align:center;padding:48px 0;color:#94a3b8;font-size:.88rem;}
+.pv2-empty{text-align:center;padding:36px 0;color:#94a3b8;font-size:.85rem;}
+
+/* Password strength */
+.pv2-strength-bar{height:5px;border-radius:99px;background:#e2e8f0;overflow:hidden;margin-top:6px;}
+.pv2-strength-fill{height:100%;border-radius:99px;transition:width .3s,background .3s;width:0%;}
+.pv2-strength-txt{font-size:.68rem;margin-top:3px;color:#64748b;}
+
+/* Responsive */
+@media(max-width:520px){
+  .pv2-wrap{padding:16px 12px 48px;}
+  .pv2-card{padding:16px 14px 14px;}
+  .pv2-campo .rot{min-width:100px;}
+}
 </style>
 
 <div id="portalCliente">
-  <div class="portal-wrap">
-    <div class="portal-header">
+  <div class="pv2-wrap">
+    <div class="pv2-header">
       <img src="https://www.onlinees.com.br/logo.png" onerror="this.style.display='none'" alt="ONLINE-ES">
-      <h1>ONLINE-ES &#8211; Portal do Cliente</h1>
-      <p>Relatório Técnico de Atendimento</p>
+      <h1>ONLINE-ES – Portal do Cliente</h1>
+      <p>Acesse seus Relatórios Técnicos de Atendimento</p>
     </div>
-    <div id="portalConteudo">
-      <div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório...</div>
+    <div id="pv2Conteudo">
+      <div class="pv2-loading"><i class="ri-loader-4-line"></i> Carregando...</div>
     </div>
-    <div class="portal-footer">
+    <div class="pv2-footer">
       ONLINE-ES Eletroeletrônica &middot; www.onlinees.com.br<br>
-      Este link é pessoal. Dados protegidos conforme a LGPD.
+      Dados protegidos conforme a LGPD.
     </div>
   </div>
 </div>
 
 <script>
+/* ================================================================
+   PORTAL DO CLIENTE v2.0 — Login por CNPJ + senha temporária
+   Coleção Firestore: onlineEsPortalClientes/{cnpj_normalizado}
+   Estrutura do doc:
+   {
+     cnpj: string,           // CNPJ normalizado (só dígitos)
+     nome: string,           // nome do cliente
+     senha: string,          // hash SHA-256 da senha de 6 dígitos
+     criadaEm: ISO string,   // quando a senha foi gerada
+     expiradoEm: ISO string, // criadaEm + 30 dias
+     emails: string[],       // e-mails coletados das últimas RATs
+   }
+================================================================ */
 (function(){
 'use strict';
 
-function _ep(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function _sc(s){if(!s)return 'bad';if(s==='Concluído')return 'ok';if(s.includes('pendência'))return 'warn';return 'bad';}
-function _br(iso){if(!iso)return '';try{return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return iso;}}
+/* ── Helpers globais ─────────────────────────────────────── */
+var _ep = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); };
+var _sc = function(s){ if(!s) return 'bad'; if(s==='Concluído') return 'ok'; if(s.includes('pendência')) return 'warn'; return 'bad'; };
+var _br = function(iso){
+  if(!iso) return '';
+  try{ return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return iso; }
+};
+var _normCnpj = function(v){ return String(v||'').replace(/\D/g,''); };
+
+/* ── Firestore handle ────────────────────────────────────── */
 function _db(){
-  // [FIX-v54-PORTAL] Ordem de precedência:
-  // 1. window._getDb() — setado pelo IIFE principal após initializeApp (fonte canônica)
-  // 2. window.db — alias direto setado junto com _getDb
-  // 3. window.firebase.firestore() — fallback se o IIFE ainda não rodou (portal isolado)
-  if (typeof window._getDb === 'function') { var _d = window._getDb(); if (_d) return _d; }
-  if (window.db) return window.db;
-  if (window.firebase && typeof window.firebase.firestore === 'function') {
-    try { return window.firebase.firestore(); } catch(e) {}
+  if(typeof window._getDb==='function'){ var d=window._getDb(); if(d) return d; }
+  if(window.db) return window.db;
+  if(window.firebase && typeof window.firebase.firestore==='function'){
+    try{ return window.firebase.firestore(); }catch(e){}
   }
   return null;
 }
 
-// ── Gerar token ──────────────────────────────────────────
-window._gerarTokenPortal = async function(rat){
-  // [FIX-v54-4] Esta função NUNCA lança exceção — sempre retorna o token local.
-  // Firestore é best-effort: falha silenciosa não impede o envio da mensagem.
+/* ── SHA-256 para hash de senha ─────────────────────────── */
+async function _sha256(str){
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+/* ── Gerar senha aleatória de 6 dígitos ─────────────────── */
+function _gerarSenha6(){
+  var arr = new Uint8Array(4);
+  crypto.getRandomValues(arr);
+  var n = (arr[0]<<24|arr[1]<<16|arr[2]<<8|arr[3]) >>> 0;
+  return String(100000 + (n % 900000));
+}
+
+/* ── Normaliza CNPJ ou CPF (apenas dígitos) ─────────────── */
+function _docId(cnpj){ return _normCnpj(cnpj); }
+
+/* ─────────────────────────────────────────────────────────────
+   LÓGICA DO TÉCNICO: gerar/renovar credencial ao enviar RAT
+   Chamada em _gerarTokenPortal e nos botões WhatsApp/E-mail
+──────────────────────────────────────────────────────────── */
+window._gerarCredencialPortal = async function(rat){
+  /* rat precisa ter: cnpjCliente, cliente, emailCliente, whatsapp/telefone */
+  var cnpj = _normCnpj(rat.cnpjCliente);
+  if(!cnpj || cnpj.length < 8) return null; // sem doc válido, sem portal
+
+  var db = _db();
+  if(!db) return null;
+
+  var colRef = db.collection('onlineEsPortalClientes');
+  var docId  = cnpj;
+
   try {
-  if(rat.portalToken) {
-    // [FIX-v58] Token já existe — mas o PDF pode não ter sido salvo ainda (RATs antigas ou falha anterior).
-    // Sempre tenta (re)gerar e salvar o PDF antes de retornar o token.
-    var _tokenExist = rat.portalToken;
-    if (navigator.onLine) {
-      // Re-sincroniza o token no Firestore (merge, não sobrescreve)
-      try {
-        var db=_db();
-        if(db){
-          var docIdExist=rat._firestoreId||rat.id;
-          await db.collection('onlineEsRelatorios').doc(docIdExist).set(
-            {portalToken:_tokenExist, portalTokenCriado:rat.portalTokenCriado||new Date().toISOString()},
-            {merge:true}
-          );
-        }
-      }catch(e){console.warn('[Portal] re-save token (ignorado):', e.message||e);}
+    var snap = await colRef.doc(docId).get();
+    var agora = new Date();
+    var senhaPlain, cred;
 
-      // Verifica se o PDF já existe — só regera se ausente (evita overhead desnecessário)
-      var _pdfJaExiste = false;
-      try {
-        var _cfgChk = window.firebaseConfig || {};
-        if (_cfgChk.projectId && _cfgChk.apiKey) {
-          var _chkRes = await fetch(
-            'https://firestore.googleapis.com/v1/projects/'+_cfgChk.projectId+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(_tokenExist)+'?key='+_cfgChk.apiKey
-          );
-          _pdfJaExiste = _chkRes.ok; // 200 = existe, 404 = não existe
+    if(snap.exists){
+      cred = snap.data();
+      var expira = cred.expiradoEm ? new Date(cred.expiradoEm) : new Date(0);
+      // Renova apenas se expirada (ou faltam < 3 dias)
+      var faltaDias = (expira - agora) / 86400000;
+      if(faltaDias > 3){
+        // Ainda válida — apenas atualiza e-mails se houver novo
+        var emails = cred.emails || [];
+        if(rat.emailCliente && !emails.includes(rat.emailCliente.trim())){
+          emails = emails.concat([rat.emailCliente.trim()]).slice(-5);
+          await colRef.doc(docId).update({ emails: emails, nome: rat.cliente||cred.nome||'' });
+          cred.emails = emails;
         }
-      } catch(eChk) {}
-
-      if (!_pdfJaExiste) {
-        // PDF ausente — gera e salva agora
-        console.log('[Portal] PDF ausente para token existente — gerando...');
-        try {
-          console.log('[Portal] _ensureJsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
-          if (typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
-            await window._ensureJsPDF();
-            // [FIX-v66] Recomprime imagens para portal antes de gerar PDF
-            async function _cmpP(src) {
-              if (!src || typeof src !== 'string' || !src.startsWith('data:image')) return src;
-              return new Promise(function(res) {
-                var img=new Image(); img.onload=function(){var M=400,w=img.width,h=img.height;if(w>M||h>M){var r=Math.min(M/w,M/h);w=Math.round(w*r);h=Math.round(h*r);}var cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);res(cv.toDataURL('image/jpeg',0.25));};img.onerror=function(){res(src);};img.src=src;
-              });
-            }
-            var _ratPdfEx = Object.assign({}, rat, { _somenteMemoria: true, vidsEquip:[], vidsServico:[], vidsBaterias:[] });
-            for (var _fkE of ['imgsEquip','imgsServico','imgsBaterias']) {
-              if (Array.isArray(_ratPdfEx[_fkE]) && _ratPdfEx[_fkE].length)
-                _ratPdfEx[_fkE] = await Promise.all(_ratPdfEx[_fkE].slice(0,6).map(function(s){ return _cmpP(s); }));
-            }
-            if (_ratPdfEx.assinaturaCliente) _ratPdfEx.assinaturaCliente = await _cmpP(_ratPdfEx.assinaturaCliente);
-            if (_ratPdfEx.assinaturaTecnicoImg) _ratPdfEx.assinaturaTecnicoImg = await _cmpP(_ratPdfEx.assinaturaTecnicoImg);
-            await window.exportarPDF(_ratPdfEx);
-            var _pdfB64Ex = window._lastPdfBase64;
-            var _pdfNomeEx = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
-            if (_pdfB64Ex && _pdfB64Ex.length <= 4000000) {
-              var _dbPdfEx = _db();
-              if (_dbPdfEx) {
-                await _dbPdfEx.collection('onlineEsPortalPdfs').doc(_tokenExist).set({
-                  token: _tokenExist,
-                  pdfB64: _pdfB64Ex,
-                  pdfNome: _pdfNomeEx,
-                  ratNumero: rat.numero || '',
-                  ratId: rat.id || '',
-                  criado: new Date().toISOString()
-                });
-                console.log('[Portal] PDF (re)gerado e salvo para token existente.');
-              }
-            } else if (_pdfB64Ex) {
-              console.warn('[Portal] PDF muito grande — não salvo no Firestore.');
-            }
-          }
-        } catch(ePdfEx) { console.warn('[Portal] Falha ao (re)gerar PDF (ignorado):', ePdfEx.message||ePdfEx); }
+        return { cnpj, senha: null, credencial: cred, nova: false };
       }
     }
-    return _tokenExist;
-  }
-  var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  var arr=new Uint8Array(20); crypto.getRandomValues(arr);
-  var token=Array.from(arr).map(function(b){return chars[b%chars.length];}).join('');
-  rat.portalToken=token;
-  rat.portalTokenCriado=new Date().toISOString();
 
-  // 1. Salva local SEMPRE — token disponível mesmo offline
-  try{
-    var lista=typeof loadRelatorios==='function'?loadRelatorios():(window.relatorios||[]);
-    var encontrado=false;
-    lista=lista.map(function(r){
-      if(r.id===rat.id){encontrado=true;return Object.assign({},r,{portalToken:token,portalTokenCriado:rat.portalTokenCriado});}
-      return r;
-    });
-    if(!encontrado) lista.push(Object.assign({},rat));
-    if(typeof saveRelatorios==='function') saveRelatorios(lista);
-    window.relatorios=lista;
-    // Também atualiza pendentes se a RAT está lá
-    try {
-      var _pend = typeof loadPendentes==='function' ? loadPendentes() : [];
-      var _pendAlterou = false;
-      _pend = _pend.map(function(p){
-        if (p.id===rat.id){ _pendAlterou=true; return Object.assign({},p,{portalToken:token,portalTokenCriado:rat.portalTokenCriado}); }
-        return p;
-      });
-      if (_pendAlterou && typeof savePendentes==='function') savePendentes(_pend);
-    } catch(eP2){}
-  }catch(e){console.warn('[Portal] save local (ignorado):', e.message||e);}
+    // Gera nova senha
+    senhaPlain = _gerarSenha6();
+    var hash = await _sha256(senhaPlain);
+    var expiraEm = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
 
-  // 2. Salva token no Firestore (best-effort — offline não bloqueia)
-  if (navigator.onLine) {
+    // Coleta e-mails das últimas RATs do mesmo CNPJ
+    var emails = [];
     try{
-      var db=_db();
-      if(db){
-        var docId=rat._firestoreId||rat.id;
-        await db.collection('onlineEsRelatorios').doc(docId).set(
-          {portalToken:token, portalTokenCriado:rat.portalTokenCriado},
-          {merge:true}
-        );
-      }
-    }catch(e){console.warn('[Portal] save firestore (ignorado, token local preservado):', e.message||e);}
-  }
+      var rSnap = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente','==',rat.cnpjCliente)
+        .orderBy('dataHoraIso','desc').limit(3).get();
+      rSnap.forEach(function(d){
+        var email = d.data().emailCliente;
+        if(email && !emails.includes(email.trim())) emails.push(email.trim());
+      });
+    }catch(e){}
+    if(rat.emailCliente && !emails.includes(rat.emailCliente.trim()))
+      emails.unshift(rat.emailCliente.trim());
+    emails = emails.slice(0,5);
 
-  // 3. Gera PDF e salva em onlineEsPortalPdfs/{token}
-  try {
-    console.log('[Portal] Iniciando geração de PDF para token:', token.slice(0,6)+'...');
-    console.log('[Portal] online:', navigator.onLine, '_ensureJsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
-    if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
-      await window._ensureJsPDF();
-      console.log('[Portal] jsPDF carregado.');
-      // [FIX-v66] Gera PDF com imagens recomprimidas (400px/0.25 → ~25KB/foto)
-      var _ratPdf = Object.assign({}, rat, { _somenteMemoria: true, vidsEquip:[], vidsServico:[], vidsBaterias:[] });
-      // Nota: imagens já estão comprimidas a 800px/0.50 no Firestore; o PDF pode ser grande.
-      // Se > 4MB, o portal usa geração client-side com recompressão mais agressiva.
-      await window.exportarPDF(_ratPdf);
-      var _pdfB64 = window._lastPdfBase64;
-      var _pdfNome = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
-      console.log('[Portal] PDF gerado, tamanho base64:', _pdfB64 ? Math.round(_pdfB64.length/1024)+'KB' : 'NULO');
-      if (_pdfB64) {
-        var _PDF_MAX_B64 = 4000000;
-        if (_pdfB64.length > _PDF_MAX_B64) {
-          console.warn('[Portal] PDF muito grande (' + Math.round(_pdfB64.length/1024) + 'KB) — não salvo.');
-        } else {
-          var _dbPdf = _db();
-          console.log('[Portal] _db() disponível:', !!_dbPdf);
-          if (_dbPdf) {
-            await _dbPdf.collection('onlineEsPortalPdfs').doc(token).set({
-              token: token,
-              pdfB64: _pdfB64,
-              pdfNome: _pdfNome,
-              ratNumero: rat.numero || '',
-              ratId: rat.id || '',
-              criado: new Date().toISOString()
-            });
-            console.log('[Portal] PDF salvo em onlineEsPortalPdfs/' + token.slice(0,6)+'...');
-          }
-        }
-      } else {
-        console.warn('[Portal] _lastPdfBase64 está nulo após exportarPDF.');
-      }
-    } else {
-      console.warn('[Portal] Condições não atendidas — online:', navigator.onLine);
-    }
-  } catch(ePdf) { console.warn('[Portal] ERRO ao salvar PDF:', ePdf.message || ePdf); }
+    cred = {
+      cnpj: cnpj,
+      nome: rat.cliente || '',
+      senhaHash: hash,
+      criadaEm: agora.toISOString(),
+      expiradoEm: expiraEm,
+      emails: emails,
+      ativo: true
+    };
+    await colRef.doc(docId).set(cred, { merge: true });
+    return { cnpj, senha: senhaPlain, credencial: cred, nova: true };
 
-  return token;
-  } catch(eFatal) {
-    // [FIX-v54-4] Barreira final: nunca lança exceção para o chamador.
-    console.warn('[Portal] _gerarTokenPortal: erro inesperado (ignorado):', eFatal.message || eFatal);
-    return rat.portalToken || null;
+  } catch(e){
+    console.warn('[Portal v2] _gerarCredencialPortal:', e.message||e);
+    return null;
   }
 };
 
-window._urlPortal=function(token){
-  // Bug 2 fix: avisa se o sistema estiver rodando localmente (file://)
-  // pois o link gerado seria file:///... inacessível para o cliente
-  if(window.location.protocol==='file:'){
-    console.warn('[Portal] Sistema aberto via file:// — o link gerado só funciona localmente. Use a versão hospedada em HTTPS (ex: onlinees.vercel.app) para enviar links ao cliente.');
-  }
-  return window.location.href.split('?')[0]+'?rat='+token;
+/* ─────────────────────────────────────────────────────────────
+   URL do portal — usa parâmetro ?portal=CNPJ (substitui ?rat=)
+──────────────────────────────────────────────────────────── */
+window._urlPortalV2 = function(cnpj){
+  var base = window.location.href.split('?')[0];
+  return base + '?portal=' + _normCnpj(cnpj);
 };
 
-// ── Garante auth anônima para o portal (cliente não tem login) ───────────
-// [FIX-v42] As Firestore Security Rules exigem request.auth != null para ler
-// onlineEsRelatorios. O cliente abre o portal sem sessão → Firestore nega →
-// fallback vai para localStorage vazio → "Relatório não encontrado".
-// signInAnonymously dá um UID temporário que satisfaz request.auth != null
-// sem expor nenhum dado do sistema ao cliente.
-// ── Garantir autenticação anônima para o portal ──────────
-// [FIX-v55b] Estratégia em cascata:
-// 1. SDK signInAnonymously (ideal — funciona se habilitado no Console)
-// 2. Identity Toolkit REST signup anonymous (funciona mesmo sem habilitar no Console
-//    se o projeto tiver Auth habilitado)
-// 3. Nenhuma auth — REST fallback em _buscarRat tenta sem Bearer (depende das rules)
-async function _garantirAuthPortal() {
-  // [FIX-v60] Restaura autenticação anônima — necessária porque a API key tem
-  // restrições de referrer que bloqueiam chamadas REST sem Bearer token.
-  // signInAnonymously dá um uid temporário que satisfaz request.auth != null.
-  try {
-    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
-    if (!_auth) return;
-    if (_auth.currentUser) return; // já autenticado (técnico logado ou sessão anon anterior)
+/* Mantém _urlPortal para compatibilidade (alguns botões ainda usam) */
+window._urlPortal = function(token){ return window._urlPortalV2 ? window._urlPortalV2(token) : '#'; };
 
-    // Tentativa 1: SDK signInAnonymously
-    try {
-      await _auth.signInAnonymously();
-      if (_auth.currentUser) {
-        console.log('[Portal] Auth anônima via SDK — OK');
-        return;
-      }
-    } catch(eAnon) {
-      if (eAnon && eAnon.code !== 'auth/operation-not-allowed') {
-        console.warn('[Portal] signInAnonymously erro:', eAnon.message||eAnon);
-      }
-      // Se desabilitado, tenta REST
+/* ─────────────────────────────────────────────────────────────
+   _gerarTokenPortal — compatibilidade com código existente
+   Agora gera credencial em vez de token aleatório
+──────────────────────────────────────────────────────────── */
+window._gerarTokenPortal = async function(rat){
+  try{
+    var resultado = await window._gerarCredencialPortal(rat);
+    if(resultado && resultado.cnpj){
+      // Salva cnpj no objeto rat para uso em _urlPortalV2
+      rat._portalCnpj = resultado.cnpj;
+      rat._portalSenha = resultado.nova ? resultado.senha : null;
+      // Mantém portalToken preenchido para não quebrar código que o verifica
+      rat.portalToken = 'cnpj:' + resultado.cnpj;
+      rat.portalTokenCriado = resultado.credencial.criadaEm;
+      return resultado.cnpj; // retorna cnpj como "token"
     }
+    return null;
+  }catch(e){
+    console.warn('[Portal v2] _gerarTokenPortal wrapper:', e.message||e);
+    return null;
+  }
+};
 
-    // Tentativa 2: Identity Toolkit REST signup anônimo
-    try {
-      var _cfg = window.firebaseConfig || {};
-      if (_cfg.apiKey) {
-        var _resp = await fetch(
-          'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + _cfg.apiKey,
-          { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({returnSecureToken:true}) }
-        );
-        if (_resp.ok) {
-          var _data = await _resp.json();
-          if (_data.idToken) {
-            window._portalAnonToken = _data.idToken;
-            window._portalAnonTokenExp = Date.now() + (_data.expiresIn ? parseInt(_data.expiresIn,10)*1000 : 3600000);
-            console.log('[Portal] Auth anônima via Identity Toolkit REST — OK');
-            return;
-          }
-        }
-      }
-    } catch(eRest) {
-      console.warn('[Portal] Identity Toolkit REST falhou:', eRest.message||eRest);
+/* ─────────────────────────────────────────────────────────────
+   MONTAR MENSAGEM com credenciais (WhatsApp / E-mail)
+──────────────────────────────────────────────────────────── */
+window._montarMensagemPortalV2 = function(rat, resultado, canal){
+  var url = window._urlPortalV2(resultado.cnpj);
+  var nome  = rat.cliente || '';
+  var numRat = rat.numero || '';
+  var data   = rat.dataHoraBr || '';
+  var tecnico= rat.tecnico || '';
+  var cnpjFmt = rat.cnpjCliente || '';
+  var senhaInfo = resultado.nova && resultado.senha
+    ? '\n🔑 Sua senha de acesso: *' + resultado.senha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + cnpjFmt + ')'
+    : '\n🔑 Use seu CNPJ/CPF e a senha já cadastrada para entrar.';
+
+  if(canal === 'whats'){
+    return 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+      'Segue o Relatório Técnico de Atendimento RAT *' + numRat + '* — ' + nome + '.\n' +
+      '📅 Data: ' + data + '\n👷 Técnico: ' + tecnico + '\n\n' +
+      '📂 Acesse o Portal do Cliente para baixar seu relatório:\n' + url +
+      senhaInfo +
+      '\n\nQualquer dúvida, estamos à disposição!';
+  } else {
+    return [
+      'Olá, ' + nome + '!',
+      '',
+      'Segue o Relatório Técnico de Atendimento RAT Nº ' + numRat + '.',
+      '• Data: ' + data,
+      '• Técnico: ' + tecnico,
+      '',
+      '📂 Acesse o Portal do Cliente para visualizar e baixar o PDF:',
+      url,
+      resultado.nova && resultado.senha
+        ? '🔑 Usuário: ' + cnpjFmt + '\n🔑 Senha: ' + resultado.senha + ' (válida por 30 dias)'
+        : '🔑 Use seu CNPJ/CPF e a senha já cadastrada.',
+      '',
+      'Atenciosamente,',
+      'Online-ES – Eletroeletrônica',
+      'www.onlinees.com.br'
+    ].join('\n');
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   REENVIO DE SENHA POR E-MAIL (senha expirada)
+──────────────────────────────────────────────────────────── */
+async function _reenviarSenhaEmail(cnpj, emailDestino, nomeCli, novaSenha){
+  var assunto = 'Online-ES – Nova senha de acesso ao Portal do Cliente';
+  var url = window._urlPortalV2(cnpj);
+  var corpo = [
+    'Olá, ' + nomeCli + '!',
+    '',
+    'Sua senha de acesso ao Portal do Cliente da ONLINE-ES expirou.',
+    'Geramos uma nova senha para você:',
+    '',
+    '🔗 Portal: ' + url,
+    '👤 Usuário (CNPJ/CPF): ' + cnpj,
+    '🔑 Nova senha: ' + novaSenha + ' (válida por 30 dias)',
+    '',
+    'Acesse o portal para visualizar todos os seus Relatórios Técnicos.',
+    '',
+    'Atenciosamente,',
+    'Online-ES – Eletroeletrônica',
+    'www.onlinees.com.br'
+  ].join('\n');
+  // Abre cliente de e-mail padrão (mesmo comportamento do resto do sistema)
+  window.open(
+    'mailto:' + encodeURIComponent(emailDestino) +
+    '?subject=' + encodeURIComponent(assunto) +
+    '&body=' + encodeURIComponent(corpo),
+    '_blank', 'noopener,noreferrer'
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   AUTENTICAÇÃO DO CLIENTE
+──────────────────────────────────────────────────────────── */
+var _portalSessao = null; // { cnpj, nome, cred, loginEm }
+
+async function _loginPortal(cnpjInput, senhaInput){
+  var cnpj = _normCnpj(cnpjInput);
+  if(cnpj.length < 8) return { ok: false, msg: 'CNPJ ou CPF inválido.' };
+
+  var db = _db();
+  if(!db) return { ok: false, msg: 'Sem conexão com o servidor. Tente novamente em instantes.' };
+
+  var snap;
+  try{
+    snap = await db.collection('onlineEsPortalClientes').doc(cnpj).get();
+  }catch(e){
+    return { ok: false, msg: 'Erro de conexão. Verifique sua internet.' };
+  }
+
+  if(!snap || !snap.exists){
+    return { ok: false, msg: 'Nenhum acesso cadastrado para este CNPJ/CPF. Solicite o link ao técnico.' };
+  }
+
+  var cred = snap.data();
+  if(cred.ativo === false){
+    return { ok: false, msg: 'Acesso desativado. Entre em contato com a ONLINE-ES.' };
+  }
+
+  // Verifica expiração
+  var agora = new Date();
+  var expira = cred.expiradoEm ? new Date(cred.expiradoEm) : new Date(0);
+  if(agora > expira){
+    // Senha expirada — gera nova e envia por e-mail se disponível
+    return { ok: false, expirada: true, cred: cred, cnpj: cnpj };
+  }
+
+  // Verifica hash
+  var hash = await _sha256(String(senhaInput||'').trim());
+  if(hash !== cred.senhaHash){
+    return { ok: false, msg: 'Senha incorreta. Verifique a senha recebida pelo WhatsApp ou e-mail.' };
+  }
+
+  _portalSessao = { cnpj: cnpj, nome: cred.nome||'', cred: cred, loginEm: new Date() };
+  // Marca visualização no doc
+  try{ await db.collection('onlineEsPortalClientes').doc(cnpj).update({ ultimoAcesso: agora.toISOString() }); }catch(e){}
+  return { ok: true };
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BUSCAR RATs DO CLIENTE (pelo CNPJ)
+──────────────────────────────────────────────────────────── */
+async function _buscarRatsDoCnpj(cnpj){
+  var db = _db();
+  if(!db) return [];
+  try{
+    // Tenta com orderBy (requer índice cnpjCliente + dataHoraIso)
+    try{
+      var snap = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente','==',cnpj)
+        .where('_deleted','==',false)
+        .orderBy('dataHoraIso','desc')
+        .limit(50).get();
+      var arr = [];
+      snap.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(!r._deleted) arr.push(r); });
+      return arr;
+    }catch(eIdx){
+      // Sem índice — busca simples e ordena no cliente
+      var snap2 = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente','==',cnpj).limit(80).get();
+      var arr2 = [];
+      snap2.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(!r._deleted) arr2.push(r); });
+      arr2.sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
+      return arr2.slice(0,50);
     }
-
-    console.warn('[Portal] Sem auth anônima — portal depende de regras públicas.');
-  } catch(eFatal) {
-    console.warn('[Portal] _garantirAuthPortal erro (ignorado):', eFatal.message||eFatal);
+  }catch(e){
+    console.warn('[Portal v2] _buscarRatsDoCnpj:', e.message||e);
+    return [];
   }
 }
 
-// ── Obter token de auth para REST (anônimo ou técnico) ───
-// [FIX-v55b] Verifica também o token REST obtido via Identity Toolkit
-async function _getAuthToken() {
-  try {
-    // Token do SDK (técnico logado ou signInAnonymously com sucesso)
-    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
-    if (_auth && _auth.currentUser) {
-      return await _auth.currentUser.getIdToken();
-    }
-    // Token REST do Identity Toolkit (fallback anônimo)
-    if (window._portalAnonToken) {
-      // Verifica se não expirou (margem de 60s)
-      if (window._portalAnonTokenExp && Date.now() < window._portalAnonTokenExp - 60000) {
-        return window._portalAnonToken;
-      }
-    }
-  } catch(e) {}
-  return null;
-}
+/* ─────────────────────────────────────────────────────────────
+   RENDER: TELA DE LOGIN
+──────────────────────────────────────────────────────────── */
+function _renderLogin(opts){
+  opts = opts || {};
+  var el = document.getElementById('pv2Conteudo');
+  if(!el) return;
 
-// ── Buscar RAT pelo token ────────────────────────────────
-// [FIX-v57] Reescrito para REST-first sem autenticação.
-// As regras do Firestore devem permitir leitura de onlineEsRelatorios quando
-// resource.data.portalToken != null (leitura pública por token).
-// Não depende mais de signInAnonymously nem de auth anônima.
-// [FIX-v60] Aguarda auth estar disponível (máx 5s) antes de tentar chamadas autenticadas
-function _aguardarAuth() {
-  return new Promise(function(resolve) {
-    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
-    if (!_auth) { resolve(null); return; }
-    if (_auth.currentUser) { resolve(_auth.currentUser); return; }
-    var _unsub;
-    var _timer = setTimeout(function() {
-      if (_unsub) _unsub();
-      resolve(null);
-    }, 5000);
-    _unsub = _auth.onAuthStateChanged(function(user) {
-      clearTimeout(_timer);
-      if (_unsub) _unsub();
-      resolve(user);
+  el.innerHTML =
+    '<div class="pv2-card">' +
+      '<h2><i class="ri-shield-keyhole-line" style="color:#f97316;"></i> Acesso ao Portal</h2>' +
+      (opts.info ? '<div class="pv2-info">' + opts.info + '</div>' : '') +
+      '<div id="pv2Err" class="pv2-err"></div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<label class="pv2-label">CNPJ ou CPF da empresa</label>' +
+        '<input id="pv2Cnpj" class="pv2-input" type="text" inputmode="numeric" placeholder="00.000.000/0000-00 ou 000.000.000-00" autocomplete="username" value="' + _ep(opts.cnpj||'') + '">' +
+      '</div>' +
+      '<div style="margin-bottom:4px;">' +
+        '<label class="pv2-label">Senha (6 dígitos recebida por WhatsApp ou e-mail)</label>' +
+        '<input id="pv2Senha" class="pv2-input" type="password" inputmode="numeric" maxlength="6" placeholder="• • • • • •" autocomplete="current-password">' +
+      '</div>' +
+      '<button class="pv2-btn" id="pv2BtnLogin"><i class="ri-login-box-line"></i> Entrar</button>' +
+      '<button class="pv2-btn-sec" id="pv2BtnEsqueci">Esqueci minha senha / Solicitar novo acesso</button>' +
+    '</div>' +
+    '<div class="pv2-card" style="background:#f8fafc;border-style:dashed;">' +
+      '<div style="font-size:.78rem;color:#64748b;line-height:1.6;">' +
+        '<strong style="color:#0f172a;">Como acessar:</strong><br>' +
+        '① O técnico envia o link do portal pelo WhatsApp ou e-mail<br>' +
+        '② Use o CNPJ/CPF da empresa como usuário<br>' +
+        '③ A senha de 6 dígitos vem na mesma mensagem<br>' +
+        '④ A senha é válida por 30 dias' +
+      '</div>' +
+    '</div>';
+
+  // Máscara CNPJ/CPF
+  var cnpjInput = document.getElementById('pv2Cnpj');
+  if(cnpjInput){
+    cnpjInput.addEventListener('input', function(){
+      var v = cnpjInput.value.replace(/\D/g,'').slice(0,14);
+      if(v.length<=11){
+        if(v.length<=3) cnpjInput.value = v;
+        else if(v.length<=6) cnpjInput.value = v.slice(0,3)+'.'+v.slice(3);
+        else if(v.length<=9) cnpjInput.value = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+        else cnpjInput.value = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+      }else{
+        if(v.length<=2) cnpjInput.value = v;
+        else if(v.length<=5) cnpjInput.value = v.slice(0,2)+'.'+v.slice(2);
+        else if(v.length<=8) cnpjInput.value = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5);
+        else if(v.length<=12) cnpjInput.value = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8);
+        else cnpjInput.value = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8,12)+'-'+v.slice(12);
+      }
     });
+    if(opts.cnpj) cnpjInput.value = opts.cnpj;
+  }
+
+  // Apenas dígitos na senha
+  var senhaInput = document.getElementById('pv2Senha');
+  if(senhaInput){
+    senhaInput.addEventListener('input', function(){
+      senhaInput.value = senhaInput.value.replace(/\D/g,'').slice(0,6);
+    });
+    senhaInput.addEventListener('keydown', function(e){
+      if(e.key==='Enter') document.getElementById('pv2BtnLogin') && document.getElementById('pv2BtnLogin').click();
+    });
+  }
+
+  var btnLogin = document.getElementById('pv2BtnLogin');
+  if(btnLogin){
+    btnLogin.addEventListener('click', async function(){
+      var errEl = document.getElementById('pv2Err');
+      errEl.style.display = 'none';
+      btnLogin.disabled = true;
+      btnLogin.innerHTML = '<i class="ri-loader-4-line"></i> Verificando...';
+
+      var cnpjVal = document.getElementById('pv2Cnpj').value;
+      var senhaVal = document.getElementById('pv2Senha').value;
+
+      if(!cnpjVal.trim()){ errEl.textContent='Informe o CNPJ ou CPF.'; errEl.style.display='block'; btnLogin.disabled=false; btnLogin.innerHTML='<i class="ri-login-box-line"></i> Entrar'; return; }
+      if(!senhaVal.trim() || senhaVal.trim().length < 6){ errEl.textContent='Informe os 6 dígitos da senha.'; errEl.style.display='block'; btnLogin.disabled=false; btnLogin.innerHTML='<i class="ri-login-box-line"></i> Entrar'; return; }
+
+      var resultado = await _loginPortal(cnpjVal, senhaVal.trim());
+
+      if(resultado.ok){
+        _renderListaRats();
+      } else if(resultado.expirada){
+        _renderSenhaExpirada(resultado.cnpj, resultado.cred);
+      } else {
+        errEl.textContent = resultado.msg || 'Erro de autenticação.';
+        errEl.style.display = 'block';
+        btnLogin.disabled = false;
+        btnLogin.innerHTML = '<i class="ri-login-box-line"></i> Entrar';
+      }
+    });
+  }
+
+  var btnEsqueci = document.getElementById('pv2BtnEsqueci');
+  if(btnEsqueci){
+    btnEsqueci.addEventListener('click', function(){
+      _renderEsqueciSenha();
+    });
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RENDER: SENHA EXPIRADA — oferece reenvio
+──────────────────────────────────────────────────────────── */
+async function _renderSenhaExpirada(cnpj, cred){
+  // Gera nova senha automaticamente
+  var novaSenha = _gerarSenha6();
+  var hash = await _sha256(novaSenha);
+  var expiraEm = new Date(Date.now() + 30*24*60*60*1000).toISOString();
+
+  var db = _db();
+  if(db){
+    try{
+      await db.collection('onlineEsPortalClientes').doc(cnpj).update({
+        senhaHash: hash,
+        criadaEm: new Date().toISOString(),
+        expiradoEm: expiraEm
+      });
+    }catch(e){ console.warn('[Portal v2] renovar senha:', e.message||e); }
+  }
+
+  var emails = cred.emails || [];
+  var el = document.getElementById('pv2Conteudo');
+  if(!el) return;
+
+  el.innerHTML =
+    '<div class="pv2-card">' +
+      '<h2><i class="ri-time-line" style="color:#f59e0b;"></i> Senha expirada</h2>' +
+      '<div class="pv2-info">Geramos uma nova senha de acesso para <strong>' + _ep(cred.nome||'') + '</strong>.</div>' +
+      '<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:16px;">' +
+        '<div style="font-size:.8rem;color:#475569;margin-bottom:6px;">Nova senha:</div>' +
+        '<div style="font-size:2rem;font-weight:800;color:#0f172a;letter-spacing:.15em;font-family:monospace;">' + _ep(novaSenha) + '</div>' +
+        '<div style="font-size:.72rem;color:#94a3b8;margin-top:4px;">Válida por 30 dias</div>' +
+      '</div>' +
+      (emails.length > 0
+        ? '<div style="font-size:.8rem;color:#475569;margin-bottom:10px;">Enviar a nova senha por e-mail para:</div>' +
+          emails.map(function(em, i){
+            return '<button class="pv2-btn-sec" style="margin-bottom:6px;text-align:left;padding:9px 14px;" data-email="' + _ep(em) + '" data-senha="' + _ep(novaSenha) + '" data-cnpj="' + _ep(cnpj) + '" data-nome="' + _ep(cred.nome||'') + '" id="pv2EnvEmail_'+i+'">' +
+              '<i class="ri-mail-send-line"></i> Enviar para ' + _ep(em) + '</button>';
+          }).join('')
+        : '<div class="pv2-info">Não há e-mail cadastrado. Anote a senha acima e acesse novamente.</div>'
+      ) +
+      '<button class="pv2-btn" id="pv2VoltarLoginExp" style="margin-top:12px;"><i class="ri-login-box-line"></i> Entrar com nova senha</button>' +
+    '</div>';
+
+  // Bind botões de e-mail
+  emails.forEach(function(em, i){
+    var btn = document.getElementById('pv2EnvEmail_'+i);
+    if(btn) btn.addEventListener('click', async function(){
+      btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i> Abrindo e-mail...';
+      await _reenviarSenhaEmail(cnpj, em, cred.nome||'', novaSenha);
+      btn.disabled = false; btn.innerHTML = '<i class="ri-check-line"></i> E-mail aberto para ' + _ep(em);
+    });
+  });
+
+  var btnVoltar = document.getElementById('pv2VoltarLoginExp');
+  if(btnVoltar) btnVoltar.addEventListener('click', function(){
+    _renderLogin({ cnpj: cnpj, info: '✅ Nova senha gerada. Use a senha exibida acima para entrar.' });
   });
 }
 
-async function _buscarRat(token){
-  if (!token || typeof token !== 'string' || !/^[A-Za-z0-9]{8,20}$/.test(token)) return null;
-
-  // [FIX-v61] Garante auth anônima antes de qualquer chamada REST
-  await _garantirAuthPortal();
-
-  var _cfg = window.firebaseConfig || {};
-  var _pid = _cfg.projectId;
-  var _key = _cfg.apiKey;
-
-  // [FIX-v60] Aguarda auth state (máx 5s) — resolve o race condition onde
-  // _getAuthToken() retornava null porque currentUser ainda não estava disponível
-  var _authUser = await _aguardarAuth();
-
-  // Helper: converte campos Firestore REST para objeto JS
-  function _parseFields(fields) {
-    var obj = {};
-    Object.keys(fields).forEach(function(k){
-      var v = fields[k];
-      if      (v.stringValue  !== undefined) obj[k] = v.stringValue;
-      else if (v.integerValue !== undefined) obj[k] = parseInt(v.integerValue, 10);
-      else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
-      else if (v.arrayValue)                obj[k] = (v.arrayValue.values||[]).map(function(x){ return x.stringValue||x.integerValue||''; });
-      else                                  obj[k] = null;
-    });
-    return obj;
-  }
-
-  // Helper: faz runQuery e extrai RAT
-  async function _runQuery(headers) {
-    var _url = 'https://firestore.googleapis.com/v1/projects/'+_pid+'/databases/(default)/documents:runQuery?key='+_key;
-    var _body = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'portalToken'},op:'EQUAL',value:{stringValue:token}}},limit:1}};
-    var _res = await fetch(_url, {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, headers), body:JSON.stringify(_body)});
-    if (!_res.ok) {
-      var _errText = await _res.text().catch(function(){ return ''; });
-      throw new Error(_res.status + ' ' + _errText.slice(0,200));
-    }
-    var _json = await _res.json();
-    if (Array.isArray(_json) && _json[0] && _json[0].document) {
-      var _rat = _parseFields(_json[0].document.fields || {});
-      if (_rat.portalToken === token) return _rat;
-    }
-    return null;
-  }
-
-  if (_pid && _key) {
-    // Tentativa 1: REST sem auth — regra `'portalToken' in resource.data`
-    try {
-      var _rat1 = await _runQuery({});
-      if (_rat1) { console.log('[Portal] RAT encontrada via REST sem auth.'); return _rat1; }
-    } catch(e1) { console.warn('[Portal] REST sem auth falhou:', e1.message); }
-
-    // Tentativa 2: REST com Bearer token (anônimo ou técnico)
-    // [FIX-v62] Envia o token já obtido por _aguardarAuth / _getAuthToken / _portalAnonToken
-    try {
-      var _authTok = _authUser ? await _authUser.getIdToken() : await _getAuthToken();
-      if (_authTok) {
-        var _rat2 = await _runQuery({'Authorization':'Bearer '+_authTok});
-        if (_rat2) { console.log('[Portal] RAT encontrada via REST com auth.'); return _rat2; }
-      }
-    } catch(e2) { console.warn('[Portal] REST com auth falhou:', e2.message); }
-  }
-
-  // Tentativa 3: SDK Firestore
-  try {
-    var db = _db();
-    if (db) {
-      var snap = await db.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
-      if (!snap.empty) { console.log('[Portal] RAT encontrada via SDK.'); return snap.docs[0].data(); }
-    }
-  } catch(eSDK) { console.warn('[Portal] SDK falhou:', eSDK.code || eSDK.message); }
-
-  // Tentativa 4: localStorage
-  try {
-    var lista = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
-    return lista.find(function(r){ return r.portalToken === token; }) || null;
-  } catch(e) { return null; }
-}
-
-// ── Registrar visualização ───────────────────────────────
-async function _registrarVisto(token){
-  await _garantirAuthPortal(); // [FIX-v42]
-  try{
-    var db=_db();
-    if(db){
-      var snap=await db.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get();
-      if(!snap.empty) await snap.docs[0].ref.update({portalVisto:true,portalVistoEm:new Date().toISOString()});
-    }
-  }catch(e){}
-  try{
-    var lista=typeof loadRelatorios==='function'?loadRelatorios():[];
-    lista=lista.map(function(r){return r.portalToken===token?Object.assign({},r,{portalVisto:true,portalVistoEm:new Date().toISOString()}):r;});
-    if(typeof saveRelatorios==='function') saveRelatorios(lista);
-    window.relatorios=lista;
-  }catch(e){}
-}
-
-// ── Histórico 30 dias ────────────────────────────────────
-async function _historico(cnpj,idAtual){
-  // Bug 4 fix: CNPJ obrigatório e mínimo 8 chars para evitar busca sem filtro útil
-  if(!cnpj||typeof cnpj!=='string'||cnpj.trim().length<8) return [];
-  await _garantirAuthPortal(); // [FIX-v42]
-  cnpj=cnpj.trim();
-  var limite=new Date(); limite.setDate(limite.getDate()-30);
-  var limIso=limite.toISOString();
-  var todos=[];
-  // [FIX-v57] REST sem auth primeiro — mesma estratégia do _buscarRat
-  var _cfgH = window.firebaseConfig || {};
-  var _pidH = _cfgH.projectId; var _keyH = _cfgH.apiKey;
-  if (_pidH && _keyH) {
-    try {
-      var _hUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidH+'/databases/(default)/documents:runQuery?key='+_keyH;
-      var _hBody = {structuredQuery:{from:[{collectionId:'onlineEsRelatorios'}],where:{fieldFilter:{field:{fieldPath:'cnpjCliente'},op:'EQUAL',value:{stringValue:cnpj}}},orderBy:[{field:{fieldPath:'dataHoraIso'},direction:'DESCENDING'}],limit:20}};
-      var _hRes = await fetch(_hUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_hBody)});
-      if (_hRes.ok) {
-        var _hJson = await _hRes.json();
-        if (Array.isArray(_hJson)) {
-          _hJson.forEach(function(row) {
-            if (row.document) {
-              var _f = row.document.fields || {};
-              var _r = {};
-              Object.keys(_f).forEach(function(k){
-                var v=_f[k];
-                if(v.stringValue!==undefined) _r[k]=v.stringValue;
-                else if(v.integerValue!==undefined) _r[k]=parseInt(v.integerValue,10);
-                else if(v.booleanValue!==undefined) _r[k]=v.booleanValue;
-                else if(v.arrayValue) _r[k]=(v.arrayValue.values||[]).map(function(x){return x.stringValue||x.integerValue||'';});
-                else _r[k]=null;
-              });
-              todos.push(_r);
-            }
-          });
-        }
-      }
-    } catch(eHRest) { console.warn('[Portal/Histórico] REST falhou:', eHRest.message||eHRest); }
-  }
-  // Fallback: SDK (técnico logado)
-  if (!todos.length) {
-    try{
-      var db=_db();
-      if(db){
-        try {
-          var snap=await db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).orderBy('dataHoraIso','desc').limit(20).get();
-          snap.forEach(function(d){todos.push(d.data());});
-        } catch(eIdx) {
-          var snap2=await db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).limit(30).get();
-          snap2.forEach(function(d){todos.push(d.data());});
-          todos.sort(function(a,b){return(b.dataHoraIso||'').localeCompare(a.dataHoraIso||'');});
-        }
-      }
-    }catch(e){
-      todos=(typeof loadRelatorios==='function'?loadRelatorios():[]).filter(function(r){return r.cnpjCliente===cnpj;}).sort(function(a,b){return(b.dataHoraIso||'').localeCompare(a.dataHoraIso||'');});
-    }
-  }
-  return todos.filter(function(r){return r.id!==idAtual&&r.portalToken&&(r.dataHoraIso||'')>=limIso;}).slice(0,10);
-}
-
-// ── Renderizar portal ────────────────────────────────────
-async function _renderPortal(token){
-  var el=document.getElementById('portalConteudo');
+/* ─────────────────────────────────────────────────────────────
+   RENDER: ESQUECI MINHA SENHA
+──────────────────────────────────────────────────────────── */
+function _renderEsqueciSenha(){
+  var el = document.getElementById('pv2Conteudo');
   if(!el) return;
-  el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório...</div>';
-  try { // [FIX-v58c] Guard global — impede tela azul vazia em caso de exceção inesperada
 
-  // [FIX-v44] Lê o PDF pré-gerado de onlineEsPortalPdfs/{token} — salvo quando o técnico
-  // gerou o link. O cliente não precisa gerar nada; apenas lê e visualiza.
-  var rat = await _buscarRat(token);
-  if(!rat){
-    el.innerHTML='<div class="portal-not-found"><h2><i class="ri-error-warning-line"></i> Relatório não encontrado</h2><p>O link pode ter expirado ou ser inválido.<br>Entre em contato com a ONLINE-ES.</p></div>';
+  el.innerHTML =
+    '<div class="pv2-card">' +
+      '<h2><i class="ri-key-2-line" style="color:#f97316;"></i> Recuperar acesso</h2>' +
+      '<div class="pv2-info">Informe o CNPJ ou CPF. Se houver acesso cadastrado, verificaremos a situação.</div>' +
+      '<div id="pv2EsqErr" class="pv2-err"></div>' +
+      '<div id="pv2EsqOk" class="pv2-ok" style="display:none;"></div>' +
+      '<div style="margin-bottom:12px;">' +
+        '<label class="pv2-label">CNPJ ou CPF da empresa</label>' +
+        '<input id="pv2EsqCnpj" class="pv2-input" type="text" inputmode="numeric" placeholder="00.000.000/0000-00">' +
+      '</div>' +
+      '<button class="pv2-btn" id="pv2BtnEsqEnviar"><i class="ri-send-plane-line"></i> Verificar e enviar nova senha</button>' +
+      '<button class="pv2-btn-sec" id="pv2BtnEsqVoltar">Voltar ao login</button>' +
+    '</div>';
+
+  // Máscara
+  var inp = document.getElementById('pv2EsqCnpj');
+  if(inp){
+    inp.addEventListener('input', function(){
+      var v = inp.value.replace(/\D/g,'').slice(0,14);
+      if(v.length<=11){
+        if(v.length<=3) inp.value=v;
+        else if(v.length<=6) inp.value=v.slice(0,3)+'.'+v.slice(3);
+        else if(v.length<=9) inp.value=v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+        else inp.value=v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+      }else{
+        if(v.length<=2) inp.value=v;
+        else if(v.length<=5) inp.value=v.slice(0,2)+'.'+v.slice(2);
+        else if(v.length<=8) inp.value=v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5);
+        else if(v.length<=12) inp.value=v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8);
+        else inp.value=v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8,12)+'-'+v.slice(12);
+      }
+    });
+  }
+
+  var btnEnviar = document.getElementById('pv2BtnEsqEnviar');
+  if(btnEnviar){
+    btnEnviar.addEventListener('click', async function(){
+      var errEl = document.getElementById('pv2EsqErr');
+      var okEl  = document.getElementById('pv2EsqOk');
+      errEl.style.display='none'; okEl.style.display='none';
+      var cnpj = _normCnpj(document.getElementById('pv2EsqCnpj').value);
+      if(cnpj.length < 8){ errEl.textContent='CNPJ/CPF inválido.'; errEl.style.display='block'; return; }
+      btnEnviar.disabled=true; btnEnviar.innerHTML='<i class="ri-loader-4-line"></i> Verificando...';
+
+      var db=_db();
+      if(!db){ errEl.textContent='Sem conexão.'; errEl.style.display='block'; btnEnviar.disabled=false; btnEnviar.innerHTML='<i class="ri-send-plane-line"></i> Verificar e enviar nova senha'; return; }
+
+      try{
+        var snap = await db.collection('onlineEsPortalClientes').doc(cnpj).get();
+        if(!snap.exists){
+          errEl.textContent='Nenhum acesso cadastrado para este CNPJ/CPF. Solicite o link ao técnico da ONLINE-ES.';
+          errEl.style.display='block';
+        } else {
+          var cred = snap.data();
+          var novaSenha = _gerarSenha6();
+          var hash = await _sha256(novaSenha);
+          var expiraEm = new Date(Date.now()+30*24*60*60*1000).toISOString();
+          await db.collection('onlineEsPortalClientes').doc(cnpj).update({
+            senhaHash: hash, criadaEm: new Date().toISOString(), expiradoEm: expiraEm
+          });
+          var emails = cred.emails || [];
+          if(emails.length > 0){
+            // Abre cliente de e-mail para o primeiro e-mail
+            await _reenviarSenhaEmail(cnpj, emails[0], cred.nome||'', novaSenha);
+            okEl.innerHTML = '✅ E-mail aberto para <strong>' + _ep(emails[0]) + '</strong>.<br>Sua nova senha é: <strong style="font-family:monospace;font-size:1.1rem;letter-spacing:.1em;">' + _ep(novaSenha) + '</strong>';
+            okEl.style.display='block';
+          } else {
+            okEl.innerHTML = '✅ Nova senha gerada: <strong style="font-family:monospace;font-size:1.2rem;letter-spacing:.1em;">' + _ep(novaSenha) + '</strong><br><small style="color:#64748b;">Nenhum e-mail cadastrado — anote esta senha.</small>';
+            okEl.style.display='block';
+          }
+        }
+      }catch(e){
+        errEl.textContent='Erro ao processar. Tente novamente.';
+        errEl.style.display='block';
+      }
+      btnEnviar.disabled=false; btnEnviar.innerHTML='<i class="ri-send-plane-line"></i> Verificar e enviar nova senha';
+    });
+  }
+
+  var btnVoltar = document.getElementById('pv2BtnEsqVoltar');
+  if(btnVoltar) btnVoltar.addEventListener('click', function(){ _renderLogin(); });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RENDER: LISTA DE RATs DO CLIENTE
+──────────────────────────────────────────────────────────── */
+async function _renderListaRats(){
+  if(!_portalSessao){ _renderLogin(); return; }
+  var el = document.getElementById('pv2Conteudo');
+  if(!el) return;
+
+  el.innerHTML =
+    '<div class="pv2-card">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+        '<div>' +
+          '<div style="font-size:.75rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Bem-vindo</div>' +
+          '<div style="font-size:1rem;font-weight:700;color:#0f172a;">' + _ep(_portalSessao.nome) + '</div>' +
+        '</div>' +
+        '<button class="pv2-btn-sec" id="pv2BtnSair" style="width:auto;padding:7px 14px;font-size:.78rem;">' +
+          '<i class="ri-logout-box-r-line"></i> Sair' +
+        '</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="pv2-card">' +
+      '<h2><i class="ri-file-list-3-line" style="color:#f97316;"></i> Seus Relatórios de Atendimento</h2>' +
+      '<div id="pv2ListaRats" class="pv2-loading"><i class="ri-loader-4-line"></i> Buscando relatórios...</div>' +
+    '</div>';
+
+  var btnSair = document.getElementById('pv2BtnSair');
+  if(btnSair) btnSair.addEventListener('click', function(){
+    _portalSessao = null;
+    _renderLogin();
+  });
+
+  // Busca RATs
+  var rats = await _buscarRatsDoCnpj(_portalSessao.cnpj);
+  var listaEl = document.getElementById('pv2ListaRats');
+  if(!listaEl) return;
+
+  if(!rats.length){
+    listaEl.innerHTML = '<div class="pv2-empty"><i class="ri-file-search-line" style="font-size:2rem;display:block;margin-bottom:8px;"></i>Nenhum relatório encontrado para o seu CNPJ/CPF.</div>';
     return;
   }
 
-  // Verifica expiração de 30 dias
-  if(rat.portalTokenCriado){
-    var criado=new Date(rat.portalTokenCriado);
-    var limite=new Date(criado.getTime()+30*24*60*60*1000);
-    if(new Date()>limite){
-      el.innerHTML='<div class="portal-not-found"><h2><i class="ri-time-line"></i> Link expirado</h2><p>Este link expirou após 30 dias.<br>Solicite um novo link à ONLINE-ES.</p></div>';
-      return;
-    }
-  } else {
-    var _dataAssumida = new Date(Date.now() - 60*24*60*60*1000).toISOString();
-    rat.portalTokenCriado = _dataAssumida;
-    try { var _dbLeg=_db(); if(_dbLeg){ var _sl=await _dbLeg.collection('onlineEsRelatorios').where('portalToken','==',token).limit(1).get(); if(!_sl.empty) _sl.docs[0].ref.update({portalTokenCriado:_dataAssumida}).catch(function(){}); } } catch(e){}
-  }
-  _registrarVisto(token);
-
-  // [FIX-v60] Garante auth anônima antes de buscar PDF (mesma razão do _buscarRat)
-  await _garantirAuthPortal();
-  // [FIX-v57] Busca PDF — REST sem auth primeiro (regra pública por token), SDK depois
-  el.innerHTML='<div class="portal-loading"><i class="ri-file-pdf-line"></i> Carregando seu PDF...</div>';
-  var pdfB64 = null;
-  var pdfNome = 'RAT-' + (rat.numero||'relatorio') + '.pdf';
-
-  var _cfgP = window.firebaseConfig || {};
-  var _pidP = _cfgP.projectId; var _keyP = _cfgP.apiKey;
-
-  // Tentativa 1: REST sem auth (onlineEsPortalPdfs — leitura pública pelo token/ID do doc)
-  if (_pidP && _keyP && !pdfB64) {
-    try {
-      var _pdfUrl = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
-      var _pdfTok1 = await _getAuthToken(); // [FIX-v62] envia token anônimo se disponível
-      var _pdfRes = await fetch(_pdfUrl, _pdfTok1 ? {headers:{'Authorization':'Bearer '+_pdfTok1}} : {});
-      if (_pdfRes.ok) {
-        var _pdfJson = await _pdfRes.json();
-        var _pdfFields = (_pdfJson && _pdfJson.fields) || {};
-        if (_pdfFields.pdfB64 && _pdfFields.pdfB64.stringValue) {
-          pdfB64 = _pdfFields.pdfB64.stringValue;
-          if (_pdfFields.pdfNome && _pdfFields.pdfNome.stringValue) pdfNome = _pdfFields.pdfNome.stringValue;
-          console.log('[Portal] PDF carregado via REST sem auth.');
-        }
-      } else {
-        console.warn('[Portal] REST PDF sem auth:', _pdfRes.status);
-      }
-    } catch(eRP){ console.warn('[Portal] REST PDF sem auth — exceção:', eRP.message||eRP); }
-  }
-
-  // Tentativa 2: REST com auth (aguarda auth state — fix race condition)
-  if (_pidP && _keyP && !pdfB64) {
-    try {
-      var _authUserP = await _aguardarAuth();
-      var _authTokP = _authUserP ? await _authUserP.getIdToken() : await _getAuthToken();
-      if (_authTokP) {
-        var _pdfUrl2 = 'https://firestore.googleapis.com/v1/projects/'+_pidP+'/databases/(default)/documents/onlineEsPortalPdfs/'+encodeURIComponent(token)+'?key='+_keyP;
-        var _pdfRes2 = await fetch(_pdfUrl2, {headers:{'Authorization':'Bearer '+_authTokP}});
-        if (_pdfRes2.ok) {
-          var _pdfJson2 = await _pdfRes2.json();
-          var _pdfF2 = (_pdfJson2 && _pdfJson2.fields) || {};
-          if (_pdfF2.pdfB64 && _pdfF2.pdfB64.stringValue) {
-            pdfB64 = _pdfF2.pdfB64.stringValue;
-            if (_pdfF2.pdfNome && _pdfF2.pdfNome.stringValue) pdfNome = _pdfF2.pdfNome.stringValue;
-          }
-        }
-      }
-    } catch(eRP2){ console.warn('[Portal] REST PDF com auth — exceção:', eRP2.message||eRP2); }
-  }
-
-  // Tentativa 3: SDK Firestore (técnico logado no mesmo browser)
-  if (!pdfB64) {
-    try {
-      var _dbP = _db();
-      if (_dbP) {
-        var _pdfDoc = await _dbP.collection('onlineEsPortalPdfs').doc(token).get();
-        if (_pdfDoc.exists) {
-          var _pdfData = _pdfDoc.data();
-          pdfB64 = _pdfData.pdfB64 || null;
-          if (_pdfData.pdfNome) pdfNome = _pdfData.pdfNome;
-        }
-      }
-    } catch(eSDKP) { console.warn('[Portal] SDK PDF falhou:', eSDKP.message||eSDKP); }
-  }
-
-  if (pdfB64) {
-    // PDF disponível — exibir inline com iframe + botão download
-    var bstr=atob(pdfB64), n=bstr.length, u8=new Uint8Array(n);
-    for(var i=0;i<n;i++) u8[i]=bstr.charCodeAt(i);
-    var blob=new Blob([u8],{type:'application/pdf'});
-    var blobUrl=URL.createObjectURL(blob);
-    window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(blobUrl);}catch(e){}},{once:true});
-
-    el.innerHTML=
-      '<div class="portal-card" style="padding:14px 16px;">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
-          '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;">'+
-            '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
-            'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
-          '</div>'+
-          '<a href="'+blobUrl+'" target="_blank" rel="noopener" '+
-            'style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:9px 20px;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none;box-shadow:0 4px 16px rgba(249,115,22,.35);">'+
-            '<i class="ri-eye-line"></i> Visualizar PDF'+
-          '</a>'+
-        '</div>'+
-        '<object data="'+blobUrl+'" type="application/pdf" style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;">'+
-          '<div style="text-align:center;padding:24px;color:#64748b;font-size:.82rem;">'+
-            'Seu navegador não exibiu o PDF inline. '+
-            '<a href="'+blobUrl+'" target="_blank" rel="noopener" style="color:#f97316;">Clique aqui para visualizar</a>.'+
-          '</div></object>'+
+  var html = '';
+  rats.forEach(function(r){
+    var sc = _sc(r.status);
+    html +=
+      '<div class="pv2-rat-item" data-ratid="' + _ep(r._fsId||r.id||'') + '">' +
+        '<div>' +
+          '<div class="pv2-rat-num"><i class="ri-file-text-line" style="color:#f97316;"></i> RAT ' + _ep(r.numero||'') + '</div>' +
+          '<div class="pv2-rat-data">' + _ep(_br(r.dataHoraIso)||r.dataHoraBr||'') + ' &nbsp;·&nbsp; Téc: ' + _ep(r.tecnico||'') + '</div>' +
+          '<div class="pv2-rat-equip">' + _ep(r.equipamento||'') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
+          '<span class="pv2-badge ' + sc + '">' + _ep(r.status||'-') + '</span>' +
+          '<span style="font-size:.7rem;color:#94a3b8;"><i class="ri-download-line"></i> Ver PDF</span>' +
+        '</div>' +
       '</div>';
-
-  } else {
-    // PDF não encontrado — tenta gerar agora a partir dos dados da RAT já buscados
-    // [FIX-v63] Geração client-side no portal quando onlineEsPortalPdfs não tem o doc
-    var _pdfGerado = false;
-    console.log('[Portal] Iniciando geração client-side. jsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
-    if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
-      try {
-        el.innerHTML = '<div class="portal-loading"><i class="ri-loader-4-line"></i> Gerando relatório...</div>';
-        await window._ensureJsPDF();
-        console.log('[Portal] jsPDF OK');
-        // [FIX-v71] _ratGen declarado ANTES de ser usado
-        async function _comprimirParaPortal(dataUrl) {
-          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) return dataUrl;
-          return new Promise(function(resolve) {
-            var img = new Image();
-            img.onload = function() {
-              var MAX = 400;
-              var w = img.width, h = img.height;
-              if (w > MAX || h > MAX) { var r = Math.min(MAX/w,MAX/h); w=Math.round(w*r); h=Math.round(h*r); }
-              var cv = document.createElement('canvas');
-              cv.width = w; cv.height = h;
-              cv.getContext('2d').drawImage(img, 0, 0, w, h);
-              resolve(cv.toDataURL('image/jpeg', 0.25));
-            };
-            img.onerror = function() { resolve(dataUrl); };
-            img.src = dataUrl;
-          });
-        }
-        var _ratGen = Object.assign({}, rat, { _somenteMemoria: true });
-        if (_ratGen.assinaturaCliente)    _ratGen.assinaturaCliente    = await _comprimirParaPortal(_ratGen.assinaturaCliente);
-        if (_ratGen.assinaturaTecnicoImg) _ratGen.assinaturaTecnicoImg = await _comprimirParaPortal(_ratGen.assinaturaTecnicoImg);
-        var _sigCliSize = _ratGen.assinaturaCliente ? Math.round(_ratGen.assinaturaCliente.length/1024) : 0;
-        var _sigTecSize = _ratGen.assinaturaTecnicoImg ? Math.round(_ratGen.assinaturaTecnicoImg.length/1024) : 0;
-        console.log('[Portal] Assinaturas: cliente='+_sigCliSize+'KB, tecnico='+_sigTecSize+'KB');
-        console.log('[Portal] Imagens:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(rat[k])?rat[k].length:0); }).join(', '));
-        // [FIX-v72] Comprime logo antes do PDF do portal — logo grande é a causa dos 2573KB
-        var _logoOriginal = window.logoBase64 || null;
-        if (_logoOriginal && _logoOriginal.length > 50000) { // > ~37KB
-          console.log('[Portal] Logo original:', Math.round(_logoOriginal.length/1024)+'KB — comprimindo para portal...');
-          window.logoBase64 = await _comprimirParaPortal(_logoOriginal);
-          console.log('[Portal] Logo após compressão:', Math.round((window.logoBase64||'').length/1024)+'KB');
-        }
-        for (var _fk of ['imgsEquip','imgsServico','imgsBaterias']) {
-          if (Array.isArray(_ratGen[_fk]) && _ratGen[_fk].length) {
-            _ratGen[_fk] = await Promise.all(_ratGen[_fk].slice(0,6).map(function(src){ return _comprimirParaPortal(src); }));
-          }
-        }
-        // Vídeos nunca vão para o PDF
-        _ratGen.vidsEquip = []; _ratGen.vidsServico = []; _ratGen.vidsBaterias = [];
-        // Assinaturas: recomprimir também
-        if (_ratGen.assinaturaCliente) _ratGen.assinaturaCliente = await _comprimirParaPortal(_ratGen.assinaturaCliente);
-        if (_ratGen.assinaturaTecnicoImg) _ratGen.assinaturaTecnicoImg = await _comprimirParaPortal(_ratGen.assinaturaTecnicoImg);
-        console.log('[Portal] Imagens após compressão:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(_ratGen[k])?_ratGen[k].length:0)+'fotos,total='+(Array.isArray(_ratGen[k])?_ratGen[k].reduce(function(a,s){return a+(s?s.length:0);},0):0)+'chars'; }).join(' | '));
-        await window.exportarPDF(_ratGen);
-        // [FIX-v72] Restaura logo original após geração
-        if (_logoOriginal !== undefined) window.logoBase64 = _logoOriginal;
-        var _b64Gen = window._lastPdfBase64;
-        var _nomeGen = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
-        console.log('[Portal] exportarPDF OK. Base64:', _b64Gen ? Math.round(_b64Gen.length/1024)+'KB' : 'NULO');
-        var _PDF_MAX = 4000000; // 4MB — suficiente para PDF só-texto
-        if (_b64Gen && _b64Gen.length <= _PDF_MAX) {
-          // Salva para próximos acessos
-          try {
-            var _dbGen = _db();
-            if (_dbGen) {
-              var _authTokGen = await _getAuthToken();
-              if (_authTokGen) {
-                await _dbGen.collection('onlineEsPortalPdfs').doc(token).set({
-                  token: token, pdfB64: _b64Gen, pdfNome: _nomeGen,
-                  ratNumero: rat.numero||'', ratId: rat.id||'',
-                  criado: new Date().toISOString()
-                });
-                console.log('[Portal] PDF gerado e salvo pelo portal.');
-              }
-            }
-          } catch(eSave) { console.warn('[Portal] Falha ao salvar PDF gerado:', eSave.message||eSave); }
-          // [FIX-v68] Converte base64→Blob async via Worker-like approach
-          // Mostra botão imediatamente, carrega viewer depois
-          console.log('[Portal] Exibindo PDF. Base64:', Math.round(_b64Gen.length/1024)+'KB');
-          var _cardId = 'portalPdfCard_'+Date.now();
-          el.innerHTML =
-            '<div class="portal-card" style="padding:14px 16px;" id="'+_cardId+'">'+
-              '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;margin-bottom:12px;">'+
-                '<i class="ri-file-pdf-line" style="color:#f97316;margin-right:6px;"></i>'+
-                'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
-              '</div>'+
-              '<div id="portalPdfViewer" style="text-align:center;padding:20px 0;">'+
-                '<i class="ri-loader-4-line" style="font-size:2rem;color:#f97316;"></i>'+
-                '<p style="color:#94a3b8;font-size:.82rem;margin:8px 0;">Preparando visualização...</p>'+
-              '</div>'+
-            '</div>';
-          // [FIX-v76] _pdfGerado = true ANTES do setTimeout — evita que o bloco
-          // if(!_pdfGerado) sobrescreva o DOM antes do timeout completar
-          _pdfGerado = true;
-          // Converte em próximo tick para não bloquear render
-          setTimeout(function() {
-            try {
-              var _bstr=atob(_b64Gen),_n=_bstr.length,_u8=new Uint8Array(_n);
-              for(var _i=0;_i<_n;_i++) _u8[_i]=_bstr.charCodeAt(_i);
-              var _blob=new Blob([_u8],{type:'application/pdf'});
-              var _bUrl=URL.createObjectURL(_blob);
-              window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(_bUrl);}catch(e){}},{once:true});
-              var _viewer = document.getElementById('portalPdfViewer');
-              if (!_viewer) return;
-              // [FIX-v76] Usa botão de download/abertura — viewers inline bloqueados em modo anônimo
-              _viewer.innerHTML =
-                '<div style="text-align:center;padding:28px 16px;">'+
-                  '<i class="ri-file-pdf-line" style="font-size:3.5rem;color:#f97316;display:block;margin-bottom:12px;"></i>'+
-                  '<p style="color:#94a3b8;font-size:.85rem;margin:0 0 20px;line-height:1.5;">'+
-                    'Seu Relatório Técnico de Atendimento está pronto.<br>'+
-                    '<span style="font-size:.78rem;opacity:.8;">RAT '+_ep(rat.numero||'')+' &mdash; '+_ep(rat.cliente||'')+'</span>'+
-                  '</p>'+
-                  '<a href="'+_bUrl+'" download="'+pdfNome+'" '+
-                    'style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:13px 32px;font-size:.9rem;font-weight:700;text-decoration:none;box-shadow:0 6px 20px rgba(249,115,22,.35);">'+
-                    '<i class="ri-download-2-line"></i> Baixar PDF'+
-                  '</a>'+
-                  '<div style="margin-top:14px;">'+
-                    '<a href="'+_bUrl+'" target="_blank" rel="noopener" '+
-                      'style="font-size:.75rem;color:#64748b;text-decoration:none;">'+
-                      '<i class="ri-external-link-line"></i> Abrir em nova aba'+
-                    '</a>'+
-                  '</div>'+
-                '</div>';
-              console.log('[Portal] PDF viewer renderizado.');
-            } catch(eView) { console.error('[Portal] Erro no viewer:', eView.message); }
-          }, 50);
-          // [FIX-v67] Re-obtém el após operações async — pode ter sido substituído
-          el = document.getElementById('portalConteudo') || el;
-          console.log('[Portal] el.innerHTML setado. el:', el ? el.id : 'NULL', 'portalCliente classes:', document.getElementById('portalCliente') ? document.getElementById('portalCliente').className : 'NULL');
-        }
-      } catch(eGen) { console.error('[Portal] ERRO ao gerar PDF client-side:', eGen && eGen.message ? eGen.message : eGen, eGen && eGen.stack ? eGen.stack.slice(0,300) : ''); }
-    }
-    console.log('[Portal] _pdfGerado:', _pdfGerado);
-    if (!_pdfGerado) {
-      // Último recurso: resumo dos campos
-      var sc=_sc(rat.status);
-      el.innerHTML=
-        '<div class="portal-card">'+
-        '<h2 style="color:#f97316;"><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
-        '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
-          '<i class="ri-information-line"></i> PDF em preparação. Recarregue em alguns instantes.'+
-        '</div>'+
-        '<div class="portal-campo"><span class="rot">Nº RAT:</span><span class="val"><strong>'+_ep(rat.numero)+'</strong></span></div>'+
-        '<div class="portal-campo"><span class="rot">Data:</span><span class="val">'+_ep(rat.dataHoraBr||_br(rat.dataHoraIso))+'</span></div>'+
-        '<div class="portal-campo"><span class="rot">Técnico:</span><span class="val">'+_ep(rat.tecnico)+'</span></div>'+
-        '<div class="portal-campo"><span class="rot">Cliente:</span><span class="val">'+_ep(rat.cliente)+'</span></div>'+
-        '<div class="portal-campo"><span class="rot">Equipamento:</span><span class="val">'+_ep(rat.equipamento||'-')+'</span></div>'+
-        '<div class="portal-campo"><span class="rot">Status:</span><span class="val"><span class="portal-badge '+sc+'">'+_ep(rat.status||'-')+'</span></span></div>'+
-        (rat.diagnostico?'<div class="portal-campo" style="flex-direction:column;gap:2px;margin-top:6px;"><span class="rot">Diagnóstico:</span><span class="val" style="margin-top:2px;">'+_ep(rat.diagnostico).replace(/\n/g,'<br>')+'</span></div>':'')+
-        '</div>';
-    }
-  }
-
-  // Histórico de atendimentos do mesmo CNPJ
-  if(rat.cnpjCliente){
-    var hist=await _historico(rat.cnpjCliente,rat.id||'');
-    if(hist.length>0){
-      var histWrap=document.createElement('div');
-      histWrap.className='portal-card';
-      var histHtml='<h2><i class="ri-history-line"></i> Histórico – últimos 30 dias</h2>';
-      hist.forEach(function(h){
-        var hsc=_sc(h.status);
-        histHtml+='<div class="portal-hist-item">'+
-          '<div><div class="portal-hist-num">RAT '+_ep(h.numero)+'</div>'+
-          '<div class="portal-hist-data">'+_ep(h.dataHoraBr||_br(h.dataHoraIso))+' &middot; '+_ep(h.equipamento||'-')+'</div></div>'+
-          '<div style="display:flex;align-items:center;gap:8px;">'+
-          '<span class="portal-badge '+hsc+'">'+_ep(h.status||'-')+'</span>'+
-          (h.portalToken?'<button class="portal-hist-btn" data-ptoken="'+_ep(h.portalToken)+'">Ver RAT</button>':'')+
-          '</div></div>';
-      });
-      histWrap.innerHTML=histHtml;
-      el.appendChild(histWrap);
-    }
-  }
-
-  el.querySelectorAll('[data-ptoken]').forEach(function(btn){
-    btn.onclick=function(){
-      var t=btn.getAttribute('data-ptoken');
-      _renderPortal(t);
-      window.history.replaceState((history.state&&history.state.tela)?history.state:null,'','?rat='+t);
-    };
   });
-  } catch(eFatalPortal) {
-    // [FIX-v58c] Captura qualquer exceção — nunca deixa tela azul vazia
-    console.error('[Portal] Erro fatal em _renderPortal:', eFatalPortal);
-    if (el) el.innerHTML =
-      '<div class="portal-not-found">' +
-        '<h2><i class="ri-error-warning-line"></i> Erro ao carregar</h2>' +
-        '<p>Ocorreu um erro inesperado.<br>Recarregue a página ou entre em contato com a ONLINE-ES.</p>' +
-        '<button onclick="location.reload()" style="margin-top:12px;padding:8px 18px;border-radius:8px;background:#114f91;color:#fff;border:none;cursor:pointer;font-size:.9rem;">Tentar novamente</button>' +
-      '</div>';
+  listaEl.innerHTML = html;
+
+  // Bind clique em cada RAT
+  listaEl.querySelectorAll('.pv2-rat-item').forEach(function(item){
+    item.addEventListener('click', function(){
+      var id = item.getAttribute('data-ratid');
+      var rat = rats.find(function(r){ return (r._fsId||r.id||'') === id; });
+      if(rat) _renderDetalheRat(rat, rats);
+    });
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RENDER: DETALHE + PDF de uma RAT
+──────────────────────────────────────────────────────────── */
+async function _renderDetalheRat(rat, todasRats){
+  var el = document.getElementById('pv2Conteudo');
+  if(!el) return;
+
+  var sc = _sc(rat.status);
+  el.innerHTML =
+    '<div class="pv2-card">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">' +
+        '<button class="pv2-btn-sec" id="pv2BtnVoltarLista" style="width:auto;padding:7px 14px;font-size:.8rem;">' +
+          '<i class="ri-arrow-left-line"></i> Voltar' +
+        '</button>' +
+        '<div style="font-size:.9rem;font-weight:700;color:#0f172a;">RAT ' + _ep(rat.numero||'') + '</div>' +
+      '</div>' +
+      '<div class="pv2-campo"><span class="rot">Data</span><span class="val">' + _ep(_br(rat.dataHoraIso)||rat.dataHoraBr||'') + '</span></div>' +
+      '<div class="pv2-campo"><span class="rot">Técnico</span><span class="val">' + _ep(rat.tecnico||'') + '</span></div>' +
+      '<div class="pv2-campo"><span class="rot">Equipamento</span><span class="val">' + _ep(rat.equipamento||'-') + '</span></div>' +
+      '<div class="pv2-campo"><span class="rot">Tipo de serviço</span><span class="val">' + _ep(rat.tipo||'-') + '</span></div>' +
+      '<div class="pv2-campo"><span class="rot">Status</span><span class="val"><span class="pv2-badge ' + sc + '">' + _ep(rat.status||'-') + '</span></span></div>' +
+      (rat.diagnostico ? '<div class="pv2-campo" style="flex-direction:column;gap:3px;"><span class="rot">Diagnóstico</span><span class="val" style="margin-top:4px;">' + _ep(rat.diagnostico).replace(/\n/g,'<br>') + '</span></div>' : '') +
+      (rat.bateriasObs ? '<div class="pv2-campo" style="flex-direction:column;gap:3px;"><span class="rot">Observações</span><span class="val" style="margin-top:4px;">' + _ep(rat.bateriasObs).replace(/\n/g,'<br>') + '</span></div>' : '') +
+      '<div class="pv2-divider"></div>' +
+      '<button class="pv2-btn" id="pv2BtnGerarPdf"><i class="ri-file-pdf-line"></i> Baixar PDF</button>' +
+    '</div>' +
+    '<div id="pv2PdfArea"></div>';
+
+  var btnVoltar = document.getElementById('pv2BtnVoltarLista');
+  if(btnVoltar) btnVoltar.addEventListener('click', function(){ _renderListaRats(); });
+
+  var btnPdf = document.getElementById('pv2BtnGerarPdf');
+  if(btnPdf){
+    btnPdf.addEventListener('click', async function(){
+      btnPdf.disabled=true;
+      btnPdf.innerHTML='<i class="ri-loader-4-line"></i> Gerando PDF...';
+      try{
+        if(typeof window._ensureJsPDF==='function') await window._ensureJsPDF();
+        if(typeof window.exportarPDF==='function'){
+          var ratCopy = Object.assign({}, rat, { _somenteMemoria: false });
+          await window.exportarPDF(ratCopy);
+          btnPdf.innerHTML='<i class="ri-check-line"></i> PDF baixado!';
+          setTimeout(function(){ btnPdf.disabled=false; btnPdf.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF novamente'; },3000);
+        } else {
+          throw new Error('Módulo de PDF não carregado.');
+        }
+      }catch(e){
+        btnPdf.disabled=false;
+        btnPdf.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF';
+        var errDiv = document.createElement('div');
+        errDiv.className='pv2-err';
+        errDiv.style.display='block';
+        errDiv.textContent='Erro ao gerar PDF. Verifique sua conexão e tente novamente.';
+        btnPdf.parentNode.insertBefore(errDiv, btnPdf.nextSibling);
+        console.warn('[Portal v2] gerarPDF:', e.message||e);
+      }
+    });
   }
 }
 
-// ── Verificar URL e abrir portal ─────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   VERIFICAR URL: ?portal=CNPJ (novo) ou ?rat=TOKEN (legado)
+──────────────────────────────────────────────────────────── */
 function _verificarUrl(){
-  var token=new URLSearchParams(window.location.search).get('rat');
-  if(!token) return false;
-  // [FIX-v43] Oculta a tela de login para o portal não ficar por baixo dela
-  try {
-    var _tl = document.getElementById('telaLogin');
-    if (_tl) { _tl.classList.add('hidden'); _tl.style.display = 'none'; }
-  } catch(e) {}
-  var portal=document.getElementById('portalCliente');
-  if(portal) portal.classList.add('ativo');
-  var el=document.getElementById('portalConteudo');
-  if(el) el.innerHTML='<div class="portal-loading"><i class="ri-loader-4-line"></i> Carregando relatório, aguarde...</div>';
+  var params = new URLSearchParams(window.location.search);
+  var cnpjParam = params.get('portal');
+  var ratParam  = params.get('rat');   // compatibilidade legada
 
-  var tries=0;
-  var maxTries=60; // [FIX-v54-PORTAL] 60×300ms = 18s — cobre CDN lento + Firebase init 5s
-  (function tentarRender(){
-    tries++;
-    var dbPronto = !!_db();
-    // [FIX-v54-PORTAL] Considera pronto se Firebase SDK carregou (mesmo sem db inicializado ainda)
-    // pois _db() faz fallback para firebase.firestore() que inicializa o singleton
-    var firebaseSdkOk = typeof window.firebase !== 'undefined' && typeof window.firebase.firestore === 'function';
-    if(dbPronto || firebaseSdkOk || tries >= maxTries){
-      if(!dbPronto && !firebaseSdkOk){
-        // Esgotou tentativas sem Firebase — mostra erro claro
-        if(el) el.innerHTML='<div class="portal-not-found"><h2><i class="ri-wifi-off-line"></i> Sem conexão</h2><p>Não foi possível conectar ao servidor.<br>Verifique sua internet e recarregue a página.</p><button onclick="location.reload()" style="margin-top:12px;padding:8px 18px;border-radius:8px;background:#114f91;color:#fff;border:none;cursor:pointer;font-size:.9rem;">Tentar novamente</button></div>';
-        return;
-      }
-      _renderPortal(token);
-    }
-    else setTimeout(tentarRender, 300);
-  })();
+  if(!cnpjParam && !ratParam) return false;
+
+  // Oculta tela de login do app
+  try{
+    var tl = document.getElementById('telaLogin');
+    if(tl){ tl.classList.add('hidden'); tl.style.display='none'; }
+  }catch(e){}
+
+  var portal = document.getElementById('portalCliente');
+  if(portal) portal.classList.add('ativo');
+
+  // Se veio com CNPJ direto: pré-preenche o campo
+  if(cnpjParam){
+    _renderLogin({ cnpj: _normCnpj(cnpjParam) });
+  } else if(ratParam){
+    // Legado: token antigo — mostra login limpo com aviso
+    _renderLogin({
+      info: 'ℹ️ O formato deste link foi atualizado. Informe seu CNPJ e a senha recebida pelo WhatsApp ou e-mail para continuar.'
+    });
+  }
   return true;
 }
 
-// ── Injetar botões "Gerar link / Copiar link" no painel ──
-// [FIX-MO1] Observer guardado em variável para poder ser desconectado (evita memory leak)
-var _painelObserver=null;
+/* ─────────────────────────────────────────────────────────────
+   INJETAR BOTÕES DE LINK NO PAINEL DO TÉCNICO
+   (Gera credencial + copia URL do portal)
+──────────────────────────────────────────────────────────── */
+var _painelObserver = null;
 function _injetarPainel(){
-  var tentativas=0;
-  var iv=setInterval(function(){
+  var tentativas = 0;
+  var iv = setInterval(function(){
     tentativas++;
-    var tabela=document.querySelector('#listaRelatorios');
+    var tabela = document.querySelector('#listaRelatorios');
     if(!tabela){
-      if(tentativas>30){
-        clearInterval(iv);
-        console.warn('[Portal] #listaRelatorios não encontrado após 18s — botões de link não injetados.');
-      }
-      return;
+      if(tentativas > 30){ clearInterval(iv); } return;
     }
     clearInterval(iv);
-    // [FIX-MO1] Desconecta observer anterior antes de criar um novo (evita duplicatas e leak)
-    if(_painelObserver){_painelObserver.disconnect();_painelObserver=null;}
-    _painelObserver=new MutationObserver(function(){
+    if(_painelObserver){ _painelObserver.disconnect(); _painelObserver=null; }
+    _painelObserver = new MutationObserver(function(){
       tabela.querySelectorAll('[data-ver]').forEach(function(btn){
-        var card=btn.closest('.relatorio-card');
-        if(!card||card._pb) return;
-        card._pb=true;
-        var id=btn.getAttribute('data-ver');
-        var r=(window.relatorios||[]).find(function(x){return x.id===id;});
-        if(!r) return;
-        var acoesDiv=card.querySelector('.relatorio-acoes');
+        var card = btn.closest('.relatorio-card');
+        if(!card || card._pbv2) return;
+        card._pbv2 = true;
+        var id = btn.getAttribute('data-ver');
+        var r = (window.relatorios||[]).find(function(x){ return x.id===id; });
+        if(!r || !r.cnpjCliente) return;
+        var acoesDiv = card.querySelector('.relatorio-acoes');
         if(!acoesDiv) return;
-        if(r.portalToken){
-          // Botão copiar link
-          var bl=document.createElement('button');
-          bl.className='btn small';
-          bl.innerHTML='<i class="ri-link"></i> Copiar link';
-          bl.style.cssText='background:#f0f9ff;color:#0369a1;border-color:#bae6fd;';
-          bl.onclick=function(e){
-            e.stopPropagation();
-            var url=window._urlPortal(r.portalToken);
-            navigator.clipboard.writeText(url).then(function(){if(typeof showToast==='function') showToast('🔗 Link copiado!');}).catch(function(){ showPrompt('Copie o link:', url); });
-          };
-          acoesDiv.appendChild(bl);
-          // Botão revogar link — [FIX-PORTAL] permite invalidar token antes do vencimento
-          var br2=document.createElement('button');
-          br2.className='btn small';
-          br2.innerHTML='<i class="ri-link-unlink"></i> Revogar link';
-          br2.style.cssText='background:#fff1f2;color:#be123c;border-color:#fecdd3;';
-          br2.onclick=async function(e){
-            e.stopPropagation();
-            if(typeof showConfirm==='function'){
-              var okRev=await showConfirm('Revogar o link público deste relatório?\n\nO link será invalidado imediatamente e não poderá ser acessado por ninguém.');
-              if(!okRev) return;
-            }
-            // [FIX-B03] Feedback visual de carregamento + verificar Firebase disponível
-            br2.disabled = true;
-            br2.textContent = 'Revogando...';
-            try{
-              var _dbRev = (typeof window._getDb === 'function') ? window._getDb() : null;
-              // [FIX-B03] Usar window.firebase.firestore.FieldValue (não firebase sem window)
-              if (_dbRev && r.id && window.firebase && window.firebase.firestore) {
-                await _dbRev.collection('onlineEsRelatorios').doc(r.id).update({
-                  portalToken:   window.firebase.firestore.FieldValue.delete(),
-                  portalVisto:   window.firebase.firestore.FieldValue.delete(),
-                  portalVistoEm: window.firebase.firestore.FieldValue.delete()
-                });
-              } else if (!_dbRev) {
-                console.warn('[Portal] Firebase indisponível — revogação apenas local.');
-              }
-              // Atualiza também localmente
-              r.portalToken = null; r.portalVisto = false; r.portalVistoEm = null;
-              if(typeof showToast==='function') showToast('🔗 Link revogado com sucesso.');
-              if(typeof renderLista==='function') renderLista();
-            }catch(errRev){
-              br2.disabled = false;
-              br2.innerHTML = '<i class="ri-link-unlink"></i> Revogar link';
-              if(typeof showToast==='function') showToast('Não foi possível revogar o link. Tente novamente.');
-              console.error('[Portal] Erro ao revogar token:', errRev);
-            }
-          };
-          acoesDiv.appendChild(br2);
-          // Badge visualizado
-          var bd=document.createElement('span');
-          bd.className=r.portalVisto?'badge-portal-visto':'badge-portal-naovisto';
-          bd.title=r.portalVisto&&r.portalVistoEm?'Visualizado em '+_br(r.portalVistoEm):'';
-          bd.textContent=r.portalVisto?'👁 Visualizado':'🔗 Não visualizado';
+
+        var cnpj = _normCnpj(r.cnpjCliente);
+        var jaCriado = r._portalCnpj === cnpj || (r.portalToken && r.portalToken.startsWith('cnpj:'));
+
+        // Badge visualizado
+        if(r.portalVisto){
+          var bd = document.createElement('span');
+          bd.style.cssText='font-size:.65rem;font-weight:700;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:999px;white-space:nowrap;';
+          bd.title = r.portalVistoEm ? 'Acessado em ' + _br(r.portalVistoEm) : '';
+          bd.textContent = '👁 Portal acessado';
           acoesDiv.appendChild(bd);
-        } else {
-          // Botão gerar link — [FIX-GL1] confirmação antes de gerar token permanente
-          var bg=document.createElement('button');
-          bg.className='btn small';
-          bg.innerHTML='<i class="ri-share-line"></i> Gerar link';
-          bg.style.cssText='background:#f0fdf4;color:#15803d;border-color:#bbf7d0;';
-          bg.onclick=async function(e){
-            e.stopPropagation();
-            // [FIX-GL1] Pede confirmação — o link é público e permanente
-            if(typeof showConfirm==='function'){
-              var ok=await showConfirm('Gerar link público para este relatório?\n\nO link ficará ativo por 30 dias e poderá ser acessado por qualquer pessoa que o receber.');
-              if(!ok) return;
-            }
-            bg.disabled=true; bg.innerHTML='<i class="ri-loader-4-line"></i> Gerando...';
-            try{
-              var tok=await window._gerarTokenPortal(r);
-              var url=window._urlPortal(tok);
-              await navigator.clipboard.writeText(url).catch(function(){});
-              if(typeof showToast==='function') showToast('🔗 Link gerado e copiado!');
-              if(typeof renderLista==='function') renderLista();
-            }catch(err){
-              // [FIX-E1] Mensagem de erro amigável
-              var msgErr=err&&err.message?err.message:'falha desconhecida';
-              if(typeof showToast==='function') showToast('Não foi possível gerar o link. Verifique a conexão e tente novamente.');
-              console.error('[Portal] Erro ao gerar token:', msgErr);
-              bg.disabled=false;
-              bg.innerHTML='<i class="ri-share-line"></i> Gerar link';
-            }
-          };
-          acoesDiv.appendChild(bg);
         }
+
+        // Botão copiar/gerar link
+        var bg = document.createElement('button');
+        bg.className = 'btn small';
+        bg.innerHTML = '<i class="ri-share-line"></i> ' + (jaCriado ? 'Copiar link portal' : 'Gerar link portal');
+        bg.style.cssText = 'background:#f0fdf4;color:#15803d;border-color:#bbf7d0;';
+        bg.addEventListener('click', async function(e){
+          e.stopPropagation();
+          bg.disabled=true; bg.innerHTML='<i class="ri-loader-4-line"></i> Gerando...';
+          try{
+            var resultado = await window._gerarCredencialPortal(r);
+            if(resultado && resultado.cnpj){
+              var url = window._urlPortalV2(resultado.cnpj);
+              try{ await navigator.clipboard.writeText(url); }catch(_){}
+              if(typeof showToast==='function'){
+                if(resultado.nova && resultado.senha){
+                  showToast('🔗 Link copiado! Senha do cliente: ' + resultado.senha, 6000);
+                } else {
+                  showToast('🔗 Link copiado! (senha anterior ainda válida)', 4000);
+                }
+              }
+              r._portalCnpj = resultado.cnpj;
+              r.portalToken = 'cnpj:' + resultado.cnpj;
+              bg.innerHTML='<i class="ri-check-line"></i> Link copiado!';
+              setTimeout(function(){ bg.disabled=false; bg.innerHTML='<i class="ri-share-line"></i> Copiar link portal'; },3000);
+            } else {
+              bg.disabled=false; bg.innerHTML='<i class="ri-share-line"></i> Gerar link portal';
+              if(typeof showToast==='function') showToast('⚠️ Não foi possível gerar o link. Verifique se o CNPJ está preenchido.', 4000);
+            }
+          }catch(err){
+            bg.disabled=false; bg.innerHTML='<i class="ri-share-line"></i> Gerar link portal';
+            console.error('[Portal v2] injetarPainel:', err);
+          }
+        });
+        acoesDiv.appendChild(bg);
       });
     });
-    _painelObserver.observe(tabela,{childList:true,subtree:false});
-  },600);
+    _painelObserver.observe(tabela, { childList:true, subtree:false });
+  }, 600);
 }
 
-// ── Init ─────────────────────────────────────────────────
-// ── Página de assinatura do cliente (QR Code) ────────────────────────────
-// Abre quando URL contém ?assinar=SESSAO_ID
-// O cliente vê um canvas limpo, assina com o dedo e envia.
-function _verificarUrlAssinar() {
+/* ─────────────────────────────────────────────────────────────
+   PÁGINA DE ASSINATURA VIA QR CODE (?assinar=SESSAO_ID)
+──────────────────────────────────────────────────────────── */
+function _verificarUrlAssinar(){
   var sessaoId = new URLSearchParams(window.location.search).get('assinar');
-  if (!sessaoId || !/^sig-[a-f0-9]{24}$/.test(sessaoId)) return false;
+  if(!sessaoId || !/^sig-[a-f0-9]{24}$/.test(sessaoId)) return false;
 
-  // Esconde o app e mostra a tela de assinatura do cliente
-  document.body.innerHTML = '';
-  document.body.style.cssText = 'margin:0;padding:0;background:#0f172a;font-family:system-ui,sans-serif;color:#f1f5f9;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;box-sizing:border-box;';
-
-  document.body.innerHTML = `
+  document.body.innerHTML='';
+  document.body.style.cssText='margin:0;padding:0;background:#0f172a;font-family:system-ui,sans-serif;color:#f1f5f9;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;box-sizing:border-box;';
+  document.body.innerHTML=`
   <div style="width:100%;max-width:420px;padding:24px 16px 32px;box-sizing:border-box;">
     <div style="text-align:center;margin-bottom:20px;">
       <div style="font-size:2rem;margin-bottom:6px;">✍️</div>
@@ -17502,134 +17438,62 @@ function _verificarUrlAssinar() {
     <div id="sigQrMsg" style="margin-top:14px;text-align:center;font-size:.82rem;min-height:22px;"></div>
   </div>`;
 
-  var canvas   = document.getElementById('sigClienteQR');
-  var ctx      = canvas.getContext('2d');
-  // [FIX] Define propriedades imediatamente (resize pode demorar 50ms)
-  ctx.strokeStyle = '#0f172a';
-  ctx.lineWidth   = 2.5;
-  ctx.lineCap     = 'round';
-  ctx.lineJoin    = 'round';
-  var drawing  = false;
-  var lastX    = 0, lastY = 0;
-  var hasDrawn = false;
-
-  // Ajusta canvas ao tamanho real
-  function _resize() {
-    var w = canvas.offsetWidth;
-    var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    canvas.width  = w;
-    canvas.height = 220;
-    ctx.putImageData(img, 0, 0);
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth   = 2.5;
-    ctx.lineCap     = 'round';
-    ctx.lineJoin    = 'round';
-  }
-  setTimeout(_resize, 50);
-
-  function _pos(e) {
-    var r = canvas.getBoundingClientRect();
-    var scaleX = canvas.width / r.width;
-    var scaleY = canvas.height / r.height;
-    var src = e.touches ? e.touches[0] : e;
-    return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
-  }
-
-  canvas.addEventListener('mousedown',  function(e){ drawing=true; var p=_pos(e); lastX=p.x; lastY=p.y; ctx.beginPath(); ctx.moveTo(p.x,p.y); });
-  canvas.addEventListener('mousemove',  function(e){ if(!drawing) return; var p=_pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); lastX=p.x; lastY=p.y; hasDrawn=true; });
-  canvas.addEventListener('mouseup',    function(){ drawing=false; });
-  canvas.addEventListener('touchstart', function(e){ e.preventDefault(); drawing=true; var p=_pos(e); lastX=p.x; lastY=p.y; ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
-  canvas.addEventListener('touchmove',  function(e){ e.preventDefault(); if(!drawing) return; var p=_pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); lastX=p.x; lastY=p.y; hasDrawn=true; }, {passive:false});
-  canvas.addEventListener('touchend',   function(){ drawing=false; });
-
-  document.getElementById('sigQrLimpar').addEventListener('click', function() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hasDrawn = false;
-    document.getElementById('sigQrMsg').textContent = '';
-  });
-
-  document.getElementById('sigQrConfirmar').addEventListener('click', async function() {
-    if (!hasDrawn) {
-      document.getElementById('sigQrMsg').innerHTML = '<span style="color:#f87171;">⚠️ Assine antes de confirmar.</span>';
-      return;
-    }
-    var btn = document.getElementById('sigQrConfirmar');
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
-    document.getElementById('sigQrMsg').innerHTML = '<span style="color:#94a3b8;">Enviando assinatura...</span>';
-
-    var base64 = canvas.toDataURL('image/png');
-    // [FIX-QR] Comprime assinatura para JPEG 0.7 antes de enviar ao Firestore.
-    // PNG sem compressão pode ultrapassar 500KB; JPEG reduz para ~30-80KB.
-    try {
-      var _tmpCanvas = document.createElement('canvas');
-      _tmpCanvas.width = canvas.width; _tmpCanvas.height = canvas.height;
-      var _tmpCtx = _tmpCanvas.getContext('2d');
-      _tmpCtx.fillStyle = '#ffffff';
-      _tmpCtx.fillRect(0, 0, _tmpCanvas.width, _tmpCanvas.height);
-      _tmpCtx.drawImage(canvas, 0, 0);
-      var _compressed = _tmpCanvas.toDataURL('image/jpeg', 0.70);
-      if (_compressed && _compressed.length > 50) base64 = _compressed;
-    } catch(_e) { /* mantém PNG original se falhar */ }
-    var nome   = (document.getElementById('sigQrNome').value || '').trim().slice(0, 120);
-
-    // Salva no Firestore
-    try {
-      var firebase = window.firebase;
-      if (!firebase) {
-        // Aguarda Firebase carregar (máx 8s)
-        for (var i = 0; i < 16; i++) {
-          await new Promise(function(r){ setTimeout(r, 500); });
-          if (window.firebase) { firebase = window.firebase; break; }
-        }
-      }
-      if (!firebase) throw new Error('Firebase não disponível');
-      var db = firebase.firestore();
-      await db.collection('onlineEsSigSessoes').doc(sessaoId).update({
-        status:      'assinado',
-        assinatura:  base64,
-        nomeCliente: nome,
-        assinadoEm:  new Date().toISOString(),
-      });
-      document.getElementById('sigQrMsg').innerHTML = '<span style="color:#4ade80;font-size:1rem;font-weight:700;">✅ Assinatura enviada com sucesso!</span>';
-      btn.textContent = '✔ Enviado';
-      btn.style.background = 'linear-gradient(90deg,#16a34a,#15803d)';
-    } catch(e) {
-      console.error('[QR-SIG] Falha ao enviar:', e);
-      document.getElementById('sigQrMsg').innerHTML = '<span style="color:#f87171;">❌ Falha ao enviar. Verifique sua internet e tente novamente.</span>';
-      btn.disabled = false;
-      btn.textContent = '✔ Confirmar assinatura';
+  var canvas=document.getElementById('sigClienteQR');
+  var ctx=canvas.getContext('2d');
+  ctx.strokeStyle='#0f172a'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+  var drawing=false, hasDrawn=false;
+  function _resize(){ var w=canvas.offsetWidth; var img=ctx.getImageData(0,0,canvas.width,canvas.height); canvas.width=w; canvas.height=220; ctx.putImageData(img,0,0); ctx.strokeStyle='#0f172a'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round'; }
+  setTimeout(_resize,50);
+  function _pos(e){ var r=canvas.getBoundingClientRect(); var sc2={x:canvas.width/r.width,y:canvas.height/r.height}; var src=e.touches?e.touches[0]:e; return{x:(src.clientX-r.left)*sc2.x,y:(src.clientY-r.top)*sc2.y}; }
+  canvas.addEventListener('mousedown',function(e){drawing=true;var p=_pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);});
+  canvas.addEventListener('mousemove',function(e){if(!drawing)return;var p=_pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();hasDrawn=true;});
+  canvas.addEventListener('mouseup',function(){drawing=false;});
+  canvas.addEventListener('touchstart',function(e){e.preventDefault();drawing=true;var p=_pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
+  canvas.addEventListener('touchmove',function(e){e.preventDefault();if(!drawing)return;var p=_pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();hasDrawn=true;},{passive:false});
+  canvas.addEventListener('touchend',function(){drawing=false;});
+  document.getElementById('sigQrLimpar').addEventListener('click',function(){ctx.clearRect(0,0,canvas.width,canvas.height);hasDrawn=false;document.getElementById('sigQrMsg').textContent='';});
+  document.getElementById('sigQrConfirmar').addEventListener('click',async function(){
+    if(!hasDrawn){document.getElementById('sigQrMsg').innerHTML='<span style="color:#f87171;">⚠️ Assine antes de confirmar.</span>';return;}
+    var btn=document.getElementById('sigQrConfirmar'); btn.disabled=true; btn.textContent='Enviando...';
+    document.getElementById('sigQrMsg').innerHTML='<span style="color:#94a3b8;">Enviando assinatura...</span>';
+    var base64=canvas.toDataURL('image/jpeg',0.70);
+    var nome=(document.getElementById('sigQrNome').value||'').trim().slice(0,120);
+    try{
+      var firebase=window.firebase;
+      if(!firebase){for(var i=0;i<16;i++){await new Promise(function(r){setTimeout(r,500);});if(window.firebase){firebase=window.firebase;break;}}}
+      if(!firebase) throw new Error('Firebase não disponível');
+      await firebase.firestore().collection('onlineEsSigSessoes').doc(sessaoId).update({status:'assinado',assinatura:base64,nomeCliente:nome,assinadoEm:new Date().toISOString()});
+      document.getElementById('sigQrMsg').innerHTML='<span style="color:#4ade80;font-size:1rem;font-weight:700;">✅ Assinatura enviada com sucesso!</span>';
+      btn.textContent='✔ Enviado'; btn.style.background='linear-gradient(90deg,#16a34a,#15803d)';
+    }catch(e){
+      console.error('[QR-SIG]',e);
+      document.getElementById('sigQrMsg').innerHTML='<span style="color:#f87171;">❌ Falha ao enviar. Verifique sua internet.</span>';
+      btn.disabled=false; btn.textContent='✔ Confirmar assinatura';
     }
   });
-
   return true;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   INIT
+──────────────────────────────────────────────────────────── */
 function _init(){
-  if(_verificarUrlAssinar()) return; // página de assinatura QR
-  if(typeof window._verificarUrlCliente === 'function' && window._verificarUrlCliente()) return; // portal autenticado do cliente
-  if(_verificarUrl()) return;        // portal público do cliente
+  if(_verificarUrlAssinar()) return;
+  if(_verificarUrl()) return;
   _injetarPainel();
 }
 
-// [FIX-BACK] Garante que sempre há pelo menos 1 entrada no histórico com estado válido.
-// Sem isso, no PWA standalone a primeira pressão do botão voltar fecha o app.
-// Só age se o estado atual for null (sem sessão iniciada ainda).
-(function() {
-  try {
-    if (!history.state || !history.state.tela) {
-      history.replaceState({ tela: '__init__' }, '', '');
-    }
-  } catch(e) {}
+// Estado inicial do histórico para o botão voltar Android
+(function(){
+  try{ if(!history.state||!history.state.tela) history.replaceState({tela:'__init__'},'',''); }catch(e){}
 })();
 
-// [FIX-v45c] if/else movido para dentro da IIFE principal — estava fora com 'use strict',
-// causando SyntaxError: Unexpected token 'else' (else sem if no nível de módulo).
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_init);
 else _init();
 
-})(/* fim IIFE principal */);
+})(/* fim portal v2 */);
 </script>
+
 
 <!-- ═══════════════════════════════════════════════════════════
      UX IMPROVEMENTS — pure client-side, no Firebase required
@@ -18141,120 +18005,94 @@ else _init();
 </div>
 
 <style>
-/* ── Cards — Meus Atendimentos ──────────────────────────────────── */
-/* Desktop: fundo branco/claro, texto escuro (painel claro) */
+/* ── Cards redesenhados — Meus Atendimentos (escopo: #telaMeus) ──── */
 #telaMeus .relatorio-card {
-  background: #fff !important;
-  border: 1px solid rgba(148,163,184,.22) !important;
-  border-radius: 14px !important;
-  padding: 14px 15px !important;
+  background: linear-gradient(145deg, #111c33 0%, #1a2e50 55%, #0e1c35 100%) !important;
+  border: 1px solid rgba(99,179,237,.16) !important;
+  border-radius: 18px !important;
+  padding: 16px 15px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 0 !important;
-  color: #0f172a !important;
+  color: #e2e8f0 !important;
   transition: box-shadow .2s ease, transform .18s ease, border-color .2s ease !important;
-  margin-bottom: 10px !important;
-  box-shadow: 0 2px 10px rgba(0,0,0,.07) !important;
+  margin-bottom: 12px !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04) !important;
   position: relative !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 #telaMeus .relatorio-card::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #f97316 0%, #114f91 100%);
-  border-radius: 14px 14px 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, #f97316 0%, #114f91 60%, transparent 100%);
+  border-radius: 18px 18px 0 0;
 }
-#telaMeus .relatorio-card:hover {
-  box-shadow: 0 4px 18px rgba(17,79,145,.13) !important;
-  border-color: rgba(17,79,145,.25) !important;
+#telaMeus .relatorio-card:active {
+  box-shadow: 0 8px 32px rgba(249,115,22,.16), 0 4px 20px rgba(0,0,0,.38) !important;
   transform: translateY(-1px) !important;
+  border-color: rgba(249,115,22,.35) !important;
 }
 #telaMeus .relatorio-card.visto {
-  background: #f0fdf4 !important;
-  border-color: rgba(34,197,94,.25) !important;
+  background: linear-gradient(145deg,#0b1e10 0%,#122a18 55%,#0b1e10 100%) !important;
+  border-color: rgba(34,197,94,.2) !important;
 }
 #telaMeus .relatorio-card.visto::before {
-  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 60%, transparent 100%);
 }
 /* Número RAT */
 #telaMeus .relatorio-card strong {
-  font-size: .88rem !important;
-  color: #0f172a !important;
-  letter-spacing: .01em !important;
+  font-size: .93rem;
+  color: #f1f5f9;
+  letter-spacing: .01em;
 }
-/* Nome do cliente — mantém a cor inline do JS (#1f2937) */
+/* Nome do cliente */
 #telaMeus .relatorio-card [style*="color:#1f2937"] {
-  color: #1f2937 !important;
+  color: #94a3b8 !important;
   font-size: .78rem !important;
 }
-/* Data — mantém a cor inline do JS (#4b5563) */
+/* Data */
 #telaMeus .relatorio-card [style*="color:#4b5563"] {
-  color: #4b5563 !important;
-  font-size: .72rem !important;
+  color: #64748b !important;
+  font-size: .71rem !important;
+  margin-top: 8px !important;
 }
-/* Botões de ação */
+/* Acoes — row de botões */
 #telaMeus .relatorio-card .relatorio-acoes {
-  margin-top: 10px !important;
+  margin-top: 12px !important;
   gap: 6px !important;
   flex-wrap: wrap !important;
-  display: flex !important;
 }
 #telaMeus .relatorio-card .relatorio-acoes .btn.small {
-  font-size: .72rem !important;
-  padding: 5px 10px !important;
-  border-radius: 8px !important;
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(148,163,184,.18) !important;
+  color: #cbd5e1 !important;
+  border-radius: 10px !important;
+  font-size: .68rem !important;
+  padding: 6px 11px !important;
+}
+#telaMeus .relatorio-card .relatorio-acoes .btn.small:active {
+  background: rgba(249,115,22,.14) !important;
+  border-color: rgba(249,115,22,.38) !important;
+  color: #fb923c !important;
+}
+/* Botão editar */
+#telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
+  background: rgba(59,130,246,.1) !important;
+  border-color: rgba(59,130,246,.28) !important;
+  color: #93c5fd !important;
+}
+/* Botão WhatsApp */
+#telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
+  background: rgba(34,197,94,.08) !important;
+  border-color: rgba(34,197,94,.28) !important;
+  color: #86efac !important;
 }
 /* Badge status */
 #telaMeus .relatorio-card .badge-status {
-  font-size: .62rem !important;
+  font-size: .58rem !important;
   padding: 3px 10px 4px !important;
-  white-space: nowrap !important;
-}
-
-/* Mobile (≤880px): tema escuro — sidebar recolhida, fundo global escuro */
-@media (max-width: 880px) {
-  #telaMeus .relatorio-card {
-    background: linear-gradient(145deg, #111c33 0%, #1a2e50 55%, #0e1c35 100%) !important;
-    border-color: rgba(99,179,237,.16) !important;
-    color: #e2e8f0 !important;
-    box-shadow: 0 4px 24px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04) !important;
-    margin-bottom: 12px !important;
-  }
-  #telaMeus .relatorio-card:active {
-    box-shadow: 0 8px 32px rgba(249,115,22,.16) !important;
-    border-color: rgba(249,115,22,.35) !important;
-    transform: translateY(-1px) !important;
-  }
-  #telaMeus .relatorio-card.visto {
-    background: linear-gradient(145deg,#0b1e10 0%,#122a18 55%,#0b1e10 100%) !important;
-    border-color: rgba(34,197,94,.2) !important;
-  }
-  #telaMeus .relatorio-card strong {
-    color: #f1f5f9 !important;
-  }
-  #telaMeus .relatorio-card [style*="color:#1f2937"] {
-    color: #94a3b8 !important;
-  }
-  #telaMeus .relatorio-card [style*="color:#4b5563"] {
-    color: #64748b !important;
-  }
-  #telaMeus .relatorio-card .relatorio-acoes .btn.small {
-    background: rgba(255,255,255,.06) !important;
-    border-color: rgba(148,163,184,.18) !important;
-    color: #cbd5e1 !important;
-  }
-  #telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
-    background: rgba(59,130,246,.1) !important;
-    border-color: rgba(59,130,246,.28) !important;
-    color: #93c5fd !important;
-  }
-  #telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
-    background: rgba(34,197,94,.08) !important;
-    border-color: rgba(34,197,94,.28) !important;
-    color: #86efac !important;
-  }
 }
 </style>
 
@@ -18387,591 +18225,5 @@ else _init();
   });
 })();
 </script>
-
-<!-- ══ PORTAL DO CLIENTE AUTENTICADO ══════════════════════════════ -->
-<div id="portalClienteAuth" style="display:none;position:fixed;inset:0;z-index:9600;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);overflow-y:auto;font-family:'Poppins',system-ui,sans-serif;">
-  <div style="max-width:720px;margin:0 auto;padding:24px 16px 60px;">
-    <div style="text-align:center;padding:28px 0 18px;">
-      <img src="https://www.onlinees.com.br/logo.png" onerror="this.style.display='none'" alt="ONLINE-ES" style="width:140px;margin-bottom:10px;">
-      <h1 style="font-size:1.15rem;color:#f1f5f9;margin:0 0 4px;">ONLINE-ES &#8211; Área do Cliente</h1>
-      <p style="font-size:.78rem;color:#94a3b8;margin:0;">Acesse seus Relatórios Técnicos de Atendimento</p>
-    </div>
-
-    <!-- LOGIN DO CLIENTE -->
-    <div id="pcaLogin" style="background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:24px;margin-bottom:16px;">
-      <h2 style="font-size:.95rem;color:#f97316;margin:0 0 16px;display:flex;align-items:center;gap:6px;"><i class="ri-lock-line"></i> Entrar</h2>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:.75rem;color:#94a3b8;display:block;margin-bottom:4px;">CNPJ</label>
-        <input id="pcaCnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"
-          style="width:100%;background:rgba(15,23,42,.5);border:1px solid rgba(148,163,184,.25);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:.85rem;box-sizing:border-box;">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Senha</label>
-        <input id="pcaSenha" type="password" placeholder="Senha enviada por WhatsApp/E-mail" maxlength="20"
-          style="width:100%;background:rgba(15,23,42,.5);border:1px solid rgba(148,163,184,.25);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:.85rem;box-sizing:border-box;">
-      </div>
-      <div id="pcaErro" style="display:none;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:8px 12px;font-size:.75rem;color:#fca5a5;margin-bottom:12px;"></div>
-      <button id="pcaBtnEntrar" style="width:100%;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:11px;font-size:.88rem;font-weight:700;cursor:pointer;">
-        <i class="ri-login-box-line"></i> Entrar
-      </button>
-      <div style="margin-top:14px;text-align:center;">
-        <button id="pcaBtnNovaSenha" style="background:none;border:none;color:#64748b;font-size:.73rem;cursor:pointer;text-decoration:underline;">
-          Esqueci/Expirou minha senha
-        </button>
-      </div>
-    </div>
-
-    <!-- LISTA DE RATs DO CLIENTE -->
-    <div id="pcaRats" style="display:none;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:.95rem;color:#f1f5f9;margin:0 0 2px;"><i class="ri-file-list-3-line" style="color:#f97316;"></i> Meus Relatórios</h2>
-          <p id="pcaEmpresa" style="font-size:.75rem;color:#94a3b8;margin:0;"></p>
-        </div>
-        <button id="pcaBtnSair" style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#fca5a5;border-radius:8px;padding:5px 12px;font-size:.72rem;cursor:pointer;">Sair</button>
-      </div>
-      <div id="pcaListaRats"></div>
-    </div>
-
-    <!-- MSG SENHA EXPIRADA / NOVA SENHA -->
-    <div id="pcaNovaSenha" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:24px;margin-bottom:16px;">
-      <h2 style="font-size:.95rem;color:#f97316;margin:0 0 12px;"><i class="ri-mail-send-line"></i> Recuperar acesso</h2>
-      <p style="font-size:.8rem;color:#94a3b8;margin:0 0 16px;">Digite seu CNPJ e enviaremos uma nova senha para o e-mail cadastrado nos seus atendimentos.</p>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:.75rem;color:#94a3b8;display:block;margin-bottom:4px;">CNPJ</label>
-        <input id="pcaNsCnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"
-          style="width:100%;background:rgba(15,23,42,.5);border:1px solid rgba(148,163,184,.25);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:.85rem;box-sizing:border-box;">
-      </div>
-      <div id="pcaNsMsg" style="display:none;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:8px 12px;font-size:.75rem;color:#86efac;margin-bottom:12px;"></div>
-      <div style="display:flex;gap:10px;">
-        <button id="pcaBtnNsVoltar" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(148,163,184,.2);color:#94a3b8;border-radius:999px;padding:10px;font-size:.82rem;cursor:pointer;">Voltar</button>
-        <button id="pcaBtnNsEnviar" style="flex:2;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:10px;font-size:.82rem;font-weight:700;cursor:pointer;"><i class="ri-send-plane-line"></i> Enviar nova senha</button>
-      </div>
-    </div>
-
-    <div style="text-align:center;font-size:.72rem;color:#475569;margin-top:32px;padding-top:16px;border-top:1px solid rgba(148,163,184,.1);">
-      ONLINE-ES Eletroeletrônica &middot; www.onlinees.com.br<br>
-      Dados protegidos conforme a LGPD.
-    </div>
-  </div>
-</div>
-
-
-<script>
-// PORTAL DO CLIENTE AUTENTICADO - logica completa
-// URL: onlinees.vercel.app/?cliente=1
-// Colecao Firestore: onlineEsPortalClientes/{cnpj_limpo}
-(function() {
-
-// -- Helpers ------------------------------------------------------
-function _limparCnpj(v) { return String(v||'').replace(/[^0-9]/g,''); }
-function _formatarCnpj(v) {
-  var d = _limparCnpj(v).slice(0,14);
-  if (d.length <= 2) return d;
-  if (d.length <= 5) return d.slice(0,2)+'.'+d.slice(2);
-  if (d.length <= 8) return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5);
-  if (d.length <= 12) return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5,8)+'/'+d.slice(8);
-  return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5,8)+'/'+d.slice(8,12)+'-'+d.slice(12);
-}
-function _cfgDb() { return window.firebaseConfig || {}; }
-function _getDb2() {
-  if (typeof window._getDb === 'function') { var d = window._getDb(); if (d) return d; }
-  if (window.db) return window.db;
-  return null;
-}
-async function _getToken2() {
-  try {
-    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
-    if (_auth && _auth.currentUser) return await _auth.currentUser.getIdToken();
-  } catch(e) {}
-  return null;
-}
-
-// -- Hash simples de senha (SHA-256 via SubtleCrypto) -------------
-async function _hashSenha(senha, cnpj) {
-  var txt = cnpj + ':' + senha + ':onlinees2025';
-  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
-  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-}
-
-// -- Gerar senha aleat?ria de 8 chars (letras+n?meros leg?veis) ---
-function _gerarSenha() {
-  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  var arr = new Uint8Array(8);
-  crypto.getRandomValues(arr);
-  return Array.from(arr).map(function(b){ return chars[b % chars.length]; }).join('');
-}
-
-// -- REST Firestore helper -----------------------------------------
-async function _fsGet(path) {
-  var cfg = _cfgDb();
-  if (!cfg.projectId || !cfg.apiKey) return null;
-  var tok = await _getToken2();
-  var hdrs = {};
-  if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
-  var res = await fetch('https://firestore.googleapis.com/v1/projects/'+cfg.projectId+'/databases/(default)/documents/'+path+'?key='+cfg.apiKey, {headers: hdrs});
-  if (!res.ok) return null;
-  return await res.json();
-}
-async function _fsSet(path, data, merge) {
-  var db = _getDb2();
-  if (!db) throw new Error('DB não disponível');
-  var parts = path.split('/');
-  var col = parts[0], doc = parts[1];
-  if (merge) {
-    await db.collection(col).doc(doc).set(data, {merge: true});
-  } else {
-    await db.collection(col).doc(doc).set(data);
-  }
-}
-function _parseDoc(json) {
-  if (!json || !json.fields) return null;
-  var obj = {};
-  Object.keys(json.fields).forEach(function(k) {
-    var v = json.fields[k];
-    if (v.stringValue !== undefined) obj[k] = v.stringValue;
-    else if (v.integerValue !== undefined) obj[k] = parseInt(v.integerValue, 10);
-    else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
-    else if (v.arrayValue) obj[k] = (v.arrayValue.values||[]).map(function(x){ return x.stringValue||''; });
-    else obj[k] = null;
-  });
-  return obj;
-}
-
-// -- Criar/renovar credenciais do cliente -------------------------
-window._criarCredenciaisCliente = async function(cnpj, emails, nomeEmpresa) {
-  if (!cnpj || _limparCnpj(cnpj).length < 8) return null;
-  var cnpjLimpo = _limparCnpj(cnpj);
-  try {
-    // Verifica se j? existe credencial v?lida
-    var existing = await _fsGet('onlineEsPortalClientes/' + cnpjLimpo);
-    var doc = _parseDoc(existing);
-    if (doc && doc.senhaExpira && new Date(doc.senhaExpira) > new Date()) {
-      // Ainda v?lida -- retorna sem gerar nova
-      return { cnpj: cnpjLimpo, jaExiste: true, expira: doc.senhaExpira };
-    }
-    // Gera nova senha
-    var senha = _gerarSenha();
-    var hash = await _hashSenha(senha, cnpjLimpo);
-    var expira = new Date(Date.now() + 30*24*60*60*1000).toISOString();
-    var emailsLimpos = (emails||[]).filter(function(e){ return e && e.includes('@'); }).slice(0,3);
-    await _fsSet('onlineEsPortalClientes/' + cnpjLimpo, {
-      cnpj: cnpjLimpo,
-      senhaHash: hash,
-      senhaExpira: expira,
-      senhaTexto: senha, // guardado temporariamente para envio (removivel apos envio)
-      emails: emailsLimpos,
-      nomeEmpresa: nomeEmpresa || '',
-      criadoEm: new Date().toISOString()
-    }, false);
-    return { cnpj: cnpjLimpo, senha: senha, expira: expira, emails: emailsLimpos, jaExiste: false };
-  } catch(e) {
-    console.warn('[ClientePortal] Erro ao criar credenciais:', e.message||e);
-    return null;
-  }
-};
-
-// -- URL do portal do cliente --------------------------------------
-window._urlPortalCliente = function() {
-  return window.location.href.split('?')[0] + '?cliente=1';
-};
-
-// -- Verificar se URL tem ?cliente= e abrir portal ----------------
-function _verificarUrlCliente() {
-  var params = new URLSearchParams(window.location.search);
-  if (!params.has('cliente')) return false;
-
-  // Oculta tela de login
-  try {
-    var _tl = document.getElementById('telaLogin');
-    if (_tl) { _tl.classList.add('hidden'); _tl.style.display = 'none'; }
-    var _portalRat = document.getElementById('portalCliente');
-    if (_portalRat) _portalRat.style.display = 'none';
-  } catch(e) {}
-
-  // Mostra portal autenticado
-  var portal = document.getElementById('portalClienteAuth');
-  if (portal) portal.style.display = 'block';
-
-  _iniciarPortalCliente();
-  return true;
-}
-
-// -- L?gica do portal ----------------------------------------------
-var _pcaSessao = null; // { cnpj, nomeEmpresa }
-
-function _mostrarPcaSecao(id) {
-  ['pcaLogin','pcaRats','pcaNovaSenha'].forEach(function(s) {
-    var el = document.getElementById(s);
-    if (el) el.style.display = s === id ? 'block' : 'none';
-  });
-}
-
-function _iniciarPortalCliente() {
-  // M?scara CNPJ
-  ['pcaCnpj','pcaNsCnpj'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el && !el._masked) {
-      el._masked = true;
-      el.addEventListener('input', function() {
-        var pos = el.selectionStart;
-        el.value = _formatarCnpj(el.value);
-        try { el.setSelectionRange(pos, pos); } catch(e) {}
-      });
-    }
-  });
-
-  // Bot?o Entrar
-  var btnEntrar = document.getElementById('pcaBtnEntrar');
-  if (btnEntrar && !btnEntrar._bound) {
-    btnEntrar._bound = true;
-    btnEntrar.addEventListener('click', _fazerLogin);
-  }
-  var senhaInput = document.getElementById('pcaSenha');
-  if (senhaInput && !senhaInput._bound) {
-    senhaInput._bound = true;
-    senhaInput.addEventListener('keydown', function(e){ if(e.key==='Enter') _fazerLogin(); });
-  }
-
-  // Bot?o Nova Senha
-  var btnNova = document.getElementById('pcaBtnNovaSenha');
-  if (btnNova && !btnNova._bound) {
-    btnNova._bound = true;
-    btnNova.addEventListener('click', function() { _mostrarPcaSecao('pcaNovaSenha'); });
-  }
-
-  // Bot?o Voltar
-  var btnVoltar = document.getElementById('pcaBtnNsVoltar');
-  if (btnVoltar && !btnVoltar._bound) {
-    btnVoltar._bound = true;
-    btnVoltar.addEventListener('click', function() { _mostrarPcaSecao('pcaLogin'); });
-  }
-
-  // Bot?o Enviar nova senha
-  var btnEnviar = document.getElementById('pcaBtnNsEnviar');
-  if (btnEnviar && !btnEnviar._bound) {
-    btnEnviar._bound = true;
-    btnEnviar.addEventListener('click', _enviarNovaSenha);
-  }
-
-  // Bot?o Sair
-  var btnSair = document.getElementById('pcaBtnSair');
-  if (btnSair && !btnSair._bound) {
-    btnSair._bound = true;
-    btnSair.addEventListener('click', function() {
-      _pcaSessao = null;
-      _mostrarPcaSecao('pcaLogin');
-      var cnpjEl = document.getElementById('pcaCnpj');
-      var senhaEl = document.getElementById('pcaSenha');
-      if (cnpjEl) cnpjEl.value = '';
-      if (senhaEl) senhaEl.value = '';
-    });
-  }
-
-  _mostrarPcaSecao('pcaLogin');
-}
-
-async function _fazerLogin() {
-  var cnpjEl  = document.getElementById('pcaCnpj');
-  var senhaEl = document.getElementById('pcaSenha');
-  var erroEl  = document.getElementById('pcaErro');
-  var btnEl   = document.getElementById('pcaBtnEntrar');
-  if (!cnpjEl || !senhaEl) return;
-
-  var cnpj  = _limparCnpj(cnpjEl.value);
-  var senha = (senhaEl.value || '').trim().toUpperCase();
-
-  if (cnpj.length < 8) { _mostrarErro(erroEl, 'Digite um CNPJ válido.'); return; }
-  if (!senha) { _mostrarErro(erroEl, 'Digite a senha.'); return; }
-
-  btnEl.disabled = true;
-  btnEl.innerHTML = '<i class="ri-loader-4-line"></i> Verificando...';
-  if (erroEl) erroEl.style.display = 'none';
-
-  try {
-    var docJson = await _fsGet('onlineEsPortalClientes/' + cnpj);
-    var doc = _parseDoc(docJson);
-
-    if (!doc || !doc.senhaHash) {
-      _mostrarErro(erroEl, 'CNPJ não encontrado. Solicite um novo acesso ao técnico.');
-      return;
-    }
-
-    // Verifica expira??o
-    if (!doc.senhaExpira || new Date(doc.senhaExpira) < new Date()) {
-      _mostrarErro(erroEl,
-        'Sua senha expirou. Clique em "Esqueci/Expirou minha senha" para receber uma nova por e-mail.');
-      return;
-    }
-
-    // Verifica hash
-    var hash = await _hashSenha(senha, cnpj);
-    if (hash !== doc.senhaHash) {
-      _mostrarErro(erroEl, 'Senha incorreta. Verifique a mensagem recebida.');
-      return;
-    }
-
-    // Login OK
-    _pcaSessao = { cnpj: cnpj, nomeEmpresa: doc.nomeEmpresa || cnpj };
-    await _carregarRats();
-
-  } catch(e) {
-    _mostrarErro(erroEl, 'Erro ao conectar. Tente novamente.');
-    console.warn('[ClientePortal] Erro login:', e.message||e);
-  } finally {
-    btnEl.disabled = false;
-    btnEl.innerHTML = '<i class="ri-login-box-line"></i> Entrar';
-  }
-}
-
-function _mostrarErro(el, msg) {
-  if (!el) return;
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-async function _carregarRats() {
-  if (!_pcaSessao) return;
-  var listaEl = document.getElementById('pcaListaRats');
-  var empresaEl = document.getElementById('pcaEmpresa');
-  if (!listaEl) return;
-
-  _mostrarPcaSecao('pcaRats');
-  if (empresaEl) empresaEl.textContent = 'CNPJ: ' + _formatarCnpj(_pcaSessao.cnpj);
-  listaEl.innerHTML = '<p style="color:#94a3b8;font-size:.8rem;text-align:center;padding:20px;">Carregando relatórios...</p>';
-
-  try {
-    var cfg = _cfgDb();
-    if (!cfg.projectId || !cfg.apiKey) throw new Error('Firebase não configurado');
-    var tok = await _getToken2();
-    var hdrs = {'Content-Type': 'application/json'};
-    if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
-
-    var body = {structuredQuery:{
-      from:[{collectionId:'onlineEsRelatorios'}],
-      where:{fieldFilter:{field:{fieldPath:'cnpjCliente'},op:'EQUAL',value:{stringValue:_pcaSessao.cnpj}}},
-      orderBy:[{field:{fieldPath:'dataHoraIso'},direction:'DESCENDING'}],
-      limit: 50
-    }};
-
-    var res = await fetch(
-      'https://firestore.googleapis.com/v1/projects/'+cfg.projectId+'/databases/(default)/documents:runQuery?key='+cfg.apiKey,
-      {method:'POST', headers:hdrs, body:JSON.stringify(body)}
-    );
-
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    var json = await res.json();
-    var rats = [];
-    if (Array.isArray(json)) {
-      json.forEach(function(row) {
-        if (row.document) {
-          var r = _parseDoc(row.document);
-          if (r) rats.push(r);
-        }
-      });
-    }
-
-    if (!rats.length) {
-      listaEl.innerHTML = '<p style="color:#94a3b8;font-size:.8rem;text-align:center;padding:20px;">Nenhum relatório encontrado para este CNPJ.</p>';
-      return;
-    }
-
-    // Atualiza nome da empresa
-    if (rats[0].cliente && empresaEl) {
-      empresaEl.textContent = rats[0].cliente + ' -- CNPJ: ' + _formatarCnpj(_pcaSessao.cnpj);
-    }
-
-    _renderRatsCliente(rats, listaEl);
-
-  } catch(e) {
-    listaEl.innerHTML = '<p style="color:#fca5a5;font-size:.8rem;text-align:center;padding:20px;">Erro ao carregar relatórios: ' + (e.message||e) + '</p>';
-    console.warn('[ClientePortal] Erro ao carregar RATs:', e.message||e);
-  }
-}
-
-function _renderRatsCliente(rats, container) {
-  var frag = document.createDocumentFragment();
-  rats.forEach(function(r) {
-    var card = document.createElement('div');
-    card.style.cssText = 'background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:14px;padding:14px 16px;margin-bottom:12px;position:relative;overflow:hidden;';
-
-    // Barra de cor no topo
-    var barra = document.createElement('div');
-    barra.style.cssText = 'position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#f97316,#114f91);border-radius:14px 14px 0 0;';
-    card.appendChild(barra);
-
-    var statusCor = r.status === 'Concluído' ? '#86efac' : r.status && r.status.includes('pendência') ? '#fde68a' : '#fca5a5';
-    var statusBg  = r.status === 'Concluído' ? 'rgba(34,197,94,.15)' : r.status && r.status.includes('pendência') ? 'rgba(234,179,8,.15)' : 'rgba(248,113,113,.15)';
-
-    card.innerHTML += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-top:4px;">' +
-      '<div>' +
-        '<div style="font-size:.88rem;font-weight:700;color:#f1f5f9;">RAT ' + _esc(r.numero||'') + '</div>' +
-        '<div style="font-size:.75rem;color:#64748b;margin-top:2px;">' + _esc(r.dataHoraBr||r.dataHoraIso||'') + '</div>' +
-      '</div>' +
-      '<span style="font-size:.65rem;font-weight:700;background:'+statusBg+';color:'+statusCor+';border-radius:999px;padding:3px 10px;white-space:nowrap;">' + _esc(r.status||'') + '</span>' +
-    '</div>' +
-    '<div style="font-size:.78rem;color:#94a3b8;margin-top:6px;">' +
-      '<span style="color:#cbd5e1;">Equipamento:</span> ' + _esc(r.equipamento||'-') + ' &nbsp;|&nbsp; ' +
-      '<span style="color:#cbd5e1;">Técnico:</span> ' + _esc(r.tecnico||'-') +
-    '</div>' +
-    (r.diagnostico ? '<div style="font-size:.75rem;color:#94a3b8;margin-top:4px;"><span style="color:#cbd5e1;">Diagnóstico:</span> ' + _esc(r.diagnostico).slice(0,120) + (r.diagnostico.length>120?'...':'') + '</div>' : '') +
-    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">' +
-      '<button data-pca-pdf="' + _esc(r.id||'') + '" data-pca-num="' + _esc(r.numero||'') + '" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:7px 16px;font-size:.75rem;font-weight:700;cursor:pointer;"><i class="ri-download-2-line"></i> Baixar PDF</button>' +
-    '</div>';
-
-    frag.appendChild(card);
-  });
-  container.innerHTML = '';
-  container.appendChild(frag);
-
-  // Handlers dos bot?es PDF
-  container.querySelectorAll('[data-pca-pdf]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id  = btn.getAttribute('data-pca-pdf');
-      var num = btn.getAttribute('data-pca-num');
-      var rat = rats.find(function(r){ return r.id === id; });
-      if (!rat) return;
-      _gerarPdfCliente(rat, btn);
-    });
-  });
-}
-
-function _esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-async function _gerarPdfCliente(rat, btn) {
-  var orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ri-loader-4-line"></i> Gerando...';
-  try {
-    if (typeof window._ensureJsPDF === 'function') await window._ensureJsPDF();
-    if (typeof window.exportarPDF !== 'function') throw new Error('exportarPDF não disponível');
-    // Usa a RAT completa -- sem _somenteMemoria para pegar imagens do localStorage se dispon?vel
-    await window.exportarPDF(Object.assign({}, rat));
-    // exportarPDF com _somenteMemoria=false faz o download automaticamente
-    btn.innerHTML = '<i class="ri-check-line"></i> PDF baixado!';
-    setTimeout(function(){ btn.innerHTML = orig; btn.disabled = false; }, 3000);
-  } catch(e) {
-    btn.innerHTML = '<i class="ri-error-warning-line"></i> Erro';
-    setTimeout(function(){ btn.innerHTML = orig; btn.disabled = false; }, 3000);
-    console.warn('[ClientePortal] Erro PDF:', e.message||e);
-  }
-}
-
-async function _enviarNovaSenha() {
-  var cnpjEl = document.getElementById('pcaNsCnpj');
-  var msgEl  = document.getElementById('pcaNsMsg');
-  var btnEl  = document.getElementById('pcaBtnNsEnviar');
-  if (!cnpjEl) return;
-
-  var cnpj = _limparCnpj(cnpjEl.value);
-  if (cnpj.length < 8) {
-    if (msgEl) { msgEl.textContent = 'Digite um CNPJ válido.'; msgEl.style.background='rgba(248,113,113,.1)'; msgEl.style.borderColor='rgba(248,113,113,.3)'; msgEl.style.color='#fca5a5'; msgEl.style.display='block'; }
-    return;
-  }
-
-  btnEl.disabled = true;
-  btnEl.innerHTML = '<i class="ri-loader-4-line"></i> Enviando...';
-
-  try {
-    // Busca os ?ltimos 3 e-mails de RATs desse CNPJ
-    var cfg = _cfgDb();
-    var tok = await _getToken2();
-    var hdrs = {'Content-Type':'application/json'};
-    if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
-    var body = {structuredQuery:{
-      from:[{collectionId:'onlineEsRelatorios'}],
-      where:{fieldFilter:{field:{fieldPath:'cnpjCliente'},op:'EQUAL',value:{stringValue:cnpj}}},
-      orderBy:[{field:{fieldPath:'dataHoraIso'},direction:'DESCENDING'}],
-      limit:3
-    }};
-    var res = await fetch('https://firestore.googleapis.com/v1/projects/'+cfg.projectId+'/databases/(default)/documents:runQuery?key='+cfg.apiKey, {method:'POST',headers:hdrs,body:JSON.stringify(body)});
-    var json = await res.json();
-    var emails = [];
-    var nomeEmpresa = '';
-    if (Array.isArray(json)) {
-      json.forEach(function(row) {
-        if (row.document) {
-          var r = _parseDoc(row.document);
-          if (r && r.emailCliente && r.emailCliente.includes('@') && !emails.includes(r.emailCliente))
-            emails.push(r.emailCliente);
-          if (r && r.cliente && !nomeEmpresa) nomeEmpresa = r.cliente;
-        }
-      });
-    }
-
-    if (!emails.length) {
-      if (msgEl) { msgEl.textContent = 'Nenhum e-mail encontrado para este CNPJ. Entre em contato com a ONLINE-ES.'; msgEl.style.background='rgba(248,113,113,.1)'; msgEl.style.borderColor='rgba(248,113,113,.3)'; msgEl.style.color='#fca5a5'; msgEl.style.display='block'; }
-      return;
-    }
-
-    // Gera nova credencial
-    var cred = await window._criarCredenciaisCliente(cnpj, emails, nomeEmpresa);
-    if (!cred || !cred.senha) {
-      if (msgEl) { msgEl.textContent = 'Erro ao gerar nova senha. Tente novamente.'; msgEl.style.display='block'; }
-      return;
-    }
-
-    // Abre mailto para cada e-mail
-    var portalUrl = window._urlPortalCliente();
-    var assunto = encodeURIComponent('Acesso ao Portal ONLINE-ES -- ' + (nomeEmpresa||cnpj));
-    var corpo = encodeURIComponent(
-      'Ola!\n\n' +
-      'Sua nova senha de acesso ao Portal de Relatorios ONLINE-ES foi gerada.\n\n' +
-      '🔗 Acesse: ' + portalUrl + '\n' +
-      '👤 CNPJ: ' + _formatarCnpj(cnpj) + '\n' +
-      '🔑 Senha: ' + cred.senha + '\n\n' +
-      'Valida por 30 dias.\n\n' +
-      'ONLINE-ES Eletroeletronica'
-    );
-    emails.forEach(function(email) {
-      window.open('mailto:' + email + '?subject=' + assunto + '&body=' + corpo, '_blank');
-    });
-
-    if (msgEl) {
-      msgEl.textContent = 'Nova senha enviada para: ' + emails.join(', ') + '. Verifique sua caixa de entrada.';
-      msgEl.style.background = 'rgba(34,197,94,.1)';
-      msgEl.style.borderColor = 'rgba(34,197,94,.3)';
-      msgEl.style.color = '#86efac';
-      msgEl.style.display = 'block';
-    }
-
-  } catch(e) {
-    if (msgEl) { msgEl.textContent = 'Erro: ' + (e.message||e); msgEl.style.display='block'; }
-    console.warn('[ClientePortal] Erro nova senha:', e.message||e);
-  } finally {
-    btnEl.disabled = false;
-    btnEl.innerHTML = '<i class="ri-send-plane-line"></i> Enviar nova senha';
-  }
-}
-
-// -- Hook no _init() -----------------------------------------------
-var _origInit = window._init;
-if (typeof _origInit === 'function') {
-  window._init = function() {
-    if (_verificarUrlCliente()) return;
-    _origInit();
-  };
-} else {
-  // _init ainda n?o definido -- tenta depois do DOMContentLoaded
-  document.addEventListener('DOMContentLoaded', function() {
-    var _i2 = window._init;
-    if (typeof _i2 === 'function' && !_i2._clienteHooked) {
-      _i2._clienteHooked = true;
-      window._init = function() {
-        if (_verificarUrlCliente()) return;
-        _i2();
-      };
-    }
-  });
-}
-
-// -- Exp?e _verificarUrlCliente para _init no IIFE principal ------
-window._verificarUrlCliente = _verificarUrlCliente;
-
-})();
-</script>
-
 </body>
 </html>
