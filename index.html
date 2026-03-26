@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v77
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v78
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -8577,6 +8577,14 @@ if (logoBase64) {
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
+      // [FIX-v78] Gera/renova credenciais do portal do cliente ao salvar RAT
+      try {
+        if (novo.cnpjCliente && String(novo.cnpjCliente).replace(/[^0-9]/g,'').length >= 8
+            && typeof window._criarCredenciaisCliente === 'function') {
+          var _emails = [novo.emailCliente].filter(Boolean);
+          window._criarCredenciaisCliente(novo.cnpjCliente, _emails, novo.cliente||'');
+        }
+      } catch(e) { console.warn('[Credenciais] Erro ao gerar:', e.message||e); }
       showToast('Relatório salvo e enviado para o painel.');
       // [UX-VIB] Vibração de confirmação ao salvar RAT com sucesso
       try { if (navigator.vibrate) navigator.vibrate([40, 30, 80]); } catch(e) {}
@@ -8610,6 +8618,13 @@ if (logoBase64) {
       // Offline: salva local e em pendentes
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
       pendentes.push(novo); savePendentes(pendentes);
+      // [FIX-v78] Gera/renova credenciais (best-effort, pode falhar offline)
+      try {
+        if (novo.cnpjCliente && String(novo.cnpjCliente).replace(/[^0-9]/g,'').length >= 8
+            && typeof window._criarCredenciaisCliente === 'function') {
+          window._criarCredenciaisCliente(novo.cnpjCliente, [novo.emailCliente].filter(Boolean), novo.cliente||'');
+        }
+      } catch(e) {}
       // [UX] Atualiza badge de pendentes
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
@@ -10320,7 +10335,17 @@ if (logoBase64) {
       if (portalUrl) {
         _linhasEmail.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
         _linhasEmail.push(portalUrl);
-      } else {
+      }
+      // [FIX-v78] Adiciona acesso ao portal do cliente se credenciais novas
+      if (_credEmail && _credEmail.senha && _credEmail.jaExiste === false) {
+        var _pcUrlE = typeof window._urlPortalCliente === 'function' ? window._urlPortalCliente() : '';
+        _linhasEmail.push('');
+        _linhasEmail.push('🔐 ACESSO AO PORTAL DO CLIENTE:');
+        _linhasEmail.push('🔗 ' + _pcUrlE);
+        _linhasEmail.push('👤 CNPJ: ' + (r.cnpjCliente||''));
+        _linhasEmail.push('🔑 Senha: ' + _credEmail.senha + ' (valida por 30 dias)');
+      }
+      if (!portalUrl && !_credEmail) {
         // [FIX-v54-4] Sem link (offline ou erro): avisa que o PDF será enviado em anexo
         _linhasEmail.push('Em anexo você encontrará o Relatório Técnico em PDF.');
         _linhasEmail.push('(Link de acesso online será disponibilizado assim que houver conexão.)');
@@ -10383,6 +10408,14 @@ if (logoBase64) {
         var _ptokWa = await window._gerarTokenPortal(r);
         if (_ptokWa && typeof window._urlPortal === 'function') portalUrlWa = window._urlPortal(_ptokWa);
       } catch(eP) { console.warn('[WhatsApp] Falha ao gerar token portal:', eP); }
+    }
+    // [FIX-v77] Gera/renova credenciais do portal do cliente
+    var _credWa = null;
+    if (r.cnpjCliente && r.cnpjCliente.replace(/\D/g,'').length >= 8 && typeof window._criarCredenciaisCliente === 'function') {
+      try {
+        var _emailsWa = [r.emailCliente].filter(Boolean);
+        _credWa = await window._criarCredenciaisCliente(r.cnpjCliente, _emailsWa, r.cliente||'');
+      } catch(e) { console.warn('[WA] Credenciais cliente:', e.message||e); }
     } else if (window.location.protocol === 'file:') {
       showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.');
     }
@@ -10390,19 +10423,29 @@ if (logoBase64) {
     // 3. Monta mensagem com link do portal e abre WhatsApp
     hideLoader();
     var msgFinal;
+    // [FIX-v77] Inclui acesso ao portal do cliente se credenciais foram geradas
+    var _pcUrl = typeof window._urlPortalCliente === 'function' ? window._urlPortalCliente() : '';
+    var _credInfo = '';
+    if (_credWa && _credWa.senha && _credWa.jaExiste === false) {
+      _credInfo = '\n\n🔐 *Acesso ao Portal do Cliente (novo):*\n' +
+        '🔗 ' + _pcUrl + '\n' +
+        '👤 CNPJ: ' + _formatarCnpjSimples(r.cnpjCliente||'') + '\n' +
+        '🔑 Senha: ' + _credWa.senha + '\n_(válida por 30 dias)_';
+    } else if (_credWa && _credWa.jaExiste && _pcUrl) {
+      _credInfo = '\n\n🔐 Portal do cliente: ' + _pcUrl;
+    }
     if (portalUrlWa) {
       msgFinal =
         'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
         'Segue o Relatório Técnico de Atendimento do cliente *' + (r.cliente||'') + '*, RAT *' + (r.numero||'') + '*.\n\n' +
-        '🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n' + portalUrlWa + '\n\n' +
+        '🔗 Acesse e baixe seu Relatório Técnico completo (válido por 30 dias):\n' + portalUrlWa +
+        _credInfo + '\n\n' +
         'Qualquer dúvida estamos à disposição!';
     } else {
-      // [FIX-v54-4] Sem link (offline/erro): mensagem sem link mas ainda útil
       msgFinal =
         'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
-        'Passando para informar que o Relatório Técnico de Atendimento *' + (r.numero||'') + '* do cliente *' + (r.cliente||'') + '* foi concluído.\n\n' +
-        'O link para baixar o PDF será enviado assim que houver conexão.\n\n' +
-        'Qualquer dúvida estamos à disposição!';
+        'Passando para informar que o Relatório Técnico de Atendimento *' + (r.numero||'') + '* do cliente *' + (r.cliente||'') + '* foi concluído.' +
+        _credInfo + '\n\nQualquer dúvida estamos à disposição!';
     }
 
     window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal), '_blank', 'noopener,noreferrer');
@@ -17564,6 +17607,7 @@ function _verificarUrlAssinar() {
 
 function _init(){
   if(_verificarUrlAssinar()) return; // página de assinatura QR
+  if(typeof window._verificarUrlCliente === 'function' && window._verificarUrlCliente()) return; // portal autenticado do cliente
   if(_verificarUrl()) return;        // portal público do cliente
   _injetarPainel();
 }
@@ -18343,5 +18387,591 @@ else _init();
   });
 })();
 </script>
+
+<!-- ══ PORTAL DO CLIENTE AUTENTICADO ══════════════════════════════ -->
+<div id="portalClienteAuth" style="display:none;position:fixed;inset:0;z-index:9600;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f172a 100%);overflow-y:auto;font-family:'Poppins',system-ui,sans-serif;">
+  <div style="max-width:720px;margin:0 auto;padding:24px 16px 60px;">
+    <div style="text-align:center;padding:28px 0 18px;">
+      <img src="https://www.onlinees.com.br/logo.png" onerror="this.style.display='none'" alt="ONLINE-ES" style="width:140px;margin-bottom:10px;">
+      <h1 style="font-size:1.15rem;color:#f1f5f9;margin:0 0 4px;">ONLINE-ES &#8211; Área do Cliente</h1>
+      <p style="font-size:.78rem;color:#94a3b8;margin:0;">Acesse seus Relatórios Técnicos de Atendimento</p>
+    </div>
+
+    <!-- LOGIN DO CLIENTE -->
+    <div id="pcaLogin" style="background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:24px;margin-bottom:16px;">
+      <h2 style="font-size:.95rem;color:#f97316;margin:0 0 16px;display:flex;align-items:center;gap:6px;"><i class="ri-lock-line"></i> Entrar</h2>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:.75rem;color:#94a3b8;display:block;margin-bottom:4px;">CNPJ</label>
+        <input id="pcaCnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"
+          style="width:100%;background:rgba(15,23,42,.5);border:1px solid rgba(148,163,184,.25);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:.85rem;box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Senha</label>
+        <input id="pcaSenha" type="password" placeholder="Senha enviada por WhatsApp/E-mail" maxlength="20"
+          style="width:100%;background:rgba(15,23,42,.5);border:1px solid rgba(148,163,184,.25);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:.85rem;box-sizing:border-box;">
+      </div>
+      <div id="pcaErro" style="display:none;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:8px 12px;font-size:.75rem;color:#fca5a5;margin-bottom:12px;"></div>
+      <button id="pcaBtnEntrar" style="width:100%;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:11px;font-size:.88rem;font-weight:700;cursor:pointer;">
+        <i class="ri-login-box-line"></i> Entrar
+      </button>
+      <div style="margin-top:14px;text-align:center;">
+        <button id="pcaBtnNovaSenha" style="background:none;border:none;color:#64748b;font-size:.73rem;cursor:pointer;text-decoration:underline;">
+          Esqueci/Expirou minha senha
+        </button>
+      </div>
+    </div>
+
+    <!-- LISTA DE RATs DO CLIENTE -->
+    <div id="pcaRats" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:.95rem;color:#f1f5f9;margin:0 0 2px;"><i class="ri-file-list-3-line" style="color:#f97316;"></i> Meus Relatórios</h2>
+          <p id="pcaEmpresa" style="font-size:.75rem;color:#94a3b8;margin:0;"></p>
+        </div>
+        <button id="pcaBtnSair" style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#fca5a5;border-radius:8px;padding:5px 12px;font-size:.72rem;cursor:pointer;">Sair</button>
+      </div>
+      <div id="pcaListaRats"></div>
+    </div>
+
+    <!-- MSG SENHA EXPIRADA / NOVA SENHA -->
+    <div id="pcaNovaSenha" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:24px;margin-bottom:16px;">
+      <h2 style="font-size:.95rem;color:#f97316;margin:0 0 12px;"><i class="ri-mail-send-line"></i> Recuperar acesso</h2>
+      <p style="font-size:.8rem;color:#94a3b8;margin:0 0 16px;">Digite seu CNPJ e enviaremos uma nova senha para o e-mail cadastrado nos seus atendimentos.</p>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:.75rem;color:#94a3b8;display:block;margin-bottom:4px;">CNPJ</label>
+        <input id="pcaNsCnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"
+          style="width:100%;background:rgba(15,23,42,.5);border:1px solid rgba(148,163,184,.25);border-radius:10px;padding:10px 12px;color:#f1f5f9;font-size:.85rem;box-sizing:border-box;">
+      </div>
+      <div id="pcaNsMsg" style="display:none;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:8px 12px;font-size:.75rem;color:#86efac;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button id="pcaBtnNsVoltar" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(148,163,184,.2);color:#94a3b8;border-radius:999px;padding:10px;font-size:.82rem;cursor:pointer;">Voltar</button>
+        <button id="pcaBtnNsEnviar" style="flex:2;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:10px;font-size:.82rem;font-weight:700;cursor:pointer;"><i class="ri-send-plane-line"></i> Enviar nova senha</button>
+      </div>
+    </div>
+
+    <div style="text-align:center;font-size:.72rem;color:#475569;margin-top:32px;padding-top:16px;border-top:1px solid rgba(148,163,184,.1);">
+      ONLINE-ES Eletroeletrônica &middot; www.onlinees.com.br<br>
+      Dados protegidos conforme a LGPD.
+    </div>
+  </div>
+</div>
+
+
+<script>
+// PORTAL DO CLIENTE AUTENTICADO - logica completa
+// URL: onlinees.vercel.app/?cliente=1
+// Colecao Firestore: onlineEsPortalClientes/{cnpj_limpo}
+(function() {
+
+// -- Helpers ------------------------------------------------------
+function _limparCnpj(v) { return String(v||'').replace(/[^0-9]/g,''); }
+function _formatarCnpj(v) {
+  var d = _limparCnpj(v).slice(0,14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return d.slice(0,2)+'.'+d.slice(2);
+  if (d.length <= 8) return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5);
+  if (d.length <= 12) return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5,8)+'/'+d.slice(8);
+  return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5,8)+'/'+d.slice(8,12)+'-'+d.slice(12);
+}
+function _cfgDb() { return window.firebaseConfig || {}; }
+function _getDb2() {
+  if (typeof window._getDb === 'function') { var d = window._getDb(); if (d) return d; }
+  if (window.db) return window.db;
+  return null;
+}
+async function _getToken2() {
+  try {
+    var _auth = window._firebaseAuth || (window.firebase && window.firebase.auth ? window.firebase.auth() : null);
+    if (_auth && _auth.currentUser) return await _auth.currentUser.getIdToken();
+  } catch(e) {}
+  return null;
+}
+
+// -- Hash simples de senha (SHA-256 via SubtleCrypto) -------------
+async function _hashSenha(senha, cnpj) {
+  var txt = cnpj + ':' + senha + ':onlinees2025';
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+// -- Gerar senha aleat?ria de 8 chars (letras+n?meros leg?veis) ---
+function _gerarSenha() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var arr = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(function(b){ return chars[b % chars.length]; }).join('');
+}
+
+// -- REST Firestore helper -----------------------------------------
+async function _fsGet(path) {
+  var cfg = _cfgDb();
+  if (!cfg.projectId || !cfg.apiKey) return null;
+  var tok = await _getToken2();
+  var hdrs = {};
+  if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
+  var res = await fetch('https://firestore.googleapis.com/v1/projects/'+cfg.projectId+'/databases/(default)/documents/'+path+'?key='+cfg.apiKey, {headers: hdrs});
+  if (!res.ok) return null;
+  return await res.json();
+}
+async function _fsSet(path, data, merge) {
+  var db = _getDb2();
+  if (!db) throw new Error('DB não disponível');
+  var parts = path.split('/');
+  var col = parts[0], doc = parts[1];
+  if (merge) {
+    await db.collection(col).doc(doc).set(data, {merge: true});
+  } else {
+    await db.collection(col).doc(doc).set(data);
+  }
+}
+function _parseDoc(json) {
+  if (!json || !json.fields) return null;
+  var obj = {};
+  Object.keys(json.fields).forEach(function(k) {
+    var v = json.fields[k];
+    if (v.stringValue !== undefined) obj[k] = v.stringValue;
+    else if (v.integerValue !== undefined) obj[k] = parseInt(v.integerValue, 10);
+    else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
+    else if (v.arrayValue) obj[k] = (v.arrayValue.values||[]).map(function(x){ return x.stringValue||''; });
+    else obj[k] = null;
+  });
+  return obj;
+}
+
+// -- Criar/renovar credenciais do cliente -------------------------
+window._criarCredenciaisCliente = async function(cnpj, emails, nomeEmpresa) {
+  if (!cnpj || _limparCnpj(cnpj).length < 8) return null;
+  var cnpjLimpo = _limparCnpj(cnpj);
+  try {
+    // Verifica se j? existe credencial v?lida
+    var existing = await _fsGet('onlineEsPortalClientes/' + cnpjLimpo);
+    var doc = _parseDoc(existing);
+    if (doc && doc.senhaExpira && new Date(doc.senhaExpira) > new Date()) {
+      // Ainda v?lida -- retorna sem gerar nova
+      return { cnpj: cnpjLimpo, jaExiste: true, expira: doc.senhaExpira };
+    }
+    // Gera nova senha
+    var senha = _gerarSenha();
+    var hash = await _hashSenha(senha, cnpjLimpo);
+    var expira = new Date(Date.now() + 30*24*60*60*1000).toISOString();
+    var emailsLimpos = (emails||[]).filter(function(e){ return e && e.includes('@'); }).slice(0,3);
+    await _fsSet('onlineEsPortalClientes/' + cnpjLimpo, {
+      cnpj: cnpjLimpo,
+      senhaHash: hash,
+      senhaExpira: expira,
+      senhaTexto: senha, // guardado temporariamente para envio (removivel apos envio)
+      emails: emailsLimpos,
+      nomeEmpresa: nomeEmpresa || '',
+      criadoEm: new Date().toISOString()
+    }, false);
+    return { cnpj: cnpjLimpo, senha: senha, expira: expira, emails: emailsLimpos, jaExiste: false };
+  } catch(e) {
+    console.warn('[ClientePortal] Erro ao criar credenciais:', e.message||e);
+    return null;
+  }
+};
+
+// -- URL do portal do cliente --------------------------------------
+window._urlPortalCliente = function() {
+  return window.location.href.split('?')[0] + '?cliente=1';
+};
+
+// -- Verificar se URL tem ?cliente= e abrir portal ----------------
+function _verificarUrlCliente() {
+  var params = new URLSearchParams(window.location.search);
+  if (!params.has('cliente')) return false;
+
+  // Oculta tela de login
+  try {
+    var _tl = document.getElementById('telaLogin');
+    if (_tl) { _tl.classList.add('hidden'); _tl.style.display = 'none'; }
+    var _portalRat = document.getElementById('portalCliente');
+    if (_portalRat) _portalRat.style.display = 'none';
+  } catch(e) {}
+
+  // Mostra portal autenticado
+  var portal = document.getElementById('portalClienteAuth');
+  if (portal) portal.style.display = 'block';
+
+  _iniciarPortalCliente();
+  return true;
+}
+
+// -- L?gica do portal ----------------------------------------------
+var _pcaSessao = null; // { cnpj, nomeEmpresa }
+
+function _mostrarPcaSecao(id) {
+  ['pcaLogin','pcaRats','pcaNovaSenha'].forEach(function(s) {
+    var el = document.getElementById(s);
+    if (el) el.style.display = s === id ? 'block' : 'none';
+  });
+}
+
+function _iniciarPortalCliente() {
+  // M?scara CNPJ
+  ['pcaCnpj','pcaNsCnpj'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && !el._masked) {
+      el._masked = true;
+      el.addEventListener('input', function() {
+        var pos = el.selectionStart;
+        el.value = _formatarCnpj(el.value);
+        try { el.setSelectionRange(pos, pos); } catch(e) {}
+      });
+    }
+  });
+
+  // Bot?o Entrar
+  var btnEntrar = document.getElementById('pcaBtnEntrar');
+  if (btnEntrar && !btnEntrar._bound) {
+    btnEntrar._bound = true;
+    btnEntrar.addEventListener('click', _fazerLogin);
+  }
+  var senhaInput = document.getElementById('pcaSenha');
+  if (senhaInput && !senhaInput._bound) {
+    senhaInput._bound = true;
+    senhaInput.addEventListener('keydown', function(e){ if(e.key==='Enter') _fazerLogin(); });
+  }
+
+  // Bot?o Nova Senha
+  var btnNova = document.getElementById('pcaBtnNovaSenha');
+  if (btnNova && !btnNova._bound) {
+    btnNova._bound = true;
+    btnNova.addEventListener('click', function() { _mostrarPcaSecao('pcaNovaSenha'); });
+  }
+
+  // Bot?o Voltar
+  var btnVoltar = document.getElementById('pcaBtnNsVoltar');
+  if (btnVoltar && !btnVoltar._bound) {
+    btnVoltar._bound = true;
+    btnVoltar.addEventListener('click', function() { _mostrarPcaSecao('pcaLogin'); });
+  }
+
+  // Bot?o Enviar nova senha
+  var btnEnviar = document.getElementById('pcaBtnNsEnviar');
+  if (btnEnviar && !btnEnviar._bound) {
+    btnEnviar._bound = true;
+    btnEnviar.addEventListener('click', _enviarNovaSenha);
+  }
+
+  // Bot?o Sair
+  var btnSair = document.getElementById('pcaBtnSair');
+  if (btnSair && !btnSair._bound) {
+    btnSair._bound = true;
+    btnSair.addEventListener('click', function() {
+      _pcaSessao = null;
+      _mostrarPcaSecao('pcaLogin');
+      var cnpjEl = document.getElementById('pcaCnpj');
+      var senhaEl = document.getElementById('pcaSenha');
+      if (cnpjEl) cnpjEl.value = '';
+      if (senhaEl) senhaEl.value = '';
+    });
+  }
+
+  _mostrarPcaSecao('pcaLogin');
+}
+
+async function _fazerLogin() {
+  var cnpjEl  = document.getElementById('pcaCnpj');
+  var senhaEl = document.getElementById('pcaSenha');
+  var erroEl  = document.getElementById('pcaErro');
+  var btnEl   = document.getElementById('pcaBtnEntrar');
+  if (!cnpjEl || !senhaEl) return;
+
+  var cnpj  = _limparCnpj(cnpjEl.value);
+  var senha = (senhaEl.value || '').trim().toUpperCase();
+
+  if (cnpj.length < 8) { _mostrarErro(erroEl, 'Digite um CNPJ válido.'); return; }
+  if (!senha) { _mostrarErro(erroEl, 'Digite a senha.'); return; }
+
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<i class="ri-loader-4-line"></i> Verificando...';
+  if (erroEl) erroEl.style.display = 'none';
+
+  try {
+    var docJson = await _fsGet('onlineEsPortalClientes/' + cnpj);
+    var doc = _parseDoc(docJson);
+
+    if (!doc || !doc.senhaHash) {
+      _mostrarErro(erroEl, 'CNPJ não encontrado. Solicite um novo acesso ao técnico.');
+      return;
+    }
+
+    // Verifica expira??o
+    if (!doc.senhaExpira || new Date(doc.senhaExpira) < new Date()) {
+      _mostrarErro(erroEl,
+        'Sua senha expirou. Clique em "Esqueci/Expirou minha senha" para receber uma nova por e-mail.');
+      return;
+    }
+
+    // Verifica hash
+    var hash = await _hashSenha(senha, cnpj);
+    if (hash !== doc.senhaHash) {
+      _mostrarErro(erroEl, 'Senha incorreta. Verifique a mensagem recebida.');
+      return;
+    }
+
+    // Login OK
+    _pcaSessao = { cnpj: cnpj, nomeEmpresa: doc.nomeEmpresa || cnpj };
+    await _carregarRats();
+
+  } catch(e) {
+    _mostrarErro(erroEl, 'Erro ao conectar. Tente novamente.');
+    console.warn('[ClientePortal] Erro login:', e.message||e);
+  } finally {
+    btnEl.disabled = false;
+    btnEl.innerHTML = '<i class="ri-login-box-line"></i> Entrar';
+  }
+}
+
+function _mostrarErro(el, msg) {
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function _carregarRats() {
+  if (!_pcaSessao) return;
+  var listaEl = document.getElementById('pcaListaRats');
+  var empresaEl = document.getElementById('pcaEmpresa');
+  if (!listaEl) return;
+
+  _mostrarPcaSecao('pcaRats');
+  if (empresaEl) empresaEl.textContent = 'CNPJ: ' + _formatarCnpj(_pcaSessao.cnpj);
+  listaEl.innerHTML = '<p style="color:#94a3b8;font-size:.8rem;text-align:center;padding:20px;">Carregando relatórios...</p>';
+
+  try {
+    var cfg = _cfgDb();
+    if (!cfg.projectId || !cfg.apiKey) throw new Error('Firebase não configurado');
+    var tok = await _getToken2();
+    var hdrs = {'Content-Type': 'application/json'};
+    if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
+
+    var body = {structuredQuery:{
+      from:[{collectionId:'onlineEsRelatorios'}],
+      where:{fieldFilter:{field:{fieldPath:'cnpjCliente'},op:'EQUAL',value:{stringValue:_pcaSessao.cnpj}}},
+      orderBy:[{field:{fieldPath:'dataHoraIso'},direction:'DESCENDING'}],
+      limit: 50
+    }};
+
+    var res = await fetch(
+      'https://firestore.googleapis.com/v1/projects/'+cfg.projectId+'/databases/(default)/documents:runQuery?key='+cfg.apiKey,
+      {method:'POST', headers:hdrs, body:JSON.stringify(body)}
+    );
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var json = await res.json();
+    var rats = [];
+    if (Array.isArray(json)) {
+      json.forEach(function(row) {
+        if (row.document) {
+          var r = _parseDoc(row.document);
+          if (r) rats.push(r);
+        }
+      });
+    }
+
+    if (!rats.length) {
+      listaEl.innerHTML = '<p style="color:#94a3b8;font-size:.8rem;text-align:center;padding:20px;">Nenhum relatório encontrado para este CNPJ.</p>';
+      return;
+    }
+
+    // Atualiza nome da empresa
+    if (rats[0].cliente && empresaEl) {
+      empresaEl.textContent = rats[0].cliente + ' -- CNPJ: ' + _formatarCnpj(_pcaSessao.cnpj);
+    }
+
+    _renderRatsCliente(rats, listaEl);
+
+  } catch(e) {
+    listaEl.innerHTML = '<p style="color:#fca5a5;font-size:.8rem;text-align:center;padding:20px;">Erro ao carregar relatórios: ' + (e.message||e) + '</p>';
+    console.warn('[ClientePortal] Erro ao carregar RATs:', e.message||e);
+  }
+}
+
+function _renderRatsCliente(rats, container) {
+  var frag = document.createDocumentFragment();
+  rats.forEach(function(r) {
+    var card = document.createElement('div');
+    card.style.cssText = 'background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.15);border-radius:14px;padding:14px 16px;margin-bottom:12px;position:relative;overflow:hidden;';
+
+    // Barra de cor no topo
+    var barra = document.createElement('div');
+    barra.style.cssText = 'position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#f97316,#114f91);border-radius:14px 14px 0 0;';
+    card.appendChild(barra);
+
+    var statusCor = r.status === 'Concluído' ? '#86efac' : r.status && r.status.includes('pendência') ? '#fde68a' : '#fca5a5';
+    var statusBg  = r.status === 'Concluído' ? 'rgba(34,197,94,.15)' : r.status && r.status.includes('pendência') ? 'rgba(234,179,8,.15)' : 'rgba(248,113,113,.15)';
+
+    card.innerHTML += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-top:4px;">' +
+      '<div>' +
+        '<div style="font-size:.88rem;font-weight:700;color:#f1f5f9;">RAT ' + _esc(r.numero||'') + '</div>' +
+        '<div style="font-size:.75rem;color:#64748b;margin-top:2px;">' + _esc(r.dataHoraBr||r.dataHoraIso||'') + '</div>' +
+      '</div>' +
+      '<span style="font-size:.65rem;font-weight:700;background:'+statusBg+';color:'+statusCor+';border-radius:999px;padding:3px 10px;white-space:nowrap;">' + _esc(r.status||'') + '</span>' +
+    '</div>' +
+    '<div style="font-size:.78rem;color:#94a3b8;margin-top:6px;">' +
+      '<span style="color:#cbd5e1;">Equipamento:</span> ' + _esc(r.equipamento||'-') + ' &nbsp;|&nbsp; ' +
+      '<span style="color:#cbd5e1;">Técnico:</span> ' + _esc(r.tecnico||'-') +
+    '</div>' +
+    (r.diagnostico ? '<div style="font-size:.75rem;color:#94a3b8;margin-top:4px;"><span style="color:#cbd5e1;">Diagnóstico:</span> ' + _esc(r.diagnostico).slice(0,120) + (r.diagnostico.length>120?'...':'') + '</div>' : '') +
+    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">' +
+      '<button data-pca-pdf="' + _esc(r.id||'') + '" data-pca-num="' + _esc(r.numero||'') + '" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;border-radius:999px;padding:7px 16px;font-size:.75rem;font-weight:700;cursor:pointer;"><i class="ri-download-2-line"></i> Baixar PDF</button>' +
+    '</div>';
+
+    frag.appendChild(card);
+  });
+  container.innerHTML = '';
+  container.appendChild(frag);
+
+  // Handlers dos bot?es PDF
+  container.querySelectorAll('[data-pca-pdf]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id  = btn.getAttribute('data-pca-pdf');
+      var num = btn.getAttribute('data-pca-num');
+      var rat = rats.find(function(r){ return r.id === id; });
+      if (!rat) return;
+      _gerarPdfCliente(rat, btn);
+    });
+  });
+}
+
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function _gerarPdfCliente(rat, btn) {
+  var orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ri-loader-4-line"></i> Gerando...';
+  try {
+    if (typeof window._ensureJsPDF === 'function') await window._ensureJsPDF();
+    if (typeof window.exportarPDF !== 'function') throw new Error('exportarPDF não disponível');
+    // Usa a RAT completa -- sem _somenteMemoria para pegar imagens do localStorage se dispon?vel
+    await window.exportarPDF(Object.assign({}, rat));
+    // exportarPDF com _somenteMemoria=false faz o download automaticamente
+    btn.innerHTML = '<i class="ri-check-line"></i> PDF baixado!';
+    setTimeout(function(){ btn.innerHTML = orig; btn.disabled = false; }, 3000);
+  } catch(e) {
+    btn.innerHTML = '<i class="ri-error-warning-line"></i> Erro';
+    setTimeout(function(){ btn.innerHTML = orig; btn.disabled = false; }, 3000);
+    console.warn('[ClientePortal] Erro PDF:', e.message||e);
+  }
+}
+
+async function _enviarNovaSenha() {
+  var cnpjEl = document.getElementById('pcaNsCnpj');
+  var msgEl  = document.getElementById('pcaNsMsg');
+  var btnEl  = document.getElementById('pcaBtnNsEnviar');
+  if (!cnpjEl) return;
+
+  var cnpj = _limparCnpj(cnpjEl.value);
+  if (cnpj.length < 8) {
+    if (msgEl) { msgEl.textContent = 'Digite um CNPJ válido.'; msgEl.style.background='rgba(248,113,113,.1)'; msgEl.style.borderColor='rgba(248,113,113,.3)'; msgEl.style.color='#fca5a5'; msgEl.style.display='block'; }
+    return;
+  }
+
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<i class="ri-loader-4-line"></i> Enviando...';
+
+  try {
+    // Busca os ?ltimos 3 e-mails de RATs desse CNPJ
+    var cfg = _cfgDb();
+    var tok = await _getToken2();
+    var hdrs = {'Content-Type':'application/json'};
+    if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
+    var body = {structuredQuery:{
+      from:[{collectionId:'onlineEsRelatorios'}],
+      where:{fieldFilter:{field:{fieldPath:'cnpjCliente'},op:'EQUAL',value:{stringValue:cnpj}}},
+      orderBy:[{field:{fieldPath:'dataHoraIso'},direction:'DESCENDING'}],
+      limit:3
+    }};
+    var res = await fetch('https://firestore.googleapis.com/v1/projects/'+cfg.projectId+'/databases/(default)/documents:runQuery?key='+cfg.apiKey, {method:'POST',headers:hdrs,body:JSON.stringify(body)});
+    var json = await res.json();
+    var emails = [];
+    var nomeEmpresa = '';
+    if (Array.isArray(json)) {
+      json.forEach(function(row) {
+        if (row.document) {
+          var r = _parseDoc(row.document);
+          if (r && r.emailCliente && r.emailCliente.includes('@') && !emails.includes(r.emailCliente))
+            emails.push(r.emailCliente);
+          if (r && r.cliente && !nomeEmpresa) nomeEmpresa = r.cliente;
+        }
+      });
+    }
+
+    if (!emails.length) {
+      if (msgEl) { msgEl.textContent = 'Nenhum e-mail encontrado para este CNPJ. Entre em contato com a ONLINE-ES.'; msgEl.style.background='rgba(248,113,113,.1)'; msgEl.style.borderColor='rgba(248,113,113,.3)'; msgEl.style.color='#fca5a5'; msgEl.style.display='block'; }
+      return;
+    }
+
+    // Gera nova credencial
+    var cred = await window._criarCredenciaisCliente(cnpj, emails, nomeEmpresa);
+    if (!cred || !cred.senha) {
+      if (msgEl) { msgEl.textContent = 'Erro ao gerar nova senha. Tente novamente.'; msgEl.style.display='block'; }
+      return;
+    }
+
+    // Abre mailto para cada e-mail
+    var portalUrl = window._urlPortalCliente();
+    var assunto = encodeURIComponent('Acesso ao Portal ONLINE-ES -- ' + (nomeEmpresa||cnpj));
+    var corpo = encodeURIComponent(
+      'Ola!\n\n' +
+      'Sua nova senha de acesso ao Portal de Relatorios ONLINE-ES foi gerada.\n\n' +
+      '🔗 Acesse: ' + portalUrl + '\n' +
+      '👤 CNPJ: ' + _formatarCnpj(cnpj) + '\n' +
+      '🔑 Senha: ' + cred.senha + '\n\n' +
+      'Valida por 30 dias.\n\n' +
+      'ONLINE-ES Eletroeletronica'
+    );
+    emails.forEach(function(email) {
+      window.open('mailto:' + email + '?subject=' + assunto + '&body=' + corpo, '_blank');
+    });
+
+    if (msgEl) {
+      msgEl.textContent = 'Nova senha enviada para: ' + emails.join(', ') + '. Verifique sua caixa de entrada.';
+      msgEl.style.background = 'rgba(34,197,94,.1)';
+      msgEl.style.borderColor = 'rgba(34,197,94,.3)';
+      msgEl.style.color = '#86efac';
+      msgEl.style.display = 'block';
+    }
+
+  } catch(e) {
+    if (msgEl) { msgEl.textContent = 'Erro: ' + (e.message||e); msgEl.style.display='block'; }
+    console.warn('[ClientePortal] Erro nova senha:', e.message||e);
+  } finally {
+    btnEl.disabled = false;
+    btnEl.innerHTML = '<i class="ri-send-plane-line"></i> Enviar nova senha';
+  }
+}
+
+// -- Hook no _init() -----------------------------------------------
+var _origInit = window._init;
+if (typeof _origInit === 'function') {
+  window._init = function() {
+    if (_verificarUrlCliente()) return;
+    _origInit();
+  };
+} else {
+  // _init ainda n?o definido -- tenta depois do DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', function() {
+    var _i2 = window._init;
+    if (typeof _i2 === 'function' && !_i2._clienteHooked) {
+      _i2._clienteHooked = true;
+      window._init = function() {
+        if (_verificarUrlCliente()) return;
+        _i2();
+      };
+    }
+  });
+}
+
+// -- Exp?e _verificarUrlCliente para _init no IIFE principal ------
+window._verificarUrlCliente = _verificarUrlCliente;
+
+})();
+</script>
+
 </body>
 </html>
