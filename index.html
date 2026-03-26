@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v74
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v76
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -8040,18 +8040,22 @@ if (logoBase64) {
       };
 
       // Tenta recuperar versão local completa do relatório
+      // [FIX-v74] Se _somenteMemoria=true (portal), usa r diretamente — não sobrescreve
+      // com dados do localStorage que podem ter imagens em alta resolução
       var _rComImgs = r;
-      try {
-        var _localList = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
-        var _rLocal2 = _localList.find(function(x) { return x.id === r.id; });
-        if (_rLocal2 && (
-          (_rLocal2.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
-          (_rLocal2.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
-          (_rLocal2.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
-        )) {
-          _rComImgs = _rLocal2;
-        }
-      } catch(e) {}
+      if (!r._somenteMemoria) {
+        try {
+          var _localList = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+          var _rLocal2 = _localList.find(function(x) { return x.id === r.id; });
+          if (_rLocal2 && (
+            (_rLocal2.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
+            (_rLocal2.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
+            (_rLocal2.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
+          )) {
+            _rComImgs = _rLocal2;
+          }
+        } catch(e) {}
+      }
 
       // [FIX-PDF] Filtra imagens válidas — remove placeholders '[local]' e '[comprimido]'
       const allImages = [].concat(_rComImgs.imgsEquip||[]).concat(_rComImgs.imgsServico||[]).concat(_rComImgs.imgsBaterias||[])
@@ -17174,23 +17178,25 @@ async function _renderPortal(token){
               window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(_bUrl);}catch(e){}},{once:true});
               var _viewer = document.getElementById('portalPdfViewer');
               if (!_viewer) return;
-              var _isMob = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-              if (_isMob) {
-                // Mobile: abre em nova aba (blob em iframe não funciona no iOS/Android)
-                _viewer.innerHTML =
-                  '<div style="text-align:center;padding:20px 0;">'+
-                  '<a href="'+_bUrl+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:12px 28px;font-size:.88rem;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(249,115,22,.35);">'+
-                  '<i class="ri-file-pdf-line"></i> Abrir PDF</a>'+
-                  '</div>';
-              } else {
-                // Desktop: iframe com blob URL (mais compatível que <object>)
-                // Try iframe first, with fallback link
-                _viewer.innerHTML =
-                  '<div style="margin-bottom:8px;display:flex;justify-content:flex-end;">'+
-                  '<a href="'+_bUrl+'" target="_blank" rel="noopener" style="font-size:.78rem;color:#f97316;text-decoration:none;padding:6px 14px;border:1px solid rgba(249,115,22,.4);border-radius:8px;"><i class="ri-external-link-line"></i> Abrir PDF em nova aba</a>'+
+              // [FIX-v76] Usa botão de download/abertura — viewers inline bloqueados em modo anônimo
+              _viewer.innerHTML =
+                '<div style="text-align:center;padding:28px 16px;">'+
+                  '<i class="ri-file-pdf-line" style="font-size:3.5rem;color:#f97316;display:block;margin-bottom:12px;"></i>'+
+                  '<p style="color:#94a3b8;font-size:.85rem;margin:0 0 20px;line-height:1.5;">'+
+                    'Seu Relatório Técnico de Atendimento está pronto.<br>'+
+                    '<span style="font-size:.78rem;opacity:.8;">RAT '+_ep(rat.numero||'')+' &mdash; '+_ep(rat.cliente||'')+'</span>'+
+                  '</p>'+
+                  '<a href="'+_bUrl+'" download="'+pdfNome+'" '+
+                    'style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:13px 32px;font-size:.9rem;font-weight:700;text-decoration:none;box-shadow:0 6px 20px rgba(249,115,22,.35);">'+
+                    '<i class="ri-download-2-line"></i> Baixar PDF'+
+                  '</a>'+
+                  '<div style="margin-top:14px;">'+
+                    '<a href="'+_bUrl+'" target="_blank" rel="noopener" '+
+                      'style="font-size:.75rem;color:#64748b;text-decoration:none;">'+
+                      '<i class="ri-external-link-line"></i> Abrir em nova aba'+
+                    '</a>'+
                   '</div>'+
-                  '<embed src="'+_bUrl+'" type="application/pdf" style="width:100%;height:75vh;min-height:480px;border:none;border-radius:10px;background:#fff;" />';
-              }
+                '</div>';
               console.log('[Portal] PDF viewer renderizado.');
             } catch(eView) { console.error('[Portal] Erro no viewer:', eView.message); }
           }, 50);
