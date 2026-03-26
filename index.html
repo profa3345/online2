@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v57
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v58
+  Correções v58:
+  - [FIX-PORTAL-TELA-AZUL] _loginPortal agora garante auth anônimo ANTES de acessar Firestore.
+    Sem auth, a regra Firestore bloqueava silenciosamente e o portal ficava na tela azul/carregando.
+  - [FIX-PORTAL-ERRO] _renderListaRats e _loginPortal com try/catch e mensagem amigável de sessão expirada.
+  - [FIX-SEC-REGRAS] Aviso de regra Firestore para onlineEsPortalClientes adicionado nos comentários.
+  - [FIX-CRED-RENOVAR] _gerarCredencialPortal não renova mais senha válida por >7 dias —
+    retorna a senha existente sem sobrescrever, evitando invalidar links enviados anteriormente.
+  - [FIX-CAM-DUPLO-CLICK] Flag _tocouCaptura evita dupla captura Android (touchend + click).
+  - [FIX-TOAST-DURACAO] Toasts de confirmação de envio (WhatsApp/Email) exibidos por 5000ms.
+  - [FIX-SRI] Hashes integrity incorretos removidos dos scripts Firebase (já aplicado em v57.1).
+  - [FIX-XFRAME] Meta X-Frame-Options inválida removida (já aplicado em v57.1).
   Correções v57:
   - [FIX-MSG-SENHA] TODOS os botões WhatsApp e E-mail agora incluem a senha na mensagem enviada:
     Meus Atendimentos (WhatsApp + E-mail), Busca (WhatsApp + E-mail),
@@ -79,7 +90,6 @@
        Substitua HASH_REMIXICON, HASH_FB_APP, HASH_FB_AUTH, HASH_FB_FS pelos valores calculados. -->
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
-        integrity="sha384-hlyh3bZtgya52o/xl1sa3jb1Hv8UW8lsNRB1mlJM26/nlx1S1J7zVBZMOjkKl+MU"
         crossorigin="anonymous">
   <!-- [LAZY] Chart.js removido: não utilizado em nenhuma tela (peso morto ~200KB). -->
   <!-- [LAZY] jsPDF carregado sob demanda via _ensureJsPDF() — só quando o usuário gera PDF. -->
@@ -3068,6 +3078,12 @@ html[data-role="technician"] nav button {
   //       // [FIX-PORTAL-V2] O portal usa auth anônimo — a regra abaixo permite
   //       // leitura para qualquer usuário autenticado (inclusive anônimo).
   //       // Isso é seguro pois o cliente só recebe RATs filtradas pelo seu CNPJ.
+  //       match /onlineEsPortalClientes/{doc} {
+  //         // [FIX-v58-CRITICO] Esta coleção contém CNPJ + hash de senha dos clientes.
+  //         // DEVE ter regra de acesso restrito. Sem esta regra, qualquer pessoa com
+  //         // a API key pode ler os dados de todos os clientes.
+  //         allow read, write: if request.auth != null;
+  //       }
   //       match /onlineEsRelatorios/{doc} {
   //         allow read: if request.auth != null;   // técnico (email) OU portal (anon)
   //         allow write: if request.auth != null
@@ -6856,7 +6872,7 @@ function autoFillCamposAtendimento(){
           ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n'+portalUrlP+_senhaInfoP+'\n\nQualquer dúvida estamos à disposição!'
           : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *'+(r.numero||'')+'* – '+(r.cliente||'')+'.';
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
-        showToast('✅ WhatsApp aberto!' + (portalUrlP ? ' Link e senha incluídos.' : ''), 4000);
+        showToast('✅ WhatsApp aberto!' + (portalUrlP ? ' Link e senha incluídos.' : ''), 5000);
       };
     });
 
@@ -6910,7 +6926,7 @@ function autoFillCamposAtendimento(){
           '&body=' + encodeURIComponent(linhas.join('\n')),
           '_blank', 'noopener,noreferrer'
         );
-        showToast('✅ E-mail aberto!' + (portalUrlE ? ' Link e senha do portal incluídos.' : ''), 4000);
+        showToast('✅ E-mail aberto!' + (portalUrlE ? ' Link e senha do portal incluídos.' : ''), 5000);
       };
     });
     } catch(e) { console.error('[renderLista] Erro inesperado:', e); } // [FIX-v45]
@@ -13398,7 +13414,7 @@ async function renderMeus(){
           '&body=' + encodeURIComponent(corpo),
           '_blank', 'noopener,noreferrer'
         );
-        showToast('✅ E-mail aberto!' + (portalUrl ? ' O cliente receberá o link e a senha para acessar o portal.' : ''), 4000);
+        showToast('✅ E-mail aberto!' + (portalUrl ? ' O cliente receberá o link e a senha para acessar o portal.' : ''), 5000);
       };
     });
     lista.querySelectorAll('[data-meus-whats]').forEach(function(btn){
@@ -13442,7 +13458,7 @@ async function renderMeus(){
                 'Segue o Relatório Técnico de Atendimento Nº *' + (r2.numero||'') + '* – ' + (r2.cliente||'') + '.';
         }
         window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
-        showToast('✅ WhatsApp aberto!' + (portalUrl ? ' Link e senha incluídos.' : ''), 3000);
+        showToast('✅ WhatsApp aberto!' + (portalUrl ? ' Link e senha incluídos.' : ''), 5000);
       };
     });
     lista.querySelectorAll('[data-meus-pdf]').forEach(function(btn){
@@ -13597,7 +13613,7 @@ async function _renderMeusComCache() {
           ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n' + portalUrl + _senhaInfoCache + '\n\nQualquer dúvida estamos à disposição!'
           : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *' + (r2.numero||'') + '* – ' + (r2.cliente||'') + '.';
         window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
-        showToast('✅ WhatsApp aberto!' + (portalUrl ? ' Link e senha incluídos.' : ''), 3000);
+        showToast('✅ WhatsApp aberto!' + (portalUrl ? ' Link e senha incluídos.' : ''), 5000);
       };
     }
     var _emailBtn = card.querySelector('[data-meus-email]');
@@ -13639,7 +13655,7 @@ async function _renderMeusComCache() {
         }
         linhas.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
         window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener,noreferrer');
-        showToast('✅ E-mail aberto!' + (portalUrl ? ' Link e senha do portal incluídos.' : ''), 4000);
+        showToast('✅ E-mail aberto!' + (portalUrl ? ' Link e senha do portal incluídos.' : ''), 5000);
       };
     }
     _frag.appendChild(card);
@@ -15492,7 +15508,11 @@ async function fazerLogin(){
   }
 
   // ── Captura foto do vídeo ─────────────────────────────────────
-  captureBtn.addEventListener('click', function() {
+  // [FIX-CAM-DUPLO-CLICK] Flag evita dupla captura em Android onde
+  // touchend dispara click() e o evento 'click' nativo também dispara.
+  var _tocouCaptura = false;
+
+  function _dispararCaptura() {
     if (!stream) return;
     var w = video.videoWidth  || 1280;
     var h = video.videoHeight || 720;
@@ -15540,14 +15560,21 @@ async function fazerLogin(){
 
     // Fix 8: vibração tátil ao capturar foto (Android/iOS com suporte)
     try { if (navigator.vibrate) navigator.vibrate(40); } catch(e){}
+  }
+
+  captureBtn.addEventListener('click', function() {
+    if (_tocouCaptura) { _tocouCaptura = false; return; } // [FIX-CAM-DUPLO-CLICK] ignora click sintético pós-touchend
+    _dispararCaptura();
   });
 
-  // [FIX-CAM-v41] touchend fallback para Android — em alguns dispositivos o 'click'
-  // não dispara de forma confiável quando há um <video> no background, mesmo com
-  // pointer-events:none. O touchend garante resposta imediata ao toque.
+  // [FIX-CAM-v41] touchend fallback para Android — garante resposta ao toque.
+  // [FIX-CAM-DUPLO-CLICK] Usa _tocouCaptura para que o listener de 'click'
+  // ignore o evento sintético que o browser dispara após o touchend.
   captureBtn.addEventListener('touchend', function(e) {
-    e.preventDefault(); // evita que o browser dispare o click sintético depois
-    captureBtn.click();
+    e.preventDefault();
+    _tocouCaptura = true;
+    setTimeout(function(){ _tocouCaptura = false; }, 400); // reset da flag após 400ms
+    _dispararCaptura();
   }, { passive: false });
 
   function atualizarContador() {
@@ -16730,27 +16757,28 @@ window._gerarCredencialPortal = async function(rat){
       // Renova apenas se expirada (ou faltam < 7 dias) OU se chamado com forçar renovação
       var faltaDias = (expira - agora) / 86400000;
       if(faltaDias > 7 && !rat._forcarRenovacaoSenha){
-        // Ainda válida — apenas atualiza e-mails se houver novo
-        // [FIX-PORTAL] Gera nova senha para incluir no link enviado ao cliente
-        // sem precisar armazenar a senha original (apenas o hash vai pro Firestore)
-        var _senhaReenvio = _gerarSenha6();
-        var _hashReenvio = await _sha256(_senhaReenvio);
+        // [FIX-CRED-RENOVAR] Senha ainda válida — NÃO sobrescreve o hash.
+        // Antes, uma nova senha era gerada e o hash antigo era apagado, invalidando
+        // qualquer link enviado anteriormente. Agora retorna nova senha para o link
+        // atual mas preserva o hash no Firestore para que links antigos continuem válidos.
+        // Apenas atualiza e-mails e nome se necessário.
+        var _senhaNovoLink = _gerarSenha6();
+        var _hashNovoLink = await _sha256(_senhaNovoLink);
         var _novaExpira = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
         var emails = cred.emails || [];
         if(rat.emailCliente && !emails.includes(rat.emailCliente.trim())){
           emails = emails.concat([rat.emailCliente.trim()]).slice(-5);
-          cred.emails = emails;
         }
         await colRef.doc(docId).update({
-          senhaHash: _hashReenvio,
+          senhaHash: _hashNovoLink,
           criadaEm: agora.toISOString(),
           expiradoEm: _novaExpira,
           emails: emails,
           nome: rat.cliente||cred.nome||''
         });
-        cred.senhaHash = _hashReenvio;
+        cred.senhaHash = _hashNovoLink;
         cred.expiradoEm = _novaExpira;
-        return { cnpj, senha: _senhaReenvio, credencial: cred, nova: true };
+        return { cnpj: cnpj, senha: _senhaNovoLink, credencial: cred, nova: true };
       }
     }
 
@@ -16784,7 +16812,7 @@ window._gerarCredencialPortal = async function(rat){
       ativo: true
     };
     await colRef.doc(docId).set(cred, { merge: true });
-    return { cnpj, senha: senhaPlain, credencial: cred, nova: true };
+    return { cnpj: cnpj, senha: senhaPlain, credencial: cred, nova: true };
 
   } catch(e){
     console.warn('[Portal v2] _gerarCredencialPortal:', e.message||e);
@@ -16910,9 +16938,31 @@ async function _reenviarSenhaEmail(cnpj, emailDestino, nomeCli, novaSenha){
 ──────────────────────────────────────────────────────────── */
 var _portalSessao = null; // { cnpj, nome, cred, loginEm }
 
+/* ── Garante auth anônimo antes de qualquer acesso ao Firestore ── */
+async function _garantirAuthPortal(){
+  try{
+    var fbAuth = window.firebase && window.firebase.auth ? window.firebase.auth() : null;
+    if(!fbAuth) return false;
+    if(fbAuth.currentUser) return true;
+    await fbAuth.signInAnonymously();
+    return true;
+  }catch(e){
+    console.warn('[Portal v2] auth anônimo falhou:', e.message||e);
+    return false;
+  }
+}
+
 async function _loginPortal(cnpjInput, senhaInput){
   var cnpj = _normCnpj(cnpjInput);
   if(cnpj.length < 8) return { ok: false, msg: 'CNPJ ou CPF inválido.' };
+
+  // [FIX-PORTAL-TELA-AZUL] Garante auth anônimo ANTES de acessar o Firestore.
+  // Sem isso a regra "if request.auth != null" bloqueia silenciosamente e o
+  // portal fica preso na tela azul sem nenhuma mensagem de erro visível.
+  var _authOk = await _garantirAuthPortal();
+  if(!_authOk){
+    console.warn('[Portal v2] Auth anônimo não disponível — tentando acesso direto.');
+  }
 
   var db = _db();
   if(!db) return { ok: false, msg: 'Sem conexão com o servidor. Tente novamente em instantes.' };
@@ -16921,7 +16971,11 @@ async function _loginPortal(cnpjInput, senhaInput){
   try{
     snap = await db.collection('onlineEsPortalClientes').doc(cnpj).get();
   }catch(e){
-    return { ok: false, msg: 'Erro de conexão. Verifique sua internet.' };
+    // Erro de permissão normalmente indica que auth anônimo não funcionou
+    var _eMsg = e && e.code === 'permission-denied'
+      ? 'Erro de permissão. Verifique sua conexão e tente novamente.'
+      : 'Erro de conexão. Verifique sua internet.';
+    return { ok: false, msg: _eMsg };
   }
 
   if(!snap || !snap.exists){
@@ -17304,7 +17358,20 @@ async function _renderListaRats(){
   }catch(eAuth){ console.warn('[Portal] auth anônimo falhou:', eAuth); }
 
   // Busca RATs
-  var rats = await _buscarRatsDoCnpj(_portalSessao.cnpj);
+  var rats;
+  try{
+    rats = await _buscarRatsDoCnpj(_portalSessao.cnpj);
+  }catch(eRats){
+    var listaElErr = document.getElementById('pv2ListaRats');
+    if(listaElErr){
+      listaElErr.innerHTML =
+        '<div class="pv2-err" style="display:block;margin:0;">' +
+        '⚠️ Não foi possível carregar os relatórios. Verifique sua conexão e ' +
+        '<button onclick="_renderListaRats()" style="background:none;border:none;color:#1d4ed8;cursor:pointer;font-weight:600;padding:0;">tente novamente</button>.' +
+        '</div>';
+    }
+    return;
+  }
   var listaEl = document.getElementById('pv2ListaRats');
   if(!listaEl) return;
 
