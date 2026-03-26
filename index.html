@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v76
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v77
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -17168,6 +17168,9 @@ async function _renderPortal(token){
                 '<p style="color:#94a3b8;font-size:.82rem;margin:8px 0;">Preparando visualização...</p>'+
               '</div>'+
             '</div>';
+          // [FIX-v76] _pdfGerado = true ANTES do setTimeout — evita que o bloco
+          // if(!_pdfGerado) sobrescreva o DOM antes do timeout completar
+          _pdfGerado = true;
           // Converte em próximo tick para não bloquear render
           setTimeout(function() {
             try {
@@ -17202,7 +17205,6 @@ async function _renderPortal(token){
           }, 50);
           // [FIX-v67] Re-obtém el após operações async — pode ter sido substituído
           el = document.getElementById('portalConteudo') || el;
-          _pdfGerado = true;
           console.log('[Portal] el.innerHTML setado. el:', el ? el.id : 'NULL', 'portalCliente classes:', document.getElementById('portalCliente') ? document.getElementById('portalCliente').className : 'NULL');
         }
       } catch(eGen) { console.error('[Portal] ERRO ao gerar PDF client-side:', eGen && eGen.message ? eGen.message : eGen, eGen && eGen.stack ? eGen.stack.slice(0,300) : ''); }
