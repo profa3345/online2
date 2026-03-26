@@ -1650,6 +1650,8 @@ html[data-role="technician"] nav button {
       <button id="mMonitor" style="display:none;position:relative;"><i class="ri-pulse-line"></i> Monitoramento
         <span id="monitorBadge" style="display:none;position:absolute;top:6px;right:8px;background:#dc2626;color:#fff;border-radius:999px;font-size:.58rem;font-weight:700;padding:1px 6px;min-width:18px;text-align:center;"></span>
       </button>
+      <!-- [PORTAL-PREVIEW] Botão para visualizar portal do cliente — visível apenas para admin/supervisor -->
+      <button id="mPortalPreview" style="display:none;"><i class="ri-eye-line"></i> Portal do Cliente</button>
     </div>
     <div class="user-box">
       <div id="userName">Usuário</div>
@@ -2869,7 +2871,80 @@ html[data-role="technician"] nav button {
         </small>
       </section>
 
-<!-- OVERLAY -->
+      <!-- ═══ PORTAL DO CLIENTE — PREVIEW ADMIN ═══ -->
+      <section id="telaPortalPreview" class="panel supervisor-panel" style="display:none;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+          <i class="ri-eye-line" style="font-size:1.2rem;color:#f97316;"></i>
+          <h2 style="margin:0;font-size:1.05rem;">Portal do Cliente — Visualização Admin</h2>
+          <span style="font-size:.68rem;background:rgba(249,115,22,.12);color:#f97316;border:1px solid rgba(249,115,22,.3);border-radius:999px;padding:2px 10px;font-weight:600;">MODO ADMIN</span>
+        </div>
+        <p style="font-size:.78rem;color:#64748b;margin-bottom:16px;">Selecione um cliente para visualizar exatamente o que ele verá no portal — sem precisar de senha.</p>
+
+        <!-- Filtro de cliente -->
+        <div class="section-card" style="padding:14px 16px;margin-bottom:14px;">
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+              <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Cliente / CNPJ</label>
+              <input id="ppClienteInput" type="text" placeholder="Digite nome ou CNPJ..." autocomplete="off"
+                style="width:100%;padding:8px 10px;border:1px solid rgba(148,163,184,.4);border-radius:10px;font-size:.85rem;color:#0f172a;outline:0;background:#fff;">
+              <div id="ppClienteSuggestions" style="display:none;position:absolute;z-index:200;background:#fff;border:1px solid rgba(148,163,184,.3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;min-width:260px;"></div>
+            </div>
+            <button id="ppBtnBuscar" class="btn" style="padding:8px 18px;font-size:.82rem;white-space:nowrap;">
+              <i class="ri-search-line"></i> Buscar RATs
+            </button>
+          </div>
+          <div id="ppClienteInfo" style="margin-top:10px;display:none;font-size:.78rem;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:8px;border:1px solid rgba(148,163,184,.2);"></div>
+        </div>
+
+        <!-- Conteúdo do portal simulado -->
+        <div id="ppPortalWrap" style="display:none;">
+          <!-- Header igual ao portal real -->
+          <div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
+            <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:18px 20px;display:flex;align-items:center;gap:12px;">
+              <i class="ri-shield-keyhole-line" style="font-size:1.4rem;color:#f97316;"></i>
+              <div>
+                <div style="font-size:.95rem;font-weight:700;color:#fff;" id="ppNomeCliente">—</div>
+                <div style="font-size:.7rem;color:#94a3b8;" id="ppCnpjCliente">—</div>
+              </div>
+              <div style="margin-left:auto;font-size:.65rem;background:rgba(249,115,22,.2);color:#fb923c;border:1px solid rgba(249,115,22,.35);border-radius:999px;padding:3px 10px;font-weight:600;">
+                <i class="ri-eye-line"></i> Admin visualizando
+              </div>
+            </div>
+
+            <div style="padding:16px 20px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <i class="ri-file-list-3-line" style="color:#f97316;"></i>
+                <span style="font-size:.9rem;font-weight:600;color:#0f172a;">Relatórios de Atendimento</span>
+                <span id="ppTotalRats" style="font-size:.68rem;background:#f1f5f9;color:#64748b;border-radius:999px;padding:2px 9px;font-weight:600;"></span>
+              </div>
+              <div id="ppListaRats" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="text-align:center;color:#94a3b8;padding:24px;font-size:.82rem;">
+                  <i class="ri-search-line" style="font-size:1.5rem;display:block;margin-bottom:6px;"></i>
+                  Selecione um cliente acima para ver os relatórios
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detalhe de RAT simulado -->
+        <div id="ppDetalheWrap" style="display:none;margin-top:14px;">
+          <div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
+            <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;">
+              <button id="ppBtnVoltarLista" class="btn secondary" style="padding:6px 12px;font-size:.75rem;">
+                <i class="ri-arrow-left-line"></i> Voltar
+              </button>
+              <span id="ppDetalheNumero" style="font-size:.9rem;font-weight:700;color:#0f172a;"></span>
+            </div>
+            <div id="ppDetalheCampos" style="padding:16px 20px;"></div>
+            <div style="padding:0 20px 20px;">
+              <button class="btn" style="width:100%;justify-content:center;background:linear-gradient(90deg,#f97316,#ea580c);" id="ppBtnGerarPdfAdmin">
+                <i class="ri-file-pdf-line"></i> Baixar PDF (visualização do cliente)
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 <div class="report-overlay" id="reportOverlay">
   <div class="report-box">
     <div class="report-header">
@@ -17662,9 +17737,431 @@ else _init();
 })(/* fim portal v2 */);
 </script>
 
+<script>
+/* ================================================================
+   PORTAL DO CLIENTE — PREVIEW ADMIN (telaPortalPreview)
+   Permite ao admin/supervisor ver exatamente o que o cliente vê,
+   com filtro por cliente/CNPJ, sem precisar de senha.
+================================================================ */
+(function(){
+'use strict';
 
-<!-- ═══════════════════════════════════════════════════════════
-     UX IMPROVEMENTS — pure client-side, no Firebase required
+var _ppRatsCache   = [];   // RATs do cliente selecionado
+var _ppCnpjAtual   = '';   // CNPJ do cliente selecionado
+var _ppNomeAtual   = '';   // Nome do cliente selecionado
+var _ppRatDetalhe  = null; // RAT sendo visualizada no detalhe
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _br(iso){
+  if(!iso) return '';
+  try{ return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso; }
+}
+function _sc(s){ if(!s) return 'bad'; if(s==='Concluído') return 'ok'; if(s&&s.includes('pendência')) return 'warn'; return 'bad'; }
+function _scLabel(s){
+  var m = {'ok':'Concluído','warn':'Com pendência','bad':'Em andamento'};
+  var c = _sc(s);
+  var colors = {ok:'#16a34a',warn:'#d97706',bad:'#dc2626'};
+  var bgs    = {ok:'#f0fdf4',warn:'#fffbeb',bad:'#fff1f2'};
+  return '<span style="font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:999px;background:'+bgs[c]+';color:'+colors[c]+';">'+_esc(s||'—')+'</span>';
+}
+
+/* ── Mostrar / Esconder seções ───────────────────────────────── */
+function _ppShowLista(){ document.getElementById('ppPortalWrap').style.display='block'; document.getElementById('ppDetalheWrap').style.display='none'; }
+function _ppShowDetalhe(){ document.getElementById('ppPortalWrap').style.display='block'; document.getElementById('ppDetalheWrap').style.display='block'; }
+
+/* ── Buscar RATs do CNPJ via Firestore ───────────────────────── */
+async function _ppBuscarRats(cnpj){
+  var db = window._getDb ? window._getDb() : (window.db || null);
+  if(!db && window.firebase && typeof window.firebase.firestore === 'function') try{ db = window.firebase.firestore(); }catch(e){}
+  if(!db){ _ppMostrarErro('Sem conexão com o Firestore.'); return; }
+  try{
+    var snap;
+    try{
+      snap = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente','==',cnpj)
+        .where('_deleted','==',false)
+        .orderBy('dataHoraIso','desc')
+        .limit(50).get();
+    }catch(eIdx){
+      snap = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente','==',cnpj).limit(80).get();
+    }
+    var arr = [];
+    snap.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(!r._deleted) arr.push(r); });
+    arr.sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
+    return arr.slice(0,50);
+  }catch(e){
+    _ppMostrarErro('Erro ao buscar relatórios: '+(e.message||e));
+    return [];
+  }
+}
+
+function _ppMostrarErro(msg){
+  var el = document.getElementById('ppListaRats');
+  if(el) el.innerHTML = '<div style="color:#dc2626;font-size:.8rem;padding:16px;background:#fff1f2;border-radius:10px;border:1px solid #fecaca;"><i class="ri-error-warning-line"></i> '+_esc(msg)+'</div>';
+}
+
+/* ── Renderiza lista de RATs (visão cliente) ─────────────────── */
+function _ppRenderLista(rats, nome, cnpj){
+  _ppRatsCache  = rats;
+  _ppCnpjAtual  = cnpj;
+  _ppNomeAtual  = nome;
+  _ppRatDetalhe = null;
+
+  // Header do portal simulado
+  var nomeEl = document.getElementById('ppNomeCliente');
+  var cnpjEl = document.getElementById('ppCnpjCliente');
+  var totEl  = document.getElementById('ppTotalRats');
+  if(nomeEl) nomeEl.textContent = nome || cnpj;
+  if(cnpjEl) cnpjEl.textContent = 'CNPJ/CPF: ' + cnpj;
+  if(totEl)  totEl.textContent  = rats.length + (rats.length===1?' relatório':' relatórios');
+
+  var el = document.getElementById('ppListaRats');
+  if(!el) return;
+
+  if(!rats.length){
+    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:28px;font-size:.82rem;"><i class="ri-file-search-line" style="font-size:1.8rem;display:block;margin-bottom:8px;"></i>Nenhum relatório encontrado para este cliente.</div>';
+    _ppShowLista();
+    return;
+  }
+
+  var html = '';
+  rats.forEach(function(r, idx){
+    var sc = _sc(r.status);
+    var scColors = {ok:'#16a34a',warn:'#d97706',bad:'#dc2626'};
+    var scBgs    = {ok:'#f0fdf4',warn:'#fffbeb',bad:'#fff1f2'};
+    html += '<div class="pp-rat-item" data-ppidx="'+idx+'" style="'+
+      'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;'+
+      'padding:12px 14px;border:1px solid rgba(148,163,184,.18);border-radius:12px;'+
+      'cursor:pointer;transition:box-shadow .15s,border-color .15s;background:#fafafa;"'+
+      ' onmouseover="this.style.borderColor=\'rgba(249,115,22,.4)\';this.style.boxShadow=\'0 2px 12px rgba(249,115,22,.1)\'"'+
+      ' onmouseout="this.style.borderColor=\'rgba(148,163,184,.18)\';this.style.boxShadow=\'none\'"'+
+      '>'+
+      '<div style="min-width:0;">'+
+        '<div style="font-size:.82rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:6px;">'+
+          '<i class="ri-file-text-line" style="color:#f97316;flex-shrink:0;"></i> RAT '+_esc(r.numero||'—')+
+        '</div>'+
+        '<div style="font-size:.72rem;color:#64748b;margin-top:3px;">'+_esc(_br(r.dataHoraIso)||r.dataHoraBr||'')+'&nbsp;·&nbsp;Téc: '+_esc(r.tecnico||'')+'</div>'+
+        '<div style="font-size:.72rem;color:#475569;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;">'+_esc(r.equipamento||'')+'</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">'+
+        '<span style="font-size:.65rem;font-weight:700;padding:3px 10px;border-radius:999px;background:'+scBgs[sc]+';color:'+scColors[sc]+';">'+_esc(r.status||'—')+'</span>'+
+        '<span style="font-size:.65rem;color:#94a3b8;"><i class="ri-download-line"></i> Ver PDF</span>'+
+      '</div>'+
+    '</div>';
+  });
+  el.innerHTML = html;
+
+  // Bind clique em cada item
+  el.querySelectorAll('.pp-rat-item').forEach(function(item){
+    item.addEventListener('click', function(){
+      var idx = parseInt(item.getAttribute('data-ppidx'), 10);
+      _ppRenderDetalhe(_ppRatsCache[idx]);
+    });
+  });
+
+  _ppShowLista();
+}
+
+/* ── Renderiza detalhe de uma RAT (visão cliente) ────────────── */
+function _ppRenderDetalhe(rat){
+  _ppRatDetalhe = rat;
+
+  var numEl = document.getElementById('ppDetalheNumero');
+  if(numEl) numEl.textContent = 'RAT ' + (rat.numero||'');
+
+  var campos = document.getElementById('ppDetalheCampos');
+  if(!campos) return;
+
+  function _campo(rot, val){
+    if(!val && val!==0) return '';
+    return '<div style="display:flex;gap:6px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem;">'+
+      '<span style="min-width:130px;font-weight:600;color:#475569;flex-shrink:0;">'+_esc(rot)+'</span>'+
+      '<span style="color:#0f172a;">'+val+'</span>'+
+    '</div>';
+  }
+
+  campos.innerHTML =
+    _campo('Data / Hora', _esc(_br(rat.dataHoraIso)||rat.dataHoraBr||'')) +
+    _campo('Técnico', _esc(rat.tecnico||'')) +
+    _campo('Equipamento', _esc(rat.equipamento||'')) +
+    _campo('Nº de Série', _esc(rat.serie||'')) +
+    _campo('Tipo de Serviço', _esc(rat.tipo||'')) +
+    _campo('Status', _scLabel(rat.status)) +
+    (rat.diagnostico ? _campo('Diagnóstico', '<span style="white-space:pre-wrap;">'+_esc(rat.diagnostico)+'</span>') : '') +
+    (rat.acoes ? _campo('Ações Realizadas', '<span style="white-space:pre-wrap;">'+_esc(rat.acoes)+'</span>') : '') +
+    (rat.bateriasObs ? _campo('Observações', '<span style="white-space:pre-wrap;">'+_esc(rat.bateriasObs)+'</span>') : '') +
+    (rat.pecas ? _campo('Peças Utilizadas', '<span style="white-space:pre-wrap;">'+_esc(rat.pecas)+'</span>') : '') +
+    (rat.garantia ? _campo('Garantia', _esc(rat.garantia)) : '') +
+    // Imagens do cliente
+    _ppRenderImagens(rat);
+
+  _ppShowDetalhe();
+
+  // Scroll até o detalhe
+  try{ document.getElementById('ppDetalheWrap').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
+}
+
+function _ppRenderImagens(rat){
+  var imgs = [].concat(rat.imgsEquip||[], rat.imgsServico||[], rat.imgsBaterias||[]);
+  if(!imgs.length) return '';
+  var thumbs = imgs.map(function(src){
+    if(!src || (!src.startsWith('data:image') && !src.startsWith('http'))) return '';
+    return '<img src="'+_esc(src)+'" style="width:80px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(148,163,184,.25);cursor:pointer;" '+
+      'onclick="window.open(this.src,\'_blank\')" title="Clique para ampliar">';
+  }).join('');
+  if(!thumbs) return '';
+  return '<div style="padding:10px 0;border-bottom:1px solid #f1f5f9;">'+
+    '<div style="font-size:.72rem;font-weight:600;color:#475569;margin-bottom:8px;">Fotos do Atendimento</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;">'+thumbs+'</div>'+
+  '</div>';
+}
+
+/* ── Autocomplete de clientes ────────────────────────────────── */
+function _ppSetupAutocomplete(){
+  var input = document.getElementById('ppClienteInput');
+  var sugg  = document.getElementById('ppClienteSuggestions');
+  if(!input || !sugg) return;
+
+  var _timer = null;
+  input.addEventListener('input', function(){
+    clearTimeout(_timer);
+    var q = input.value.trim().toLowerCase();
+    if(q.length < 2){ sugg.style.display='none'; return; }
+    _timer = setTimeout(function(){ _ppBuscarSugestoes(q, input, sugg); }, 250);
+  });
+
+  // Fecha sugestões ao clicar fora
+  document.addEventListener('click', function(e){
+    if(e.target !== input) sugg.style.display = 'none';
+  });
+}
+
+async function _ppBuscarSugestoes(q, input, sugg){
+  // Usa cache local de RATs primeiro
+  var _local = window._localRats || window._ratsMemoria || [];
+  var vistos = {};
+  var resultados = [];
+
+  _local.forEach(function(r){
+    var cnpj = String(r.cnpjCliente||'').replace(/\D/g,'');
+    var nome = String(r.cliente||'');
+    var key  = cnpj || nome.toLowerCase();
+    if(!key || vistos[key]) return;
+    if(nome.toLowerCase().includes(q) || cnpj.includes(q.replace(/\D/g,''))){
+      vistos[key] = true;
+      resultados.push({nome: nome, cnpj: cnpj});
+    }
+  });
+
+  // Se não encontrou localmente, tenta Firestore
+  if(!resultados.length){
+    try{
+      var db = window._getDb ? window._getDb() : (window.db||null);
+      if(!db && window.firebase && typeof window.firebase.firestore==='function') db = window.firebase.firestore();
+      if(db){
+        var snap = await db.collection('onlineEsRelatorios')
+          .orderBy('cliente').startAt(q.charAt(0).toUpperCase()+q.slice(1))
+          .endAt(q.charAt(0).toUpperCase()+q.slice(1)+'\uf8ff').limit(20).get();
+        snap.forEach(function(d){
+          var r = d.data();
+          var cnpj = String(r.cnpjCliente||'').replace(/\D/g,'');
+          var nome = String(r.cliente||'');
+          var key  = cnpj||nome.toLowerCase();
+          if(!key||vistos[key]) return;
+          vistos[key]=true;
+          resultados.push({nome:nome,cnpj:cnpj});
+        });
+      }
+    }catch(e){}
+  }
+
+  if(!resultados.length){ sugg.style.display='none'; return; }
+
+  sugg.innerHTML = resultados.slice(0,8).map(function(r){
+    return '<div class="pp-sugg-item" data-nome="'+_esc(r.nome)+'" data-cnpj="'+_esc(r.cnpj)+'" '+
+      'style="padding:9px 14px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9;color:#0f172a;" '+
+      'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+      '<strong>'+_esc(r.nome||'—')+'</strong>'+
+      (r.cnpj ? '<span style="color:#94a3b8;font-size:.72rem;margin-left:8px;">'+_esc(r.cnpj)+'</span>' : '')+
+    '</div>';
+  }).join('');
+  sugg.style.display = 'block';
+
+  sugg.querySelectorAll('.pp-sugg-item').forEach(function(item){
+    item.addEventListener('click', function(){
+      var nome = item.getAttribute('data-nome');
+      var cnpj = item.getAttribute('data-cnpj');
+      input.value = nome + (cnpj ? ' ('+cnpj+')' : '');
+      sugg.style.display = 'none';
+      _ppSelecionarCliente(nome, cnpj);
+    });
+  });
+}
+
+async function _ppSelecionarCliente(nome, cnpj){
+  var infoEl = document.getElementById('ppClienteInfo');
+  if(infoEl){
+    infoEl.style.display = 'block';
+    infoEl.innerHTML = '<i class="ri-loader-4-line"></i> Buscando relatórios de <strong>'+_esc(nome)+'</strong>...';
+  }
+  var rats = await _ppBuscarRats(cnpj);
+  if(!rats) return;
+  if(infoEl){
+    infoEl.innerHTML = '<i class="ri-user-line" style="color:#f97316;"></i> <strong>'+_esc(nome)+'</strong> &nbsp;·&nbsp; CNPJ: '+_esc(cnpj)+'&nbsp;·&nbsp; <strong>'+rats.length+'</strong> relatório(s)';
+  }
+  _ppRenderLista(rats, nome, cnpj);
+}
+
+/* ── Botão Buscar manual ─────────────────────────────────────── */
+function _ppSetupBtnBuscar(){
+  var btn   = document.getElementById('ppBtnBuscar');
+  var input = document.getElementById('ppClienteInput');
+  if(!btn || !input) return;
+
+  btn.addEventListener('click', async function(){
+    var q = input.value.trim();
+    if(!q){ return; }
+    // Tenta extrair CNPJ do campo
+    var cnpjMatch = q.match(/\d[\d.\-\/]{7,}/);
+    var cnpj = cnpjMatch ? cnpjMatch[0].replace(/\D/g,'') : '';
+
+    if(cnpj && cnpj.length >= 8){
+      // Busca direto pelo CNPJ
+      btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i> Buscando...';
+      // Tenta obter nome do Firestore
+      var nome = q.replace(/\s*\(.*\)\s*$/, '').trim();
+      await _ppSelecionarCliente(nome || cnpj, cnpj);
+      btn.disabled = false; btn.innerHTML = '<i class="ri-search-line"></i> Buscar RATs';
+    } else {
+      // Busca por nome — pega primeiro da lista local
+      var _local = window._localRats || window._ratsMemoria || [];
+      var encontrado = null;
+      var qLow = q.toLowerCase().replace(/\s*\(.*\)\s*$/,'').trim();
+      _local.forEach(function(r){
+        if(!encontrado && r.cliente && r.cliente.toLowerCase().includes(qLow)){
+          encontrado = {nome: r.cliente, cnpj: String(r.cnpjCliente||'').replace(/\D/g,'')};
+        }
+      });
+      if(encontrado){
+        btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i> Buscando...';
+        await _ppSelecionarCliente(encontrado.nome, encontrado.cnpj);
+        btn.disabled = false; btn.innerHTML = '<i class="ri-search-line"></i> Buscar RATs';
+      } else {
+        var infoEl = document.getElementById('ppClienteInfo');
+        if(infoEl){ infoEl.style.display='block'; infoEl.innerHTML='<span style="color:#dc2626;"><i class="ri-error-warning-line"></i> Cliente não encontrado. Tente pelo CNPJ.</span>'; }
+      }
+    }
+  });
+}
+
+/* ── Botão Voltar para lista ─────────────────────────────────── */
+function _ppSetupBtnVoltar(){
+  var btn = document.getElementById('ppBtnVoltarLista');
+  if(!btn) return;
+  btn.addEventListener('click', function(){
+    document.getElementById('ppDetalheWrap').style.display = 'none';
+    _ppRenderLista(_ppRatsCache, _ppNomeAtual, _ppCnpjAtual);
+  });
+}
+
+/* ── Botão PDF admin ─────────────────────────────────────────── */
+function _ppSetupBtnPdf(){
+  var btn = document.getElementById('ppBtnGerarPdfAdmin');
+  if(!btn) return;
+  btn.addEventListener('click', async function(){
+    if(!_ppRatDetalhe){ return; }
+    btn.disabled=true; btn.innerHTML='<i class="ri-loader-4-line"></i> Gerando PDF...';
+    try{
+      if(typeof window._ensureJsPDF==='function') await window._ensureJsPDF();
+      if(typeof window.exportarPDF==='function'){
+        await window.exportarPDF(Object.assign({},_ppRatDetalhe,{_somenteMemoria:false}));
+        btn.innerHTML='<i class="ri-check-line"></i> PDF baixado!';
+        setTimeout(function(){ btn.disabled=false; btn.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF (visualização do cliente)'; },3000);
+      }else{ throw new Error('Módulo PDF não carregado.'); }
+    }catch(e){
+      btn.disabled=false; btn.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF (visualização do cliente)';
+      if(typeof showToast==='function') showToast('Erro ao gerar PDF: '+(e.message||e), 4000);
+    }
+  });
+}
+
+/* ── Expõe botão e tela via mostrarTela ──────────────────────── */
+function _ppInit(){
+  // Mostra botão apenas para admin/supervisor
+  var _checkRole = function(){
+    var u = window.usuarioLogado;
+    if(!u) return;
+    var r = u.role||'';
+    var ok = (r==='admin'||r==='supervisor'||r==='administrador');
+    var btn = document.getElementById('mPortalPreview');
+    if(btn) btn.style.display = ok ? 'flex' : 'none';
+  };
+  _checkRole();
+  // Recheck após login
+  var _chkInterval = setInterval(function(){
+    if(window.usuarioLogado){ _checkRole(); clearInterval(_chkInterval); }
+  }, 500);
+
+  // Bind botão sidebar
+  var mBtn = document.getElementById('mPortalPreview');
+  if(mBtn){
+    mBtn.addEventListener('click', function(){
+      if(typeof window.mostrarTela==='function') window.mostrarTela('portalPreview');
+    });
+  }
+
+  // Setup componentes internos
+  _ppSetupAutocomplete();
+  _ppSetupBtnBuscar();
+  _ppSetupBtnVoltar();
+  _ppSetupBtnPdf();
+}
+
+/* ── Hook em mostrarTela para suportar 'portalPreview' ────────── */
+var _originalMostrarTela = null;
+var _ppHookInterval = setInterval(function(){
+  if(typeof window.mostrarTela === 'function' && !window._ppHooked){
+    window._ppHooked = true;
+    clearInterval(_ppHookInterval);
+    _originalMostrarTela = window.mostrarTela;
+    window.mostrarTela = async function(nome){
+      // Oculta telaPortalPreview quando troca de tela
+      var ppTela = document.getElementById('telaPortalPreview');
+      if(nome !== 'portalPreview'){
+        if(ppTela) ppTela.style.display = 'none';
+        var mPP = document.getElementById('mPortalPreview');
+        if(mPP) mPP.classList.remove('active');
+        return _originalMostrarTela(nome);
+      }
+      // Mostra telaPortalPreview
+      // Oculta todas as outras telas (usando a função original de limpeza)
+      await _originalMostrarTela('meus'); // chama para limpar menu e esconder telas
+      // Oculta tela meus (que foi ativada acima para aproveitar limpeza do menu)
+      var tMeus = document.getElementById('telaMeus');
+      if(tMeus) tMeus.style.display = 'none';
+      var mMeus = document.getElementById('mMeus');
+      if(mMeus) mMeus.classList.remove('active');
+      // Mostra portal preview
+      if(ppTela) ppTela.style.display = 'block';
+      var mPP = document.getElementById('mPortalPreview');
+      if(mPP) mPP.classList.add('active');
+      // Atualiza título da topbar
+      var tituloEl = document.getElementById('tituloTela');
+      if(tituloEl) tituloEl.textContent = 'Portal do Cliente';
+      var subEl = document.getElementById('subtituloTela') || document.querySelector('.topbar small');
+      if(subEl) subEl.textContent = 'Visualização admin — sem senha necessária';
+    };
+  }
+}, 300);
+
+// Init quando DOM estiver pronto
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _ppInit);
+else _ppInit();
+
+})();
+</script>
      ═══════════════════════════════════════════════════════════ -->
 <script>
 (function() {
