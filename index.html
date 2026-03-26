@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v64
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v65
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -17060,14 +17060,17 @@ async function _renderPortal(token){
     // PDF não encontrado — tenta gerar agora a partir dos dados da RAT já buscados
     // [FIX-v63] Geração client-side no portal quando onlineEsPortalPdfs não tem o doc
     var _pdfGerado = false;
+    console.log('[Portal] Iniciando geração client-side. jsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
     if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
       try {
         el.innerHTML = '<div class="portal-loading"><i class="ri-loader-4-line"></i> Gerando relatório...</div>';
         await window._ensureJsPDF();
+        console.log('[Portal] jsPDF OK');
         var _ratGen = Object.assign({}, rat, { _somenteMemoria: true });
         await window.exportarPDF(_ratGen);
         var _b64Gen = window._lastPdfBase64;
         var _nomeGen = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
+        console.log('[Portal] exportarPDF OK. Base64:', _b64Gen ? Math.round(_b64Gen.length/1024)+'KB' : 'NULO', 'Limite:', _b64Gen && _b64Gen.length <= 1300000);
         if (_b64Gen && _b64Gen.length <= 1300000) {
           // Salva para próximos acessos
           try {
@@ -17104,14 +17107,15 @@ async function _renderPortal(token){
             '</div>';
           _pdfGerado = true;
         }
-      } catch(eGen) { console.warn('[Portal] Falha ao gerar PDF client-side:', eGen.message||eGen); }
+      } catch(eGen) { console.error('[Portal] ERRO ao gerar PDF client-side:', eGen && eGen.message ? eGen.message : eGen, eGen && eGen.stack ? eGen.stack.slice(0,300) : ''); }
     }
+    console.log('[Portal] _pdfGerado:', _pdfGerado);
     if (!_pdfGerado) {
       // Último recurso: resumo dos campos
       var sc=_sc(rat.status);
       el.innerHTML=
         '<div class="portal-card">'+
-        '<h2><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
+        '<h2 style="color:#f97316;"><i class="ri-file-text-line"></i> Relatório de Atendimento</h2>'+
         '<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:8px 12px;font-size:.75rem;color:#a5b4fc;margin-bottom:14px;">'+
           '<i class="ri-information-line"></i> PDF em preparação. Recarregue em alguns instantes.'+
         '</div>'+
