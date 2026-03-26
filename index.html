@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v62
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v63
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16540,7 +16540,9 @@ window._gerarTokenPortal = async function(rat){
 
       if (!_pdfJaExiste) {
         // PDF ausente — gera e salva agora
+        console.log('[Portal] PDF ausente para token existente — gerando...');
         try {
+          console.log('[Portal] _ensureJsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
           if (typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
             await window._ensureJsPDF();
             var _ratPdfEx = Object.assign({}, rat, { _somenteMemoria: true });
@@ -16612,20 +16614,25 @@ window._gerarTokenPortal = async function(rat){
     }catch(e){console.warn('[Portal] save firestore (ignorado, token local preservado):', e.message||e);}
   }
 
-  // 3. Gera PDF e salva em onlineEsPortalPdfs/{token} — só se online e PDF couber no Firestore
+  // 3. Gera PDF e salva em onlineEsPortalPdfs/{token}
   try {
+    console.log('[Portal] Iniciando geração de PDF para token:', token.slice(0,6)+'...');
+    console.log('[Portal] online:', navigator.onLine, '_ensureJsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
     if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
       await window._ensureJsPDF();
+      console.log('[Portal] jsPDF carregado.');
       var _ratPdf = Object.assign({}, rat, { _somenteMemoria: true });
       await window.exportarPDF(_ratPdf);
       var _pdfB64 = window._lastPdfBase64;
       var _pdfNome = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
+      console.log('[Portal] PDF gerado, tamanho base64:', _pdfB64 ? Math.round(_pdfB64.length/1024)+'KB' : 'NULO');
       if (_pdfB64) {
         var _PDF_MAX_B64 = 1300000;
         if (_pdfB64.length > _PDF_MAX_B64) {
-          console.warn('[Portal] PDF muito grande (' + Math.round(_pdfB64.length/1024) + 'KB base64) — não salvo no Firestore. Portal usará geração client-side como fallback.');
+          console.warn('[Portal] PDF muito grande (' + Math.round(_pdfB64.length/1024) + 'KB) — não salvo.');
         } else {
           var _dbPdf = _db();
+          console.log('[Portal] _db() disponível:', !!_dbPdf);
           if (_dbPdf) {
             await _dbPdf.collection('onlineEsPortalPdfs').doc(token).set({
               token: token,
@@ -16635,11 +16642,16 @@ window._gerarTokenPortal = async function(rat){
               ratId: rat.id || '',
               criado: new Date().toISOString()
             });
+            console.log('[Portal] PDF salvo em onlineEsPortalPdfs/' + token.slice(0,6)+'...');
           }
         }
+      } else {
+        console.warn('[Portal] _lastPdfBase64 está nulo após exportarPDF.');
       }
+    } else {
+      console.warn('[Portal] Condições não atendidas — online:', navigator.onLine);
     }
-  } catch(ePdf) { console.warn('[Portal] Falha ao salvar PDF no Firestore (portal ainda funcionará com fallback):', ePdf.message || ePdf); }
+  } catch(ePdf) { console.warn('[Portal] ERRO ao salvar PDF:', ePdf.message || ePdf); }
 
   return token;
   } catch(eFatal) {
