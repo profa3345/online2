@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v65
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v67
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -16545,11 +16545,24 @@ window._gerarTokenPortal = async function(rat){
           console.log('[Portal] _ensureJsPDF:', typeof window._ensureJsPDF, 'exportarPDF:', typeof window.exportarPDF);
           if (typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
             await window._ensureJsPDF();
-            var _ratPdfEx = Object.assign({}, rat, { _somenteMemoria: true });
+            // [FIX-v66] Recomprime imagens para portal antes de gerar PDF
+            async function _cmpP(src) {
+              if (!src || typeof src !== 'string' || !src.startsWith('data:image')) return src;
+              return new Promise(function(res) {
+                var img=new Image(); img.onload=function(){var M=400,w=img.width,h=img.height;if(w>M||h>M){var r=Math.min(M/w,M/h);w=Math.round(w*r);h=Math.round(h*r);}var cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);res(cv.toDataURL('image/jpeg',0.25));};img.onerror=function(){res(src);};img.src=src;
+              });
+            }
+            var _ratPdfEx = Object.assign({}, rat, { _somenteMemoria: true, vidsEquip:[], vidsServico:[], vidsBaterias:[] });
+            for (var _fkE of ['imgsEquip','imgsServico','imgsBaterias']) {
+              if (Array.isArray(_ratPdfEx[_fkE]) && _ratPdfEx[_fkE].length)
+                _ratPdfEx[_fkE] = await Promise.all(_ratPdfEx[_fkE].slice(0,6).map(function(s){ return _cmpP(s); }));
+            }
+            if (_ratPdfEx.assinaturaCliente) _ratPdfEx.assinaturaCliente = await _cmpP(_ratPdfEx.assinaturaCliente);
+            if (_ratPdfEx.assinaturaTecnicoImg) _ratPdfEx.assinaturaTecnicoImg = await _cmpP(_ratPdfEx.assinaturaTecnicoImg);
             await window.exportarPDF(_ratPdfEx);
             var _pdfB64Ex = window._lastPdfBase64;
             var _pdfNomeEx = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
-            if (_pdfB64Ex && _pdfB64Ex.length <= 1300000) {
+            if (_pdfB64Ex && _pdfB64Ex.length <= 4000000) {
               var _dbPdfEx = _db();
               if (_dbPdfEx) {
                 await _dbPdfEx.collection('onlineEsPortalPdfs').doc(_tokenExist).set({
@@ -16621,13 +16634,16 @@ window._gerarTokenPortal = async function(rat){
     if (navigator.onLine && typeof window._ensureJsPDF === 'function' && typeof window.exportarPDF === 'function') {
       await window._ensureJsPDF();
       console.log('[Portal] jsPDF carregado.');
-      var _ratPdf = Object.assign({}, rat, { _somenteMemoria: true });
+      // [FIX-v66] Gera PDF com imagens recomprimidas (400px/0.25 → ~25KB/foto)
+      var _ratPdf = Object.assign({}, rat, { _somenteMemoria: true, vidsEquip:[], vidsServico:[], vidsBaterias:[] });
+      // Nota: imagens já estão comprimidas a 800px/0.50 no Firestore; o PDF pode ser grande.
+      // Se > 4MB, o portal usa geração client-side com recompressão mais agressiva.
       await window.exportarPDF(_ratPdf);
       var _pdfB64 = window._lastPdfBase64;
       var _pdfNome = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
       console.log('[Portal] PDF gerado, tamanho base64:', _pdfB64 ? Math.round(_pdfB64.length/1024)+'KB' : 'NULO');
       if (_pdfB64) {
-        var _PDF_MAX_B64 = 1300000;
+        var _PDF_MAX_B64 = 4000000;
         if (_pdfB64.length > _PDF_MAX_B64) {
           console.warn('[Portal] PDF muito grande (' + Math.round(_pdfB64.length/1024) + 'KB) — não salvo.');
         } else {
@@ -17066,12 +17082,43 @@ async function _renderPortal(token){
         el.innerHTML = '<div class="portal-loading"><i class="ri-loader-4-line"></i> Gerando relatório...</div>';
         await window._ensureJsPDF();
         console.log('[Portal] jsPDF OK');
+        // [FIX-v66] Recomprime imagens para portal: 400px/0.25 → ~15-25KB/foto
+        // 6 fotos × 25KB = 150KB + texto ≈ 300KB base64 → cabe no Firestore
+        async function _comprimirParaPortal(dataUrl) {
+          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) return dataUrl;
+          return new Promise(function(resolve) {
+            var img = new Image();
+            img.onload = function() {
+              var MAX = 400;
+              var w = img.width, h = img.height;
+              if (w > MAX || h > MAX) { var r = Math.min(MAX/w,MAX/h); w=Math.round(w*r); h=Math.round(h*r); }
+              var cv = document.createElement('canvas');
+              cv.width = w; cv.height = h;
+              cv.getContext('2d').drawImage(img, 0, 0, w, h);
+              resolve(cv.toDataURL('image/jpeg', 0.25));
+            };
+            img.onerror = function() { resolve(dataUrl); };
+            img.src = dataUrl;
+          });
+        }
+        // Recomprime todas as imagens da RAT para o portal
         var _ratGen = Object.assign({}, rat, { _somenteMemoria: true });
+        for (var _fk of ['imgsEquip','imgsServico','imgsBaterias']) {
+          if (Array.isArray(_ratGen[_fk]) && _ratGen[_fk].length) {
+            _ratGen[_fk] = await Promise.all(_ratGen[_fk].slice(0,6).map(function(src){ return _comprimirParaPortal(src); }));
+          }
+        }
+        // Vídeos nunca vão para o PDF
+        _ratGen.vidsEquip = []; _ratGen.vidsServico = []; _ratGen.vidsBaterias = [];
+        // Assinaturas: recomprimir também
+        if (_ratGen.assinaturaCliente) _ratGen.assinaturaCliente = await _comprimirParaPortal(_ratGen.assinaturaCliente);
+        if (_ratGen.assinaturaTecnicoImg) _ratGen.assinaturaTecnicoImg = await _comprimirParaPortal(_ratGen.assinaturaTecnicoImg);
         await window.exportarPDF(_ratGen);
         var _b64Gen = window._lastPdfBase64;
         var _nomeGen = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
-        console.log('[Portal] exportarPDF OK. Base64:', _b64Gen ? Math.round(_b64Gen.length/1024)+'KB' : 'NULO', 'Limite:', _b64Gen && _b64Gen.length <= 1300000);
-        if (_b64Gen && _b64Gen.length <= 1300000) {
+        console.log('[Portal] exportarPDF OK. Base64:', _b64Gen ? Math.round(_b64Gen.length/1024)+'KB' : 'NULO');
+        var _PDF_MAX = 4000000; // 4MB — suficiente para PDF só-texto
+        if (_b64Gen && _b64Gen.length <= _PDF_MAX) {
           // Salva para próximos acessos
           try {
             var _dbGen = _db();
