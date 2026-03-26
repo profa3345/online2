@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v67
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v68
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -17082,7 +17082,8 @@ async function _renderPortal(token){
         el.innerHTML = '<div class="portal-loading"><i class="ri-loader-4-line"></i> Gerando relatório...</div>';
         await window._ensureJsPDF();
         console.log('[Portal] jsPDF OK');
-        // [FIX-v66] Recomprime imagens para portal: 400px/0.25 → ~15-25KB/foto
+        // [FIX-v67] Recomprime imagens para portal: 400px/0.25 → ~15-25KB/foto
+        console.log('[Portal] Imagens antes da compressão:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(rat[k])?rat[k].length:0)+'fotos'; }).join(', '));
         // 6 fotos × 25KB = 150KB + texto ≈ 300KB base64 → cabe no Firestore
         async function _comprimirParaPortal(dataUrl) {
           if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) return dataUrl;
@@ -17113,6 +17114,7 @@ async function _renderPortal(token){
         // Assinaturas: recomprimir também
         if (_ratGen.assinaturaCliente) _ratGen.assinaturaCliente = await _comprimirParaPortal(_ratGen.assinaturaCliente);
         if (_ratGen.assinaturaTecnicoImg) _ratGen.assinaturaTecnicoImg = await _comprimirParaPortal(_ratGen.assinaturaTecnicoImg);
+        console.log('[Portal] Imagens após compressão:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(_ratGen[k])?_ratGen[k].length:0)+'fotos,total='+(Array.isArray(_ratGen[k])?_ratGen[k].reduce(function(a,s){return a+(s?s.length:0);},0):0)+'chars'; }).join(' | '));
         await window.exportarPDF(_ratGen);
         var _b64Gen = window._lastPdfBase64;
         var _nomeGen = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
@@ -17134,13 +17136,10 @@ async function _renderPortal(token){
               }
             }
           } catch(eSave) { console.warn('[Portal] Falha ao salvar PDF gerado:', eSave.message||eSave); }
-          // Exibe
-          var _bstrG=atob(_b64Gen),_nG=_bstrG.length,_u8G=new Uint8Array(_nG);
-          for(var _iG=0;_iG<_nG;_iG++) _u8G[_iG]=_bstrG.charCodeAt(_iG);
-          var _blobG=new Blob([_u8G],{type:'application/pdf'});
-          var _blobUrlG=URL.createObjectURL(_blobG);
-          window.addEventListener('pagehide',function(){try{URL.revokeObjectURL(_blobUrlG);}catch(e){}},{once:true});
+          // [FIX-v68] Usa data URL diretamente — evita atob+Blob que bloqueia UI com PDFs grandes
+          var _pdfDataUrl = 'data:application/pdf;base64,' + _b64Gen;
           var _isMobG = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          console.log('[Portal] Exibindo PDF. Mobile:', _isMobG, 'dataUrl length:', _pdfDataUrl.length);
           el.innerHTML=
             '<div class="portal-card" style="padding:14px 16px;">'+
               '<div style="font-size:.85rem;color:#f1f5f9;font-weight:600;margin-bottom:12px;">'+
@@ -17148,11 +17147,14 @@ async function _renderPortal(token){
                 'RAT '+_ep(rat.numero||'')+' — '+_ep(rat.cliente||'')+
               '</div>'+
               (_isMobG
-                ? '<div style="text-align:center;padding:16px 0;"><a href="'+_blobUrlG+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:10px 22px;font-size:.85rem;font-weight:700;text-decoration:none;"><i class="ri-eye-line"></i> Visualizar PDF</a></div>'
-                : '<object data="'+_blobUrlG+'" type="application/pdf" style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;"><div style="text-align:center;padding:24px;color:#64748b;font-size:.82rem;"><a href="'+_blobUrlG+'" target="_blank" rel="noopener" style="color:#f97316;">Clique aqui para visualizar</a>.</div></object>'
+                ? '<div style="text-align:center;padding:16px 0;"><a href="'+_pdfDataUrl+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:10px 22px;font-size:.85rem;font-weight:700;text-decoration:none;"><i class="ri-eye-line"></i> Visualizar PDF</a></div>'
+                : '<object data="'+_pdfDataUrl+'" type="application/pdf" style="width:100%;height:78vh;min-height:500px;border:none;border-radius:10px;background:#fff;"><div style="text-align:center;padding:24px;color:#64748b;font-size:.82rem;"><a href="'+_pdfDataUrl+'" target="_blank" rel="noopener" style="color:#f97316;">Clique aqui para visualizar</a>.</div></object>'
               )+
             '</div>';
+          // [FIX-v67] Re-obtém el após operações async — pode ter sido substituído
+          el = document.getElementById('portalConteudo') || el;
           _pdfGerado = true;
+          console.log('[Portal] el.innerHTML setado. el:', el ? el.id : 'NULL', 'portalCliente classes:', document.getElementById('portalCliente') ? document.getElementById('portalCliente').className : 'NULL');
         }
       } catch(eGen) { console.error('[Portal] ERRO ao gerar PDF client-side:', eGen && eGen.message ? eGen.message : eGen, eGen && eGen.stack ? eGen.stack.slice(0,300) : ''); }
     }
