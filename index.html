@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v70
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v71
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -17082,12 +17082,7 @@ async function _renderPortal(token){
         el.innerHTML = '<div class="portal-loading"><i class="ri-loader-4-line"></i> Gerando relatório...</div>';
         await window._ensureJsPDF();
         console.log('[Portal] jsPDF OK');
-        // [FIX-v67] Recomprime imagens para portal: 400px/0.25 → ~15-25KB/foto
-        var _sigCliSize = _ratGen.assinaturaCliente ? Math.round(_ratGen.assinaturaCliente.length/1024) : 0;
-        var _sigTecSize = _ratGen.assinaturaTecnicoImg ? Math.round(_ratGen.assinaturaTecnicoImg.length/1024) : 0;
-        console.log('[Portal] Assinaturas (após compressão): cliente='+_sigCliSize+'KB, tecnico='+_sigTecSize+'KB');
-        console.log('[Portal] Imagens antes da compressão:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(rat[k])?rat[k].length:0)+'fotos'; }).join(', '));
-        // 6 fotos × 25KB = 150KB + texto ≈ 300KB base64 → cabe no Firestore
+        // [FIX-v71] _ratGen declarado ANTES de ser usado
         async function _comprimirParaPortal(dataUrl) {
           if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) return dataUrl;
           return new Promise(function(resolve) {
@@ -17105,12 +17100,13 @@ async function _renderPortal(token){
             img.src = dataUrl;
           });
         }
-        // Recomprime todas as imagens da RAT para o portal
-        // [FIX-v69] Recomprime assinaturas para portal (PNG→JPEG 0.25 → ~20KB cada)
         var _ratGen = Object.assign({}, rat, { _somenteMemoria: true });
-        // Recomprime assinaturas
         if (_ratGen.assinaturaCliente)    _ratGen.assinaturaCliente    = await _comprimirParaPortal(_ratGen.assinaturaCliente);
         if (_ratGen.assinaturaTecnicoImg) _ratGen.assinaturaTecnicoImg = await _comprimirParaPortal(_ratGen.assinaturaTecnicoImg);
+        var _sigCliSize = _ratGen.assinaturaCliente ? Math.round(_ratGen.assinaturaCliente.length/1024) : 0;
+        var _sigTecSize = _ratGen.assinaturaTecnicoImg ? Math.round(_ratGen.assinaturaTecnicoImg.length/1024) : 0;
+        console.log('[Portal] Assinaturas: cliente='+_sigCliSize+'KB, tecnico='+_sigTecSize+'KB');
+        console.log('[Portal] Imagens:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(rat[k])?rat[k].length:0); }).join(', '));
         for (var _fk of ['imgsEquip','imgsServico','imgsBaterias']) {
           if (Array.isArray(_ratGen[_fk]) && _ratGen[_fk].length) {
             _ratGen[_fk] = await Promise.all(_ratGen[_fk].slice(0,6).map(function(src){ return _comprimirParaPortal(src); }));
