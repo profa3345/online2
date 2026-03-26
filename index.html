@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v73
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v74
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -7872,7 +7872,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
         }
       }catch(e){}
     }
-const doc = new jsPDF("p","mm","a4");
+const doc = new jsPDF({ orientation:"p", unit:"mm", format:"a4", compress:true });
 
     doc.setFillColor(15,23,42); doc.rect(0,0,210,22,'F');
 
@@ -17184,11 +17184,12 @@ async function _renderPortal(token){
                   '</div>';
               } else {
                 // Desktop: iframe com blob URL (mais compatível que <object>)
+                // Try iframe first, with fallback link
                 _viewer.innerHTML =
-                  '<div style="margin-bottom:8px;text-align:right;">'+
-                  '<a href="'+_bUrl+'" target="_blank" rel="noopener" style="font-size:.75rem;color:#f97316;text-decoration:none;"><i class="ri-external-link-line"></i> Abrir em nova aba</a>'+
+                  '<div style="margin-bottom:8px;display:flex;justify-content:flex-end;">'+
+                  '<a href="'+_bUrl+'" target="_blank" rel="noopener" style="font-size:.78rem;color:#f97316;text-decoration:none;padding:6px 14px;border:1px solid rgba(249,115,22,.4);border-radius:8px;"><i class="ri-external-link-line"></i> Abrir PDF em nova aba</a>'+
                   '</div>'+
-                  '<iframe src="'+_bUrl+'" style="width:100%;height:75vh;min-height:480px;border:none;border-radius:10px;background:#fff;" title="Relatório PDF"></iframe>';
+                  '<embed src="'+_bUrl+'" type="application/pdf" style="width:100%;height:75vh;min-height:480px;border:none;border-radius:10px;background:#fff;" />';
               }
               console.log('[Portal] PDF viewer renderizado.');
             } catch(eView) { console.error('[Portal] Erro no viewer:', eView.message); }
