@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v72
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v73
   Correções v55c:
   - window.db exposto no IIFE após initializeApp para que _db() funcione no contexto do portal
   - _db() usa window._getDb() → window.db → firebase.firestore() em ordem de precedência
@@ -17108,6 +17108,13 @@ async function _renderPortal(token){
         var _sigTecSize = _ratGen.assinaturaTecnicoImg ? Math.round(_ratGen.assinaturaTecnicoImg.length/1024) : 0;
         console.log('[Portal] Assinaturas: cliente='+_sigCliSize+'KB, tecnico='+_sigTecSize+'KB');
         console.log('[Portal] Imagens:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(rat[k])?rat[k].length:0); }).join(', '));
+        // [FIX-v72] Comprime logo antes do PDF do portal — logo grande é a causa dos 2573KB
+        var _logoOriginal = window.logoBase64 || null;
+        if (_logoOriginal && _logoOriginal.length > 50000) { // > ~37KB
+          console.log('[Portal] Logo original:', Math.round(_logoOriginal.length/1024)+'KB — comprimindo para portal...');
+          window.logoBase64 = await _comprimirParaPortal(_logoOriginal);
+          console.log('[Portal] Logo após compressão:', Math.round((window.logoBase64||'').length/1024)+'KB');
+        }
         for (var _fk of ['imgsEquip','imgsServico','imgsBaterias']) {
           if (Array.isArray(_ratGen[_fk]) && _ratGen[_fk].length) {
             _ratGen[_fk] = await Promise.all(_ratGen[_fk].slice(0,6).map(function(src){ return _comprimirParaPortal(src); }));
@@ -17120,6 +17127,8 @@ async function _renderPortal(token){
         if (_ratGen.assinaturaTecnicoImg) _ratGen.assinaturaTecnicoImg = await _comprimirParaPortal(_ratGen.assinaturaTecnicoImg);
         console.log('[Portal] Imagens após compressão:', ['imgsEquip','imgsServico','imgsBaterias'].map(function(k){ return k+':'+(Array.isArray(_ratGen[k])?_ratGen[k].length:0)+'fotos,total='+(Array.isArray(_ratGen[k])?_ratGen[k].reduce(function(a,s){return a+(s?s.length:0);},0):0)+'chars'; }).join(' | '));
         await window.exportarPDF(_ratGen);
+        // [FIX-v72] Restaura logo original após geração
+        if (_logoOriginal !== undefined) window.logoBase64 = _logoOriginal;
         var _b64Gen = window._lastPdfBase64;
         var _nomeGen = window._lastPdfFilename || ('RAT-' + (rat.numero||'') + '.pdf');
         console.log('[Portal] exportarPDF OK. Base64:', _b64Gen ? Math.round(_b64Gen.length/1024)+'KB' : 'NULO');
