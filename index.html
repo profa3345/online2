@@ -185,15 +185,14 @@
       backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
       border-bottom:1px solid rgba(249,115,22,.18);
       padding:9px 18px;
-      display:flex;justify-content:space-between;align-items:center;
+      display:flex;align-items:center;
       position:sticky;top:0;z-index:20;
       box-shadow:0 1px 0 rgba(249,115,22,.10),0 4px 24px rgba(0,0,0,.28);
     }
-    /* Título centralizado absolutamente */
-    .topbar > div:not(.topbar-right){
-      position:absolute;left:50%;transform:translateX(-50%);
-      text-align:center;pointer-events:none;max-width:calc(100% - 160px);
-    }
+    /* Layout de 3 colunas simétricas — sem position:absolute, funciona em todos os browsers */
+    .topbar-left{flex:1;display:flex;align-items:center;gap:8px;}
+    #topbarCenter{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0;}
+    .topbar-right{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:10px;}
     /* H1: tipografia forte, hierarquia clara */
     .topbar h1{
       font-size:1.12rem;font-weight:700;margin:0;
@@ -215,10 +214,10 @@
       margin-top:4px;
     }
 
-    .topbar-right{display:flex;gap:10px;align-items:center;position:relative;z-index:1;}
-    /* [NAV-BACK] Botão voltar — mesmo estilo do sidebar-toggle */
-    #btnVoltarTela{background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28);color:#fb923c;border-radius:12px;width:34px;height:34px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;flex-shrink:0;transition:background .15s,transform .1s;}
-    #btnVoltarTela:active{background:rgba(249,115,22,.3);transform:scale(.93);}
+    /* .topbar-right definida acima no bloco de 3 colunas */
+    /* [NAV-BACK] Botão voltar — estilo neutro igual ao sidebar-toggle, sem cor laranja */
+    #btnVoltarTela{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;border-radius:12px;width:34px;height:34px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;flex-shrink:0;transition:background .15s,transform .1s;}
+    #btnVoltarTela:active{background:rgba(255,255,255,.15);transform:scale(.93);}
     .badge-online{background:rgba(34,197,94,.15);color:#bbf7d0;font-size:.6rem;border-radius:999px;padding:3px 9px;transition:background .3s,color .3s;font-weight:600;}
     .main{padding:14px 14px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
     .panel{background:rgba(15,23,42,.35);border:1px solid rgba(148,163,184,.05);border-radius:16px;padding:14px 14px 6px;box-shadow:0 10px 40px rgba(0,0,0,.12);backdrop-filter:blur(12px);animation:fadeIn .25s ease}
@@ -288,10 +287,16 @@
     /* [FIX-SCR1] No mobile remove o scroll interno — a lista flui na página normalmente,
        evitando o padrão confuso de scroll-dentro-de-scroll */
     @media(max-width:880px){.list-relatorios{max-height:none;overflow-y:visible;}}
-    .relatorio-card{background:#fff!important;border:1px solid rgba(148,163,184,.2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;color:#0f172a;transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease;margin-bottom:10px;}
+    /* [FIX-CARDS] Base .relatorio-card scoped away from #telaMeus — dark theme handles its own bg */
+    :not(#telaMeus) > .relatorio-card,
+    :not(#telaMeus) > * > .relatorio-card{background:#fff!important;border:1px solid rgba(148,163,184,.2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;color:#0f172a;transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease;margin-bottom:10px;}
+    .relatorio-card{border-radius:14px;display:flex;flex-direction:column;gap:6px;transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease;margin-bottom:10px;}
     .relatorio-card:hover{box-shadow:0 6px 20px rgba(0,0,0,.09);transform:translateY(-1px);border-color:rgba(249,115,22,.28);}
-    .relatorio-card.visto{background:rgba(241,245,249,.7)!important;border-color:rgba(148,163,184,.15);}
-    .relatorio-card.visto{border-color:rgba(148,163,184,.9);background:rgba(236,252,203,.85)!important}
+    /* [FIX-VISTO] visto overrides scoped away from #telaMeus dark cards */
+    :not(#telaMeus) > .relatorio-card.visto,
+    :not(#telaMeus) > * > .relatorio-card.visto{background:rgba(241,245,249,.7)!important;border-color:rgba(148,163,184,.15);}
+    :not(#telaMeus) > .relatorio-card.visto,
+    :not(#telaMeus) > * > .relatorio-card.visto{border-color:rgba(148,163,184,.9)!important;background:rgba(236,252,203,.85)!important}
     .badge-status{display:inline-block;padding:2px 10px 3px;border-radius:999px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
     .status-ok{background:rgba(16,185,129,.98);color:#022c22;border:1px solid rgba(22,163,74,.65)}
     .status-warn{background:rgba(234,179,8,.95);color:#422006;border:1px solid rgba(234,179,8,.75)}
@@ -486,9 +491,11 @@
       .report-body{font-size:.88rem}
       /* Topbar mobile */
       .sidebar-toggle{display:flex!important}
-      .topbar{gap:8px;padding:10px 12px;}
+      .topbar{gap:6px;padding:10px 12px;}
       .topbar h1{font-size:1rem;letter-spacing:-.02em;}
-      .topbar > div:not(.topbar-right){max-width:calc(100% - 120px);}
+      #topbarCenter{flex:2;}
+      .topbar-left{flex:0 0 auto;}
+      .topbar-right{flex:0 0 auto;}
       .topbar small{font-size:.58rem;padding:1px 7px;}
 
       /* Tabelas com scroll horizontal */
@@ -766,9 +773,15 @@ html[data-role="technician"] nav button {
   /* --- Content legibility boost --- */
 /* Tipografia também nas áreas internas (cards, tabelas, formulários) */
 /* Nota: --font-scale e --fs-* já definidos no bloco :root principal abaixo — sem redefinição aqui */
+/* [FIX-FS] font-size for relatorio-card scoped away from #telaMeus which sets its own sizes */
 .panel p, .panel li, .panel label, .panel span.text, .section-card p, .section-card li, .section-card label,
-.relatorio-card, .user-table, .user-table td, .user-table th, .list-relatorios, .filters-bar,
+.user-table, .user-table td, .user-table th, .list-relatorios, .filters-bar,
 .modal .report-body, .report-body, .report-body p, .report-body li {
+  font-size: var(--fs-body) !important;
+  line-height: 1.48 !important;
+}
+:not(#telaMeus) > .relatorio-card,
+:not(#telaMeus) > * > .relatorio-card {
   font-size: var(--fs-body) !important;
   line-height: 1.48 !important;
 }
@@ -913,8 +926,9 @@ html[data-role="technician"] nav button {
       min-height: 44px !important;
       font-size: 16px !important;
     }
-    /* Espaçamento extra nos cards de relatório */
-    .relatorio-card{
+    /* [FIX-MOBILE-CARD] Padding mobile scoped away from #telaMeus dark cards */
+    :not(#telaMeus) > .relatorio-card,
+    :not(#telaMeus) > * > .relatorio-card{
       padding: 14px 12px !important;
       gap: 8px !important;
     }
@@ -1650,8 +1664,8 @@ html[data-role="technician"] nav button {
       <button id="mMonitor" style="display:none;position:relative;"><i class="ri-pulse-line"></i> Monitoramento
         <span id="monitorBadge" style="display:none;position:absolute;top:6px;right:8px;background:#dc2626;color:#fff;border-radius:999px;font-size:.58rem;font-weight:700;padding:1px 6px;min-width:18px;text-align:center;"></span>
       </button>
-      <!-- [PORTAL-PREVIEW] Botão para visualizar portal do cliente — visível apenas para admin/supervisor -->
-      <button id="mPortalPreview" style="display:none;"><i class="ri-eye-line"></i> Portal do Cliente</button>
+      <!-- [PORTAL] Botão único do Portal do Cliente — admin/supervisor -->
+      <button id="mPortalCliente" style="display:none;"><i class="ri-shield-user-line"></i> Portal do Cliente</button>
     </div>
     <div class="user-box">
       <div id="userName">Usuário</div>
@@ -1671,14 +1685,13 @@ html[data-role="technician"] nav button {
   </button>
   <div class="content">
     <div class="topbar">
-      <!-- [FIX-TITLE] Grupo esquerdo: z-index:1 para ficar sobre o título absoluto -->
-      <div style="display:flex;gap:8px;align-items:center;position:relative;z-index:1;flex-shrink:0;">
+      <div class="topbar-left">
         <button class="sidebar-toggle" id="btnToggleSidebar">
           <i class="ri-menu-3-line"></i>
         </button>
-        <!-- [NAV-BACK] Botão Voltar — aparece quando há tela anterior no histórico interno -->
+        <!-- [NAV-BACK] Botão Voltar -->
         <button id="btnVoltarTela" aria-label="Voltar para a tela anterior"
-          style="display:none;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28);color:#fb923c;border-radius:12px;width:34px;height:34px;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;flex-shrink:0;transition:background .15s;">
+          style="display:none;">
           <i class="ri-arrow-left-line"></i>
         </button>
       </div>
@@ -1719,7 +1732,7 @@ html[data-role="technician"] nav button {
       </section>
 
       <!-- NOVO ATENDIMENTO -->
-      <section id="telaNovo" class="panel form-panel">
+      <section id="telaNovo" class="panel form-panel" style="display:none;">
         
         <div class="row" style="align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px 0;">
           <h2 style="margin:0;display:flex;gap:6px;align-items:center;font-size:1.1rem;"><i class="ri-add-box-line"></i> Novo Atendimento</h2>
@@ -2871,80 +2884,146 @@ html[data-role="technician"] nav button {
         </small>
       </section>
 
-      <!-- ═══ PORTAL DO CLIENTE — PREVIEW ADMIN ═══ -->
-      <section id="telaPortalPreview" class="panel supervisor-panel" style="display:none;">
+      <!-- ═══ PORTAL DO CLIENTE — ADMIN (UNIFICADO) ═══ -->
+      <section id="telaPortalAdmin" class="panel supervisor-panel" style="display:none;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-          <i class="ri-eye-line" style="font-size:1.2rem;color:#f97316;"></i>
-          <h2 style="margin:0;font-size:1.05rem;">Portal do Cliente — Visualização Admin</h2>
-          <span style="font-size:.68rem;background:rgba(249,115,22,.12);color:#f97316;border:1px solid rgba(249,115,22,.3);border-radius:999px;padding:2px 10px;font-weight:600;">MODO ADMIN</span>
+          <i class="ri-shield-user-line" style="font-size:1.2rem;color:#f97316;"></i>
+          <h2 style="margin:0;font-size:1.05rem;">Portal do Cliente</h2>
+          <span style="font-size:.68rem;background:rgba(249,115,22,.12);color:#f97316;border:1px solid rgba(249,115,22,.3);border-radius:999px;padding:2px 10px;font-weight:600;">ADMIN / SUPERVISOR</span>
         </div>
-        <p style="font-size:.78rem;color:#64748b;margin-bottom:16px;">Selecione um cliente para visualizar exatamente o que ele verá no portal — sem precisar de senha.</p>
 
-        <!-- Filtro de cliente -->
-        <div class="section-card" style="padding:14px 16px;margin-bottom:14px;">
-          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-            <div style="flex:1;min-width:200px;">
-              <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Cliente / CNPJ</label>
-              <input id="ppClienteInput" type="text" placeholder="Digite nome ou CNPJ..." autocomplete="off"
-                style="width:100%;padding:8px 10px;border:1px solid rgba(148,163,184,.4);border-radius:10px;font-size:.85rem;color:#0f172a;outline:0;background:#fff;">
-              <div id="ppClienteSuggestions" style="display:none;position:absolute;z-index:200;background:#fff;border:1px solid rgba(148,163,184,.3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;min-width:260px;"></div>
+        <!-- Abas internas -->
+        <div style="display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid rgba(148,163,184,.2);padding-bottom:0;">
+          <button id="tabVisualizar" onclick="window._portalAdminTab('visualizar')"
+            style="padding:8px 18px;border:none;border-bottom:2px solid #f97316;background:none;color:#f97316;font-weight:700;font-size:.82rem;cursor:pointer;border-radius:8px 8px 0 0;">
+            <i class="ri-eye-line"></i> Visualizar como Cliente
+          </button>
+          <button id="tabGerir" onclick="window._portalAdminTab('gerir')"
+            style="padding:8px 18px;border:none;border-bottom:2px solid transparent;background:none;color:#64748b;font-weight:600;font-size:.82rem;cursor:pointer;border-radius:8px 8px 0 0;">
+            <i class="ri-key-2-line"></i> Gerir Acessos
+          </button>
+        </div>
+
+        <!-- ABA 1: Visualizar como cliente -->
+        <div id="paineVisualizar">
+          <p style="font-size:.78rem;color:#64748b;margin:0 0 14px;">Selecione um cliente para visualizar exatamente o que ele verá no portal — sem precisar de senha.</p>
+          <div class="section-card" style="padding:14px 16px;margin-bottom:14px;">
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Cliente / CNPJ</label>
+                <input id="ppClienteInput" type="text" placeholder="Digite nome ou CNPJ..." autocomplete="off"
+                  style="width:100%;padding:8px 10px;border:1px solid rgba(148,163,184,.4);border-radius:10px;font-size:.85rem;color:#0f172a;outline:0;background:#fff;">
+                <div id="ppClienteSuggestions" style="display:none;position:absolute;z-index:200;background:#fff;border:1px solid rgba(148,163,184,.3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;min-width:260px;"></div>
+              </div>
+              <button id="ppBtnBuscar" class="btn" style="padding:8px 18px;font-size:.82rem;white-space:nowrap;">
+                <i class="ri-search-line"></i> Buscar RATs
+              </button>
             </div>
-            <button id="ppBtnBuscar" class="btn" style="padding:8px 18px;font-size:.82rem;white-space:nowrap;">
-              <i class="ri-search-line"></i> Buscar RATs
-            </button>
+            <div id="ppClienteInfo" style="margin-top:10px;display:none;font-size:.78rem;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:8px;border:1px solid rgba(148,163,184,.2);"></div>
           </div>
-          <div id="ppClienteInfo" style="margin-top:10px;display:none;font-size:.78rem;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:8px;border:1px solid rgba(148,163,184,.2);"></div>
-        </div>
-
-        <!-- Conteúdo do portal simulado -->
-        <div id="ppPortalWrap" style="display:none;">
-          <!-- Header igual ao portal real -->
-          <div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
-            <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:18px 20px;display:flex;align-items:center;gap:12px;">
-              <i class="ri-shield-keyhole-line" style="font-size:1.4rem;color:#f97316;"></i>
-              <div>
-                <div style="font-size:.95rem;font-weight:700;color:#fff;" id="ppNomeCliente">—</div>
-                <div style="font-size:.7rem;color:#94a3b8;" id="ppCnpjCliente">—</div>
+          <div id="ppPortalWrap" style="display:none;">
+            <div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
+              <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:18px 20px;display:flex;align-items:center;gap:12px;">
+                <i class="ri-shield-keyhole-line" style="font-size:1.4rem;color:#f97316;"></i>
+                <div>
+                  <div style="font-size:.95rem;font-weight:700;color:#fff;" id="ppNomeCliente">—</div>
+                  <div style="font-size:.7rem;color:#94a3b8;" id="ppCnpjCliente">—</div>
+                </div>
+                <div style="margin-left:auto;font-size:.65rem;background:rgba(249,115,22,.2);color:#fb923c;border:1px solid rgba(249,115,22,.35);border-radius:999px;padding:3px 10px;font-weight:600;">
+                  <i class="ri-eye-line"></i> Admin visualizando
+                </div>
               </div>
-              <div style="margin-left:auto;font-size:.65rem;background:rgba(249,115,22,.2);color:#fb923c;border:1px solid rgba(249,115,22,.35);border-radius:999px;padding:3px 10px;font-weight:600;">
-                <i class="ri-eye-line"></i> Admin visualizando
-              </div>
-            </div>
-
-            <div style="padding:16px 20px;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                <i class="ri-file-list-3-line" style="color:#f97316;"></i>
-                <span style="font-size:.9rem;font-weight:600;color:#0f172a;">Relatórios de Atendimento</span>
-                <span id="ppTotalRats" style="font-size:.68rem;background:#f1f5f9;color:#64748b;border-radius:999px;padding:2px 9px;font-weight:600;"></span>
-              </div>
-              <div id="ppListaRats" style="display:flex;flex-direction:column;gap:10px;">
-                <div style="text-align:center;color:#94a3b8;padding:24px;font-size:.82rem;">
-                  <i class="ri-search-line" style="font-size:1.5rem;display:block;margin-bottom:6px;"></i>
-                  Selecione um cliente acima para ver os relatórios
+              <div style="padding:16px 20px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                  <i class="ri-file-list-3-line" style="color:#f97316;"></i>
+                  <span style="font-size:.9rem;font-weight:600;color:#0f172a;">Relatórios de Atendimento</span>
+                  <span id="ppTotalRats" style="font-size:.68rem;background:#f1f5f9;color:#64748b;border-radius:999px;padding:2px 9px;font-weight:600;"></span>
+                </div>
+                <div id="ppListaRats" style="display:flex;flex-direction:column;gap:10px;">
+                  <div style="text-align:center;color:#94a3b8;padding:24px;font-size:.82rem;">
+                    <i class="ri-search-line" style="font-size:1.5rem;display:block;margin-bottom:6px;"></i>
+                    Selecione um cliente acima para ver os relatórios
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          <div id="ppDetalheWrap" style="display:none;margin-top:14px;">
+            <div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
+              <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;">
+                <button id="ppBtnVoltarLista" class="btn secondary" style="padding:6px 12px;font-size:.75rem;">
+                  <i class="ri-arrow-left-line"></i> Voltar
+                </button>
+                <span id="ppDetalheNumero" style="font-size:.9rem;font-weight:700;color:#0f172a;"></span>
+              </div>
+              <div id="ppDetalheCampos" style="padding:16px 20px;"></div>
+              <div style="padding:0 20px 20px;">
+                <button class="btn" style="width:100%;justify-content:center;background:linear-gradient(90deg,#f97316,#ea580c);" id="ppBtnGerarPdfAdmin">
+                  <i class="ri-file-pdf-line"></i> Baixar PDF (visualização do cliente)
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Detalhe de RAT simulado -->
-        <div id="ppDetalheWrap" style="display:none;margin-top:14px;">
-          <div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
-            <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;">
-              <button id="ppBtnVoltarLista" class="btn secondary" style="padding:6px 12px;font-size:.75rem;">
-                <i class="ri-arrow-left-line"></i> Voltar
-              </button>
-              <span id="ppDetalheNumero" style="font-size:.9rem;font-weight:700;color:#0f172a;"></span>
+        <!-- ABA 2: Gerir acessos -->
+        <div id="painelGerir" style="display:none;">
+          <div class="section-card" style="padding:16px;margin-bottom:14px;">
+            <div style="font-size:.82rem;font-weight:700;color:#0f172a;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+              <i class="ri-add-circle-line" style="color:#f97316;"></i> Gerar acesso manual
             </div>
-            <div id="ppDetalheCampos" style="padding:16px 20px;"></div>
-            <div style="padding:0 20px 20px;">
-              <button class="btn" style="width:100%;justify-content:center;background:linear-gradient(90deg,#f97316,#ea580c);" id="ppBtnGerarPdfAdmin">
-                <i class="ri-file-pdf-line"></i> Baixar PDF (visualização do cliente)
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+              <div style="flex:1;min-width:200px;">
+                <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:4px;">CNPJ ou CPF do cliente</label>
+                <input id="gpCnpjInput" type="text" inputmode="numeric" placeholder="00.000.000/0000-00" autocomplete="off"
+                  style="width:100%;padding:9px 11px;border:1px solid rgba(148,163,184,.4);border-radius:10px;font-size:.85rem;color:#0f172a;outline:0;background:#fff;box-sizing:border-box;">
+              </div>
+              <div style="flex:1;min-width:160px;">
+                <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Nome do cliente (opcional)</label>
+                <input id="gpNomeInput" type="text" placeholder="Empresa XYZ" autocomplete="off"
+                  style="width:100%;padding:9px 11px;border:1px solid rgba(148,163,184,.4);border-radius:10px;font-size:.85rem;color:#0f172a;outline:0;background:#fff;box-sizing:border-box;">
+              </div>
+              <button id="gpBtnGerar" class="btn" style="padding:9px 18px;font-size:.82rem;white-space:nowrap;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;border:none;">
+                <i class="ri-key-2-line"></i> Gerar acesso
               </button>
+            </div>
+            <div id="gpCredencialBox" style="display:none;margin-top:14px;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
+              <div style="font-size:.78rem;font-weight:700;color:#15803d;margin-bottom:8px;"><i class="ri-check-circle-line"></i> Acesso gerado!</div>
+              <div style="font-size:.82rem;color:#166534;line-height:1.8;" id="gpCredencialDetalhes"></div>
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                <button id="gpBtnCopiarLink" class="btn small" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0;font-size:.75rem;"><i class="ri-link"></i> Copiar link</button>
+                <button id="gpBtnWhats" class="btn small" style="background:#d1fae5;color:#065f46;border-color:#6ee7b7;font-size:.75rem;"><i class="ri-whatsapp-line"></i> WhatsApp</button>
+                <button id="gpBtnEmail" class="btn small" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;font-size:.75rem;"><i class="ri-mail-send-line"></i> E-mail</button>
+              </div>
+            </div>
+          </div>
+          <div class="section-card" style="padding:16px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+              <div style="font-size:.82rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:6px;">
+                <i class="ri-group-line" style="color:#f97316;"></i> Acessos cadastrados
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <select id="gpFiltroStatus" style="padding:6px 10px;border:1px solid rgba(148,163,184,.4);border-radius:8px;font-size:.78rem;color:#475569;outline:0;background:#fff;">
+                  <option value="todos">Todos</option>
+                  <option value="ativo">Ativos</option>
+                  <option value="expirado">Expirados</option>
+                  <option value="revogado">Revogados</option>
+                </select>
+                <button id="gpBtnAtualizar" class="btn small" style="font-size:.75rem;">
+                  <i class="ri-refresh-line"></i> Atualizar
+                </button>
+              </div>
+            </div>
+            <div id="gpListaAcessos" style="min-height:80px;">
+              <div style="text-align:center;color:#94a3b8;padding:32px;font-size:.82rem;">
+                <i class="ri-loader-4-line" style="display:block;font-size:1.5rem;margin-bottom:6px;"></i>
+                Carregando acessos...
+              </div>
             </div>
           </div>
         </div>
       </section>
+
 <div class="report-overlay" id="reportOverlay">
   <div class="report-box">
     <div class="report-header">
@@ -6176,6 +6255,9 @@ function autoFillCamposAtendimento(){
     // Esconde telaMonitor ao navegar para outras telas
     var _telaMon = document.getElementById('telaMonitor');
     if (_telaMon) _telaMon.style.display = 'none';
+    // Restaura o .main ao sair do monitor
+    var _mainRestore = document.querySelector('.content > .main');
+    if (_mainRestore) _mainRestore.style.display = '';
     var _btnMon = document.getElementById('mMonitor');
     if (_btnMon) _btnMon.classList.remove('active');
     // Esconde home mobile ao navegar para qualquer tela
@@ -13367,9 +13449,9 @@ async function renderMeus(){
         '<div class="rat-data" style="font-size:.72rem;margin-top:4px;">'+ _e(dataBr || '') +'</div>'+
         '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
           '<button class="btn small" data-meus-ver="'+ _e(r.id) +'"><i class="ri-eye-line"></i> Ver</button>'+
-          '<button class="btn small" data-meus-editar="'+ _e(r.id) +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
-          '<button class="btn small" data-meus-whats="'+ _e(r.id) +'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
-          (r.emailCliente ? '<button class="btn small" data-meus-email="'+ _e(r.id) +'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
+          '<button class="btn small meus-btn-editar" data-meus-editar="'+ _e(r.id) +'"><i class="ri-pencil-line"></i> Editar</button>'+
+          '<button class="btn small meus-btn-whats" data-meus-whats="'+ _e(r.id) +'"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
+          (r.emailCliente ? '<button class="btn small meus-btn-email" data-meus-email="'+ _e(r.id) +'"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
           '<button class="btn small" data-meus-pdf="'+ _e(r.id) +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
         '</div>';
       card.onclick = null; // botões individuais tratam o clique
@@ -13402,7 +13484,7 @@ async function renderMeus(){
             '<div class="rat-data" style="font-size:.72rem;margin-top:3px;">'+_e2(db2)+'</div>'+
             '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">'+
               '<button class="btn small" data-meus-ver="'+_e2(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
-              '<button class="btn small" data-meus-editar="'+_e2(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
+              '<button class="btn small meus-btn-editar" data-meus-editar="'+_e2(r.id)+'"><i class="ri-pencil-line"></i> Editar</button>'+
               '<button class="btn small" data-meus-pdf="'+_e2(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
             '</div>';
           card2.querySelector('[data-meus-ver]').onclick = function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(rr&&typeof abrirRelatorioOverlay==='function')abrirRelatorioOverlay(rr);};
@@ -13653,9 +13735,9 @@ async function _renderMeusComCache() {
       '<div class="rat-data" style="font-size:.72rem;margin-top:4px;">'+_e(dataBr)+'</div>'+
       '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
         '<button class="btn small" data-meus-ver="'+_e(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
-        '<button class="btn small" data-meus-editar="'+_e(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-pencil-line"></i> Editar</button>'+
-        '<button class="btn small" data-meus-whats="'+_e(r.id)+'" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
-        (r.emailCliente ? '<button class="btn small" data-meus-email="'+_e(r.id)+'" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
+        '<button class="btn small meus-btn-editar" data-meus-editar="'+_e(r.id)+'"><i class="ri-pencil-line"></i> Editar</button>'+
+        '<button class="btn small meus-btn-whats" data-meus-whats="'+_e(r.id)+'"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
+        (r.emailCliente ? '<button class="btn small meus-btn-email" data-meus-email="'+_e(r.id)+'"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
         '<button class="btn small" data-meus-pdf="'+_e(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
       '</div>';
     // Handlers
@@ -15587,8 +15669,22 @@ async function fazerLogin(){
   // touchend dispara click() e o evento 'click' nativo também dispara.
   var _tocouCaptura = false;
 
+  // [FIX-v59] Limite de fotos por sessão de câmera alinhado com _MAX_FOTOS_PDF (6)
+  // Fotos além do limite não cabem no PDF e desperdiçam Firestore — bloqueamos aqui.
+  var _MAX_FOTOS_CAM = 6;
+
   function _dispararCaptura() {
     if (!stream) return;
+    // [FIX-v59] Bloqueia nova captura se limite atingido
+    if (capturedPhotos.length >= _MAX_FOTOS_CAM) {
+      var hintEl = document.querySelector('#camSendBar .cam-hint');
+      if (hintEl) {
+        hintEl.innerHTML = '<i class="ri-error-warning-line" style="color:#f97316;"></i> <strong>Limite de ' + _MAX_FOTOS_CAM + ' fotos atingido.</strong> Confirme ou remova uma.';
+        hintEl.style.color = '#f97316';
+      }
+      try { if (navigator.vibrate) navigator.vibrate([60,40,60]); } catch(e){}
+      return;
+    }
     var w = video.videoWidth  || 1280;
     var h = video.videoHeight || 720;
     // Limita a 1200px no lado maior (reduz fotos de ~4MB para ~150-300KB)
@@ -15653,8 +15749,29 @@ async function fazerLogin(){
   }, { passive: false });
 
   function atualizarContador() {
-    countSpan.textContent = capturedPhotos.length;
-    sendBtn.disabled = capturedPhotos.length === 0;
+    var n = capturedPhotos.length;
+    countSpan.textContent = n;
+    sendBtn.disabled = n === 0;
+    // [FIX-v59] Feedback visual do limite no botão de captura
+    var hintEl = document.querySelector('#camSendBar .cam-hint');
+    if (n >= _MAX_FOTOS_CAM) {
+      captureBtn.disabled = true;
+      captureBtn.style.opacity = '0.4';
+      if (hintEl) {
+        hintEl.innerHTML = '<i class="ri-error-warning-line" style="color:#f97316;"></i> <strong>Limite de ' + _MAX_FOTOS_CAM + ' fotos atingido.</strong> Confirme ou remova uma.';
+        hintEl.style.color = '#f97316';
+      }
+    } else {
+      captureBtn.disabled = false;
+      captureBtn.style.opacity = '';
+      if (hintEl) {
+        var restantes = _MAX_FOTOS_CAM - n;
+        hintEl.innerHTML = n === 0
+          ? '<i class="ri-information-line"></i> Toque no <span style="color:#f97316;font-weight:700;">●</span> para capturar. Até ' + _MAX_FOTOS_CAM + ' fotos.'
+          : '<i class="ri-camera-line"></i> ' + n + '/' + _MAX_FOTOS_CAM + ' foto(s) — ' + restantes + ' restante(s).';
+        hintEl.style.color = '';
+      }
+    }
   }
 
   // ── Virar câmera ──────────────────────────────────────────────
@@ -15675,6 +15792,14 @@ async function fazerLogin(){
     strip.innerHTML = '';
     countSpan.textContent = '0';
     sendBtn.disabled = true;
+    captureBtn.disabled = false;
+    captureBtn.style.opacity = '';
+    // [FIX-v59] Reseta hint para estado inicial
+    var hintEl = document.querySelector('#camSendBar .cam-hint');
+    if (hintEl) {
+      hintEl.innerHTML = '<i class="ri-information-line"></i> Toque no <span style="color:#f97316;font-weight:700;">●</span> para capturar. Até ' + _MAX_FOTOS_CAM + ' fotos.';
+      hintEl.style.color = '';
+    }
     _sigCamCallback = null; // limpa callback de assinatura ao fechar
   }
 
@@ -16531,9 +16656,12 @@ async function fazerLogin(){
         // Mostra botão Limpar apenas para admin
         var btnLimpar = document.getElementById('monBtnLimpar');
         if (btnLimpar) btnLimpar.style.display = 'inline-flex';
-        // Mostra telaMonitor (limparMenu() já escondeu as outras)
+        // Mostra telaMonitor — oculta o .main (que fica antes no DOM e ocupa toda a viewport)
+        var _mainEl = document.querySelector('.content > .main');
+        if (_mainEl) _mainEl.style.display = 'none';
         var tela = document.getElementById('telaMonitor');
         if (tela) tela.style.display = 'block';
+        try{ window.scrollTo({top:0,behavior:'instant'}); }catch(e){ window.scrollTo(0,0); }
         // Marca botão do menu como ativo
         var btnMon = document.getElementById('mMonitor');
         if (btnMon) btnMon.classList.add('active');
@@ -16978,34 +17106,96 @@ window._montarMensagemPortalV2 = function(rat, resultado, canal){
 };
 
 /* ─────────────────────────────────────────────────────────────
-   REENVIO DE SENHA POR E-MAIL (senha expirada)
+   REENVIO DE SENHA — E-MAIL
 ──────────────────────────────────────────────────────────── */
-async function _reenviarSenhaEmail(cnpj, emailDestino, nomeCli, novaSenha){
-  var assunto = 'Online-ES – Nova senha de acesso ao Portal do Cliente';
-  var url = window._urlPortalV2(cnpj);
+function _reenviarSenhaEmail(cnpj, emailDestino, nomeCli, novaSenha){
+  // O cliente está no próprio dispositivo — mailto: abre o app de e-mail
+  // com a mensagem preenchida para ele guardar / encaminhar para si mesmo
+  var url = window._urlPortalV2 ? window._urlPortalV2(cnpj, novaSenha) : window.location.href.split('?')[0] + '?portal=' + cnpj + '&s=' + novaSenha;
+  var assunto = 'Portal ONLINE-ES — Nova senha de acesso';
   var corpo = [
-    'Olá, ' + nomeCli + '!',
+    'Minha nova senha para o Portal do Cliente ONLINE-ES:',
     '',
-    'Sua senha de acesso ao Portal do Cliente da ONLINE-ES expirou.',
-    'Geramos uma nova senha para você:',
+    '🔗 Link de acesso direto (já com a senha preenchida):',
+    url,
     '',
-    '🔗 Portal: ' + url,
     '👤 Usuário (CNPJ/CPF): ' + cnpj,
     '🔑 Nova senha: ' + novaSenha + ' (válida por 30 dias)',
     '',
-    'Acesse o portal para visualizar todos os seus Relatórios Técnicos.',
-    '',
-    'Atenciosamente,',
-    'Online-ES – Eletroeletrônica',
-    'www.onlinees.com.br'
+    'Guarde este e-mail para acessar seus Relatórios Técnicos de Atendimento.'
   ].join('\n');
-  // Abre cliente de e-mail padrão (mesmo comportamento do resto do sistema)
   window.open(
     'mailto:' + encodeURIComponent(emailDestino) +
     '?subject=' + encodeURIComponent(assunto) +
     '&body=' + encodeURIComponent(corpo),
     '_blank', 'noopener,noreferrer'
   );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   REENVIO DE SENHA — WHATSAPP
+──────────────────────────────────────────────────────────── */
+function _reenviarSenhaWhatsapp(cnpj, numeroWhats, nomeCli, novaSenha){
+  // O cliente está no próprio dispositivo — wa.me abre o WhatsApp com a mensagem
+  // preenchida para ele salvar / encaminhar para si mesmo ou anotar
+  var url = window._urlPortalV2 ? window._urlPortalV2(cnpj, novaSenha) : window.location.href.split('?')[0] + '?portal=' + cnpj + '&s=' + novaSenha;
+  var num = String(numeroWhats).replace(/\D/g,'');
+  if(num.length <= 11) num = '55' + num;
+  var msg = [
+    '🔐 *Portal ONLINE-ES — Nova senha de acesso*',
+    '',
+    'Minha nova senha para o Portal do Cliente:',
+    '',
+    '🔗 Acesse pelo link (já com a senha preenchida):',
+    url,
+    '',
+    '👤 Usuário (CNPJ/CPF): ' + cnpj,
+    '🔑 Nova senha: *' + novaSenha + '* (válida por 30 dias)',
+    '',
+    '_Guarde esta mensagem para acessar seus relatórios._'
+  ].join('\n');
+  window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BUSCAR CONTATOS DAS ÚLTIMAS 3 RATs DO CNPJ
+   Retorna { emails: string[], whatsapps: string[] } únicos
+──────────────────────────────────────────────────────────── */
+async function _buscarContatosRecentesPortal(cnpj){
+  var db = _db();
+  var emails = [], whatsapps = [];
+  if(!db) return { emails: emails, whatsapps: whatsapps };
+  try{
+    var snap = await db.collection('onlineEsRelatorios')
+      .where('cnpjCliente','==',cnpj)
+      .orderBy('dataHoraIso','desc')
+      .limit(2).get();
+    snap.forEach(function(d){
+      var r = d.data();
+      if(r.emailCliente && !emails.includes(r.emailCliente.trim()))
+        emails.push(r.emailCliente.trim());
+      var w = (r.whatsapp || r.telefone || '').replace(/\D/g,'');
+      if(w && w.length >= 10 && !whatsapps.includes(w))
+        whatsapps.push(w);
+    });
+  }catch(e){
+    // Fallback sem orderBy (índice não criado)
+    try{
+      var snap2 = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente','==',cnpj).limit(10).get();
+      var arr2 = [];
+      snap2.forEach(function(d){ arr2.push(d.data()); });
+      arr2.sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
+      arr2.slice(0,2).forEach(function(r){
+        if(r.emailCliente && !emails.includes(r.emailCliente.trim()))
+          emails.push(r.emailCliente.trim());
+        var w = (r.whatsapp || r.telefone || '').replace(/\D/g,'');
+        if(w && w.length >= 10 && !whatsapps.includes(w))
+          whatsapps.push(w);
+      });
+    }catch(e2){ console.warn('[Portal] buscarContatos fallback:', e2.message||e2); }
+  }
+  return { emails: emails, whatsapps: whatsapps };
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -17088,28 +17278,46 @@ async function _loginPortal(cnpjInput, senhaInput){
 async function _buscarRatsDoCnpj(cnpj){
   var db = _db();
   if(!db) return [];
+
+  // [FIX-v59] Timeout de 15s — evita loading infinito se Firestore não responder
+  function _comTimeout(promise, ms){
+    var timer = new Promise(function(_, reject){
+      setTimeout(function(){ reject(new Error('timeout')); }, ms);
+    });
+    return Promise.race([promise, timer]);
+  }
+
   try{
     // Tenta com orderBy (requer índice cnpjCliente + dataHoraIso)
     try{
-      var snap = await db.collection('onlineEsRelatorios')
-        .where('cnpjCliente','==',cnpj)
-        .where('_deleted','==',false)
-        .orderBy('dataHoraIso','desc')
-        .limit(50).get();
+      var snap = await _comTimeout(
+        db.collection('onlineEsRelatorios')
+          .where('cnpjCliente','==',cnpj)
+          .where('_deleted','==',false)
+          .orderBy('dataHoraIso','desc')
+          .limit(50).get(),
+        15000
+      );
       var arr = [];
       snap.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(!r._deleted) arr.push(r); });
       return arr;
     }catch(eIdx){
+      if(eIdx.message === 'timeout') throw eIdx; // propaga timeout para o catch externo
       // Sem índice — busca simples e ordena no cliente
-      var snap2 = await db.collection('onlineEsRelatorios')
-        .where('cnpjCliente','==',cnpj).limit(80).get();
+      var snap2 = await _comTimeout(
+        db.collection('onlineEsRelatorios')
+          .where('cnpjCliente','==',cnpj).limit(80).get(),
+        15000
+      );
       var arr2 = [];
       snap2.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(!r._deleted) arr2.push(r); });
       arr2.sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
       return arr2.slice(0,50);
     }
   }catch(e){
-    console.warn('[Portal v2] _buscarRatsDoCnpj:', e.message||e);
+    var isTimeout = e.message === 'timeout';
+    console.warn('[Portal v2] _buscarRatsDoCnpj' + (isTimeout ? ' [TIMEOUT]' : '') + ':', e.message||e);
+    if(isTimeout) throw new Error('timeout'); // relança para que _renderListaRats mostre mensagem adequada
     return [];
   }
 }
@@ -17144,7 +17352,8 @@ function _renderLogin(opts){
         '① O técnico envia o link do portal pelo WhatsApp ou e-mail<br>' +
         '② Use o CNPJ/CPF da empresa como usuário<br>' +
         '③ A senha de 6 dígitos vem na mesma mensagem<br>' +
-        '④ A senha é válida por 30 dias' +
+        '④ A senha é válida por 30 dias<br>' +
+        '<span style="color:#f59e0b;">⏱ Senha expirada?</span> Tente entrar assim mesmo — uma nova senha será gerada e você poderá salvá-la no seu próprio WhatsApp ou e-mail cadastrados nos últimos atendimentos.' +
       '</div>' +
     '</div>';
 
@@ -17237,14 +17446,25 @@ function _renderLogin(opts){
 }
 
 /* ─────────────────────────────────────────────────────────────
-   RENDER: SENHA EXPIRADA — oferece reenvio
+   RENDER: SENHA EXPIRADA
+   Busca e-mails e WhatsApps das últimas 3 RATs e deixa o cliente
+   escolher para onde enviar a nova senha.
 ──────────────────────────────────────────────────────────── */
 async function _renderSenhaExpirada(cnpj, cred){
-  // Gera nova senha automaticamente
+  var el = document.getElementById('pv2Conteudo');
+  if(!el) return;
+
+  // Mostra loading enquanto busca contatos
+  el.innerHTML =
+    '<div class="pv2-card">' +
+      '<h2><i class="ri-time-line" style="color:#f59e0b;"></i> Senha expirada</h2>' +
+      '<div class="pv2-loading"><i class="ri-loader-4-line"></i> Buscando seus contatos...</div>' +
+    '</div>';
+
+  // 1. Gera nova senha e salva no Firestore
   var novaSenha = _gerarSenha6();
   var hash = await _sha256(novaSenha);
   var expiraEm = new Date(Date.now() + 30*24*60*60*1000).toISOString();
-
   var db = _db();
   if(db){
     try{
@@ -17253,47 +17473,134 @@ async function _renderSenhaExpirada(cnpj, cred){
         criadaEm: new Date().toISOString(),
         expiradoEm: expiraEm
       });
-    }catch(e){ console.warn('[Portal v2] renovar senha:', e.message||e); }
+    }catch(e){ console.warn('[Portal] renovar senha expirada:', e.message||e); }
   }
 
-  var emails = cred.emails || [];
-  var el = document.getElementById('pv2Conteudo');
-  if(!el) return;
+  // 2. Busca contatos das últimas 3 RATs
+  var contatos = await _buscarContatosRecentesPortal(cnpj);
+  // Merge com e-mails já salvos no doc do portal (campo emails)
+  var emailsSalvos = cred.emails || [];
+  emailsSalvos.forEach(function(em){
+    if(!contatos.emails.includes(em.trim())) contatos.emails.push(em.trim());
+  });
+
+  var nome = _ep(cred.nome || '');
+  var temEmail = contatos.emails.length > 0;
+  var temWhats = contatos.whatsapps.length > 0;
+  var temContato = temEmail || temWhats;
+
+  // 3. Renderiza a tela
+  var btnContatos = '';
+
+  if(temWhats){
+    btnContatos += '<div style="font-size:.75rem;font-weight:700;color:#475569;margin:12px 0 6px;text-transform:uppercase;letter-spacing:.05em;"><i class="ri-whatsapp-line" style="color:#16a34a;"></i> Guardar no WhatsApp</div>';
+    contatos.whatsapps.forEach(function(w, i){
+      var wFmt = w.replace(/^55/, '').replace(/(\d{2})(\d{1})(\d{4})(\d{4})/, '($1) $2 $3-$4');
+      btnContatos +=
+        '<button class="pv2-btn-sec" id="pv2ExpWhats_'+i+'" style="margin-bottom:6px;text-align:left;padding:10px 14px;display:flex;align-items:center;gap:10px;">' +
+          '<i class="ri-whatsapp-line" style="color:#16a34a;font-size:1.15rem;flex-shrink:0;"></i>' +
+          '<span><span style="font-size:.7rem;color:#94a3b8;display:block;">Guardar no WhatsApp</span>' + _ep(wFmt || w) + '</span>' +
+        '</button>';
+    });
+  }
+
+  if(temEmail){
+    btnContatos += '<div style="font-size:.75rem;font-weight:700;color:#475569;margin:12px 0 6px;text-transform:uppercase;letter-spacing:.05em;"><i class="ri-mail-line" style="color:#3b82f6;"></i> Guardar por E-mail</div>';
+    contatos.emails.forEach(function(em, i){
+      btnContatos +=
+        '<button class="pv2-btn-sec" id="pv2ExpEmail_'+i+'" style="margin-bottom:6px;text-align:left;padding:10px 14px;display:flex;align-items:center;gap:10px;">' +
+          '<i class="ri-mail-send-line" style="color:#3b82f6;font-size:1.1rem;flex-shrink:0;"></i>' +
+          '<span><span style="font-size:.7rem;color:#94a3b8;display:block;">Guardar por e-mail</span>' + _ep(em) + '</span>' +
+        '</button>';
+    });
+  }
+
+  if(!temContato){
+    btnContatos =
+      '<div class="pv2-info" style="margin-top:8px;">' +
+        'Não encontramos e-mail ou WhatsApp nos seus últimos 2 atendimentos. ' +
+        'Anote a senha acima e utilize-a para entrar, ou solicite um novo link ao técnico da ONLINE-ES.' +
+      '</div>';
+  }
 
   el.innerHTML =
     '<div class="pv2-card">' +
       '<h2><i class="ri-time-line" style="color:#f59e0b;"></i> Senha expirada</h2>' +
-      '<div class="pv2-info">Geramos uma nova senha de acesso para <strong>' + _ep(cred.nome||'') + '</strong>.</div>' +
-      '<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:16px;">' +
-        '<div style="font-size:.8rem;color:#475569;margin-bottom:6px;">Nova senha:</div>' +
-        '<div style="font-size:2rem;font-weight:800;color:#0f172a;letter-spacing:.15em;font-family:monospace;">' + _ep(novaSenha) + '</div>' +
-        '<div style="font-size:.72rem;color:#94a3b8;margin-top:4px;">Válida por 30 dias</div>' +
+      '<div class="pv2-info" style="margin-bottom:14px;">' +
+        'Sua senha expirou, ' + nome + '. Geramos uma nova senha válida por 30 dias.' +
       '</div>' +
-      (emails.length > 0
-        ? '<div style="font-size:.8rem;color:#475569;margin-bottom:10px;">Enviar a nova senha por e-mail para:</div>' +
-          emails.map(function(em, i){
-            return '<button class="pv2-btn-sec" style="margin-bottom:6px;text-align:left;padding:9px 14px;" data-email="' + _ep(em) + '" data-senha="' + _ep(novaSenha) + '" data-cnpj="' + _ep(cnpj) + '" data-nome="' + _ep(cred.nome||'') + '" id="pv2EnvEmail_'+i+'">' +
-              '<i class="ri-mail-send-line"></i> Enviar para ' + _ep(em) + '</button>';
-          }).join('')
-        : '<div class="pv2-info">Não há e-mail cadastrado. Anote a senha acima e acesse novamente.</div>'
-      ) +
-      '<button class="pv2-btn" id="pv2VoltarLoginExp" style="margin-top:12px;"><i class="ri-login-box-line"></i> Entrar com nova senha</button>' +
+
+      // Nova senha em destaque
+      '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px 20px;margin-bottom:16px;text-align:center;">' +
+        '<div style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Nova senha de acesso</div>' +
+        '<div style="font-size:2.2rem;font-weight:800;color:#0f172a;letter-spacing:.2em;font-family:monospace;">' + _ep(novaSenha) + '</div>' +
+        '<div style="font-size:.7rem;color:#94a3b8;margin-top:4px;">Válida por 30 dias</div>' +
+      '</div>' +
+
+      // Instrução
+      (temContato
+        ? '<div style="font-size:.82rem;color:#475569;margin-bottom:4px;">Escolha como guardar sua nova senha — você será redirecionado para salvar no seu próprio WhatsApp ou e-mail:</div>'
+        : '') +
+
+      btnContatos +
+
+      // Entrar direto
+      '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;">' +
+        '<button class="pv2-btn" id="pv2EntrarNovaSenha" style="margin-bottom:8px;">' +
+          '<i class="ri-login-box-line"></i> Entrar agora com esta senha' +
+        '</button>' +
+        '<button class="pv2-btn-sec" id="pv2VoltarLoginExp">' +
+          '<i class="ri-arrow-left-line"></i> Voltar ao login' +
+        '</button>' +
+      '</div>' +
     '</div>';
 
-  // Bind botões de e-mail
-  emails.forEach(function(em, i){
-    var btn = document.getElementById('pv2EnvEmail_'+i);
-    if(btn) btn.addEventListener('click', async function(){
-      btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i> Abrindo e-mail...';
-      await _reenviarSenhaEmail(cnpj, em, cred.nome||'', novaSenha);
-      btn.disabled = false; btn.innerHTML = '<i class="ri-check-line"></i> E-mail aberto para ' + _ep(em);
+  // Bind: botões de e-mail
+  contatos.emails.forEach(function(em, i){
+    var btn = document.getElementById('pv2ExpEmail_'+i);
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line"></i> Abrindo e-mail...';
+      _reenviarSenhaEmail(cnpj, em, cred.nome||'', novaSenha);
+      setTimeout(function(){
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ri-check-line" style="color:#16a34a;"></i> E-mail aberto — senha guardada em ' + _ep(em);
+      }, 1500);
     });
   });
 
-  var btnVoltar = document.getElementById('pv2VoltarLoginExp');
-  if(btnVoltar) btnVoltar.addEventListener('click', function(){
-    _renderLogin({ cnpj: cnpj, info: '✅ Nova senha gerada. Use a senha exibida acima para entrar.' });
+  // Bind: botões de WhatsApp
+  contatos.whatsapps.forEach(function(w, i){
+    var btn = document.getElementById('pv2ExpWhats_'+i);
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line"></i> Abrindo WhatsApp...';
+      _reenviarSenhaWhatsapp(cnpj, w, cred.nome||'', novaSenha);
+      setTimeout(function(){
+        btn.disabled = false;
+        var wFmt = w.replace(/^55/, '').replace(/(\d{2})(\d{1})(\d{4})(\d{4})/, '($1) $2 $3-$4');
+        btn.innerHTML = '<i class="ri-check-line" style="color:#16a34a;"></i> WhatsApp aberto — senha guardada em ' + _ep(wFmt||w);
+      }, 1500);
+    });
   });
+
+  // Bind: entrar direto com nova senha
+  var btnEntrar = document.getElementById('pv2EntrarNovaSenha');
+  if(btnEntrar){
+    btnEntrar.addEventListener('click', function(){
+      _renderLogin({ cnpj: cnpj, senha: novaSenha, info: '✅ Nova senha gerada. Entrando automaticamente...' });
+    });
+  }
+
+  // Bind: voltar ao login
+  var btnVoltar = document.getElementById('pv2VoltarLoginExp');
+  if(btnVoltar){
+    btnVoltar.addEventListener('click', function(){
+      _renderLogin({ cnpj: cnpj, info: '✅ Nova senha gerada: <strong style="font-family:monospace;letter-spacing:.1em;">' + _ep(novaSenha) + '</strong> — Use-a para entrar.' });
+    });
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -17439,9 +17746,13 @@ async function _renderListaRats(){
   }catch(eRats){
     var listaElErr = document.getElementById('pv2ListaRats');
     if(listaElErr){
+      // [FIX-v59] Mensagem específica para timeout vs erro genérico
+      var _isTimeout = eRats && eRats.message === 'timeout';
       listaElErr.innerHTML =
         '<div class="pv2-err" style="display:block;margin:0;">' +
-        '⚠️ Não foi possível carregar os relatórios. Verifique sua conexão e ' +
+        (_isTimeout
+          ? '⏱️ O servidor demorou demais para responder. Verifique sua conexão e '
+          : '⚠️ Não foi possível carregar os relatórios. Verifique sua conexão e ') +
         '<button onclick="_renderListaRats()" style="background:none;border:none;color:#1d4ed8;cursor:pointer;font-weight:600;padding:0;">tente novamente</button>.' +
         '</div>';
     }
@@ -17739,7 +18050,7 @@ else _init();
 
 <script>
 /* ================================================================
-   PORTAL DO CLIENTE — PREVIEW ADMIN (telaPortalPreview)
+   PORTAL DO CLIENTE — PREVIEW ADMIN (telaPortalAdmin)
    Permite ao admin/supervisor ver exatamente o que o cliente vê,
    com filtro por cliente/CNPJ, sem precisar de senha.
 ================================================================ */
@@ -18088,6 +18399,25 @@ function _ppSetupBtnPdf(){
 }
 
 /* ── Expõe botão e tela via mostrarTela ──────────────────────── */
+/* Função de abas do portal unificado */
+window._portalAdminTab = function(aba){
+  var v = document.getElementById('paineVisualizar');
+  var g = document.getElementById('painelGerir');
+  var tV = document.getElementById('tabVisualizar');
+  var tG = document.getElementById('tabGerir');
+  if(!v || !g) return;
+  if(aba === 'visualizar'){
+    v.style.display = 'block'; g.style.display = 'none';
+    if(tV){ tV.style.borderBottomColor='#f97316'; tV.style.color='#f97316'; tV.style.fontWeight='700'; }
+    if(tG){ tG.style.borderBottomColor='transparent'; tG.style.color='#64748b'; tG.style.fontWeight='600'; }
+  } else {
+    v.style.display = 'none'; g.style.display = 'block';
+    if(tG){ tG.style.borderBottomColor='#f97316'; tG.style.color='#f97316'; tG.style.fontWeight='700'; }
+    if(tV){ tV.style.borderBottomColor='transparent'; tV.style.color='#64748b'; tV.style.fontWeight='600'; }
+    if(typeof window._gpCarregarLista === 'function') window._gpCarregarLista();
+  }
+};
+
 function _ppInit(){
   // Mostra botão apenas para admin/supervisor
   var _checkRole = function(){
@@ -18095,31 +18425,30 @@ function _ppInit(){
     if(!u) return;
     var r = u.role||'';
     var ok = (r==='admin'||r==='supervisor'||r==='administrador');
-    var btn = document.getElementById('mPortalPreview');
+    var btn = document.getElementById('mPortalCliente');
     if(btn) btn.style.display = ok ? 'flex' : 'none';
   };
   _checkRole();
-  // Recheck após login
   var _chkInterval = setInterval(function(){
     if(window.usuarioLogado){ _checkRole(); clearInterval(_chkInterval); }
   }, 500);
 
-  // Bind botão sidebar
-  var mBtn = document.getElementById('mPortalPreview');
+  // Bind botão único no sidebar
+  var mBtn = document.getElementById('mPortalCliente');
   if(mBtn){
     mBtn.addEventListener('click', function(){
-      if(typeof window.mostrarTela==='function') window.mostrarTela('portalPreview');
+      if(typeof window.mostrarTela==='function') window.mostrarTela('portalAdmin');
     });
   }
 
-  // Setup componentes internos
+  // Setup componentes da aba Visualizar
   _ppSetupAutocomplete();
   _ppSetupBtnBuscar();
   _ppSetupBtnVoltar();
   _ppSetupBtnPdf();
 }
 
-/* ── Hook em mostrarTela para suportar 'portalPreview' ────────── */
+/* ── Hook em mostrarTela para suportar rota 'portalAdmin' ── */
 var _originalMostrarTela = null;
 var _ppHookInterval = setInterval(function(){
   if(typeof window.mostrarTela === 'function' && !window._ppHooked){
@@ -18127,31 +18456,37 @@ var _ppHookInterval = setInterval(function(){
     clearInterval(_ppHookInterval);
     _originalMostrarTela = window.mostrarTela;
     window.mostrarTela = async function(nome){
-      // Oculta telaPortalPreview quando troca de tela
-      var ppTela = document.getElementById('telaPortalPreview');
-      if(nome !== 'portalPreview'){
-        if(ppTela) ppTela.style.display = 'none';
-        var mPP = document.getElementById('mPortalPreview');
-        if(mPP) mPP.classList.remove('active');
+      var portalTela = document.getElementById('telaPortalAdmin');
+      var mPC = document.getElementById('mPortalCliente');
+      // O .main vem ANTES de telaPortalAdmin no DOM e tem flex:1 (ocupa viewport toda).
+      // Precisamos ocultá-lo ao entrar no portal e restaurá-lo ao sair.
+      var mainEl = document.querySelector('.content > .main');
+
+      if(nome !== 'portalAdmin'){
+        // Restaura o .main ao navegar para tela normal
+        if(mainEl) mainEl.style.display = '';
+        if(portalTela) portalTela.style.display = 'none';
+        if(mPC) mPC.classList.remove('active');
         return _originalMostrarTela(nome);
       }
-      // Mostra telaPortalPreview
-      // Oculta todas as outras telas (usando a função original de limpeza)
-      await _originalMostrarTela('meus'); // chama para limpar menu e esconder telas
-      // Oculta tela meus (que foi ativada acima para aproveitar limpeza do menu)
-      var tMeus = document.getElementById('telaMeus');
-      if(tMeus) tMeus.style.display = 'none';
-      var mMeus = document.getElementById('mMeus');
-      if(mMeus) mMeus.classList.remove('active');
-      // Mostra portal preview
-      if(ppTela) ppTela.style.display = 'block';
-      var mPP = document.getElementById('mPortalPreview');
-      if(mPP) mPP.classList.add('active');
-      // Atualiza título da topbar
+
+      // Limpa menu e oculta o .main para que telaPortalAdmin apareça no topo
+      try{ if(typeof window.limparMenu === 'function') window.limparMenu(); }catch(e){}
+      if(mainEl) mainEl.style.display = 'none';
+
+      // Mostra tela unificada do portal
+      if(portalTela) portalTela.style.display = 'block';
+      if(mPC) mPC.classList.add('active');
+
+      // Rola para o topo para garantir que o card apareça visível
+      try{ window.scrollTo({top:0,behavior:'instant'}); }catch(e){ window.scrollTo(0,0); }
+
       var tituloEl = document.getElementById('tituloTela');
-      if(tituloEl) tituloEl.textContent = 'Portal do Cliente';
       var subEl = document.getElementById('subtituloTela') || document.querySelector('.topbar small');
-      if(subEl) subEl.textContent = 'Visualização admin — sem senha necessária';
+      if(tituloEl) tituloEl.textContent = 'Portal do Cliente';
+      if(subEl) subEl.textContent = 'Gestão e visualização do portal';
+
+      if(typeof window._gpCarregarLista === 'function') window._gpCarregarLista();
     };
   }
 }, 300);
@@ -18162,7 +18497,7 @@ else _ppInit();
 
 })();
 </script>
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════ -->
 <script>
 (function() {
   'use strict';
@@ -18743,21 +19078,95 @@ else _ppInit();
   color: #fb923c !important;
 }
 /* Botão editar */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-editar,
 #telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
   background: rgba(59,130,246,.1) !important;
   border-color: rgba(59,130,246,.28) !important;
   color: #93c5fd !important;
 }
 /* Botão WhatsApp */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-whats,
 #telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
   background: rgba(34,197,94,.08) !important;
   border-color: rgba(34,197,94,.28) !important;
   color: #86efac !important;
 }
+/* Botão E-mail */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-email {
+  background: rgba(59,130,246,.1) !important;
+  border-color: rgba(59,130,246,.28) !important;
+  color: #93c5fd !important;
+}
 /* Badge status */
 #telaMeus .relatorio-card .badge-status {
   font-size: .58rem !important;
   padding: 3px 10px 4px !important;
+}
+
+/* ── Hover para web (pointer devices) ── */
+@media (hover: hover) {
+  #telaMeus .relatorio-card:hover {
+    box-shadow: 0 8px 32px rgba(249,115,22,.18), 0 4px 20px rgba(0,0,0,.38) !important;
+    transform: translateY(-2px) !important;
+    border-color: rgba(249,115,22,.35) !important;
+  }
+  #telaMeus .relatorio-card.visto:hover {
+    border-color: rgba(34,197,94,.38) !important;
+  }
+}
+
+/* ── Mobile: viewport-fill sem scroll lateral ── */
+@media (max-width: 880px) {
+  #telaMeus {
+    padding: 10px 10px 8px !important;
+    margin: 0 !important;
+  }
+  #telaMeus .relatorio-card {
+    padding: 13px 13px !important;
+    border-radius: 14px !important;
+    margin-bottom: 9px !important;
+    gap: 0 !important;
+    /* Toque mais fácil no mobile */
+    min-height: 72px !important;
+  }
+  #telaMeus .relatorio-card strong {
+    font-size: .88rem !important;
+  }
+  #telaMeus .relatorio-card .rat-cliente-nome {
+    font-size: .75rem !important;
+  }
+  #telaMeus .relatorio-card .rat-data {
+    font-size: .69rem !important;
+    margin-top: 6px !important;
+  }
+  #telaMeus .relatorio-card .relatorio-acoes {
+    margin-top: 10px !important;
+    gap: 5px !important;
+  }
+  /* Touch targets mínimos 44px */
+  #telaMeus .relatorio-card .relatorio-acoes .btn.small {
+    min-height: 40px !important;
+    padding: 7px 12px !important;
+    font-size: .67rem !important;
+  }
+}
+
+/* ── Cabeçalho de contador de RATs ── */
+#telaMeus .meus-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+#telaMeus .meus-contador {
+  font-size: .72rem;
+  color: #64748b;
+  font-weight: 600;
+  background: rgba(148,163,184,.1);
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: 999px;
+  padding: 3px 12px;
 }
 </style>
 
@@ -18888,6 +19297,332 @@ else _ppInit();
     dec.style.transform = 'scale(1.2)';
     setTimeout(function(){ dec.style.transform = ''; }, 150);
   });
+})();
+</script>
+<!-- ============================================================
+     GESTÃO DO PORTAL DO CLIENTE — script interno
+     Lê/escreve em onlineEsPortalClientes via Firestore
+============================================================ -->
+<script>
+(function(){
+'use strict';
+
+/* ── helpers ── */
+var _normC = function(v){ return String(v||'').replace(/\D/g,''); };
+var _fmtC  = function(v){
+  var d = _normC(v);
+  if(d.length<=11){
+    if(d.length<=3) return d;
+    if(d.length<=6) return d.slice(0,3)+'.'+d.slice(3);
+    if(d.length<=9) return d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6);
+    return d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6,9)+'-'+d.slice(9);
+  }
+  if(d.length<=2) return d;
+  if(d.length<=5) return d.slice(0,2)+'.'+d.slice(2);
+  if(d.length<=8) return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5);
+  if(d.length<=12) return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5,8)+'/'+d.slice(8);
+  return d.slice(0,2)+'.'+d.slice(2,5)+'.'+d.slice(5,8)+'/'+d.slice(8,12)+'-'+d.slice(12);
+};
+var _db = function(){
+  if(typeof window._getDb==='function'){ var d=window._getDb(); if(d) return d; }
+  if(window.db) return window.db;
+  if(window.firebase && typeof window.firebase.firestore==='function'){
+    try{ return window.firebase.firestore(); }catch(e){}
+  }
+  return null;
+};
+var _ep = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+var _brDate = function(iso){
+  if(!iso) return '—';
+  try{ return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso; }
+};
+
+/* estado da última credencial gerada manualmente */
+var _gpUltimaCred = null;
+
+/* ── Carregar lista de acessos do Firestore ── */
+window._gpCarregarLista = async function(){
+  var el = document.getElementById('gpListaAcessos');
+  var filtro = (document.getElementById('gpFiltroStatus') && document.getElementById('gpFiltroStatus').value) || 'todos';
+  if(!el) return;
+  el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:32px;font-size:.82rem;"><i class="ri-loader-4-line" style="display:block;font-size:1.5rem;margin-bottom:6px;"></i> Carregando...</div>';
+
+  var db = _db();
+  if(!db){
+    el.innerHTML = '<div style="text-align:center;color:#ef4444;padding:24px;font-size:.82rem;">Sem conexão com o Firestore.</div>';
+    return;
+  }
+
+  try{
+    var snap = await db.collection('onlineEsPortalClientes').orderBy('criadaEm','desc').limit(100).get();
+    var agora = new Date();
+    var docs = [];
+    snap.forEach(function(d){ docs.push(Object.assign({_id:d.id}, d.data())); });
+
+    // Filtra
+    if(filtro !== 'todos'){
+      docs = docs.filter(function(d){
+        if(d.ativo === false) return filtro === 'revogado';
+        var exp = d.expiradoEm ? new Date(d.expiradoEm) : new Date(0);
+        if(agora > exp) return filtro === 'expirado';
+        return filtro === 'ativo';
+      });
+    }
+
+    if(docs.length === 0){
+      el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:32px;font-size:.82rem;"><i class="ri-inbox-line" style="display:block;font-size:1.8rem;margin-bottom:6px;"></i> Nenhum acesso encontrado.</div>';
+      return;
+    }
+
+    var html = '';
+    docs.forEach(function(d){
+      var exp    = d.expiradoEm ? new Date(d.expiradoEm) : new Date(0);
+      var revogado = d.ativo === false;
+      var expirado = !revogado && agora > exp;
+      var ativo    = !revogado && !expirado;
+
+      var badgeCor   = ativo ? '#dcfce7' : (expirado ? '#fef9c3' : '#fee2e2');
+      var badgeTxt   = ativo ? '#15803d' : (expirado ? '#854d0e' : '#b91c1c');
+      var badgeBrd   = ativo ? '#bbf7d0' : (expirado ? '#fde68a' : '#fecaca');
+      var badgeLabel = ativo ? 'Ativo' : (expirado ? 'Expirado' : 'Revogado');
+
+      var cnpjFmt = _fmtC(d._id || d.cnpj || '');
+      var nome    = _ep(d.nome || '—');
+      var criado  = _brDate(d.criadaEm);
+      var expira  = _brDate(d.expiradoEm);
+      var ultimo  = d.ultimoAcesso ? _brDate(d.ultimoAcesso) : '—';
+      var emails  = (d.emails||[]).join(', ') || '—';
+
+      var urlPortal = (typeof window._urlPortalV2 === 'function') ? window._urlPortalV2(d._id||d.cnpj) : '#';
+
+      html +=
+        '<div style="background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:12px;padding:14px 16px;margin-bottom:10px;">' +
+          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+            '<div style="flex:1;min-width:180px;">' +
+              '<div style="font-size:.88rem;font-weight:700;color:#0f172a;">' + nome + '</div>' +
+              '<div style="font-size:.73rem;color:#64748b;margin-top:2px;">' + cnpjFmt + '</div>' +
+              '<div style="font-size:.7rem;color:#94a3b8;margin-top:4px;">Criado: ' + criado + ' · Expira: ' + expira + '</div>' +
+              '<div style="font-size:.7rem;color:#94a3b8;">Último acesso: ' + ultimo + '</div>' +
+              '<div style="font-size:.7rem;color:#94a3b8;">E-mails: ' + _ep(emails) + '</div>' +
+            '</div>' +
+            '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">' +
+              '<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:.68rem;font-weight:700;background:' + badgeCor + ';color:' + badgeTxt + ';border:1px solid ' + badgeBrd + ';">' + badgeLabel + '</span>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                '<button class="btn small gp-btn-copiar" data-cnpj="' + _ep(d._id||d.cnpj||'') + '" data-url="' + _ep(urlPortal) + '" style="font-size:.7rem;padding:5px 10px;background:#f0f9ff;color:#0369a1;border-color:#bae6fd;">' +
+                  '<i class="ri-link"></i> Link' +
+                '</button>' +
+                (ativo || expirado ?
+                  '<button class="btn small gp-btn-renovar" data-cnpj="' + _ep(d._id||d.cnpj||'') + '" data-nome="' + _ep(d.nome||'') + '" style="font-size:.7rem;padding:5px 10px;background:#fff7ed;color:#c2410c;border-color:#fed7aa;">' +
+                    '<i class="ri-refresh-line"></i> Renovar' +
+                  '</button>' : '') +
+                (!revogado ?
+                  '<button class="btn small gp-btn-revogar" data-cnpj="' + _ep(d._id||d.cnpj||'') + '" data-nome="' + _ep(d.nome||'') + '" style="font-size:.7rem;padding:5px 10px;background:#fef2f2;color:#b91c1c;border-color:#fecaca;">' +
+                    '<i class="ri-forbid-line"></i> Revogar' +
+                  '</button>' :
+                  '<button class="btn small gp-btn-reativar" data-cnpj="' + _ep(d._id||d.cnpj||'') + '" style="font-size:.7rem;padding:5px 10px;background:#f0fdf4;color:#15803d;border-color:#bbf7d0;">' +
+                    '<i class="ri-check-line"></i> Reativar' +
+                  '</button>') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    });
+
+    el.innerHTML = html;
+    _gpBindBotoes();
+
+  }catch(e){
+    el.innerHTML = '<div style="text-align:center;color:#ef4444;padding:24px;font-size:.82rem;">Erro ao carregar: ' + _ep(e.message||String(e)) + '</div>';
+    console.error('[GestaoPortal]', e);
+  }
+};
+
+/* ── Bind nos botões da lista ── */
+function _gpBindBotoes(){
+  // Copiar link
+  document.querySelectorAll('.gp-btn-copiar').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = btn.getAttribute('data-url');
+      if(!url || url==='#') return;
+      try{ navigator.clipboard.writeText(url); }catch(_){}
+      if(typeof showToast==='function') showToast('🔗 Link copiado!', 3000);
+    });
+  });
+
+  // Renovar credencial
+  document.querySelectorAll('.gp-btn-renovar').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var cnpj = btn.getAttribute('data-cnpj');
+      var nome = btn.getAttribute('data-nome');
+      if(!cnpj) return;
+      btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i>';
+      try{
+        var rat = { cnpjCliente: cnpj, cliente: nome, _forcarRenovacaoSenha: true };
+        var res = await window._gerarCredencialPortal(rat);
+        if(res && res.senha){
+          if(typeof showToast==='function') showToast('✅ Nova senha: ' + res.senha + ' (válida 30 dias)', 7000);
+          window._gpCarregarLista();
+        }
+      }catch(e){ console.error('[GestaoPortal] renovar:', e); }
+      btn.disabled = false; btn.innerHTML = '<i class="ri-refresh-line"></i> Renovar';
+    });
+  });
+
+  // Revogar acesso
+  document.querySelectorAll('.gp-btn-revogar').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var cnpj = btn.getAttribute('data-cnpj');
+      var nome = btn.getAttribute('data-nome');
+      if(!cnpj) return;
+      if(!confirm('Revogar acesso de "' + (nome||cnpj) + '"?\nO cliente não conseguirá mais entrar no portal.')) return;
+      btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i>';
+      var db = _db();
+      if(!db){ btn.disabled=false; btn.innerHTML='<i class="ri-forbid-line"></i> Revogar'; return; }
+      try{
+        await db.collection('onlineEsPortalClientes').doc(cnpj).update({ ativo: false });
+        if(typeof showToast==='function') showToast('🚫 Acesso de "' + (nome||cnpj) + '" revogado.', 4000);
+        window._gpCarregarLista();
+      }catch(e){
+        console.error('[GestaoPortal] revogar:', e);
+        btn.disabled=false; btn.innerHTML='<i class="ri-forbid-line"></i> Revogar';
+      }
+    });
+  });
+
+  // Reativar acesso
+  document.querySelectorAll('.gp-btn-reativar').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var cnpj = btn.getAttribute('data-cnpj');
+      if(!cnpj) return;
+      btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i>';
+      var db = _db();
+      if(!db){ btn.disabled=false; btn.innerHTML='<i class="ri-check-line"></i> Reativar'; return; }
+      try{
+        await db.collection('onlineEsPortalClientes').doc(cnpj).update({ ativo: true });
+        if(typeof showToast==='function') showToast('✅ Acesso reativado.', 3000);
+        window._gpCarregarLista();
+      }catch(e){
+        console.error('[GestaoPortal] reativar:', e);
+        btn.disabled=false; btn.innerHTML='<i class="ri-check-line"></i> Reativar';
+      }
+    });
+  });
+}
+
+/* ── Máscara no campo CNPJ do formulário manual ── */
+function _gpMascaraCnpj(){
+  var inp = document.getElementById('gpCnpjInput');
+  if(!inp) return;
+  inp.addEventListener('input', function(){
+    inp.value = _fmtC(_normC(inp.value).slice(0,14));
+  });
+}
+
+/* ── Botão Gerar Acesso Manual ── */
+function _gpSetupBtnGerar(){
+  var btn = document.getElementById('gpBtnGerar');
+  if(!btn) return;
+  btn.addEventListener('click', async function(){
+    var cnpjRaw = _normC(document.getElementById('gpCnpjInput').value);
+    var nome    = (document.getElementById('gpNomeInput') && document.getElementById('gpNomeInput').value.trim()) || '';
+    var credBox = document.getElementById('gpCredencialBox');
+    var detEl   = document.getElementById('gpCredencialDetalhes');
+    if(cnpjRaw.length < 8){
+      if(typeof showToast==='function') showToast('⚠️ Informe um CNPJ ou CPF válido.', 3000);
+      return;
+    }
+    btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line"></i> Gerando...';
+    if(credBox) credBox.style.display = 'none';
+    try{
+      var rat = { cnpjCliente: cnpjRaw, cliente: nome, _forcarRenovacaoSenha: true };
+      var res = await window._gerarCredencialPortal(rat);
+      if(res && res.cnpj && res.senha){
+        _gpUltimaCred = res;
+        var url = (typeof window._urlPortalV2==='function') ? window._urlPortalV2(res.cnpj, res.senha) : '#';
+        _gpUltimaCred._url = url;
+        if(detEl) detEl.innerHTML =
+          '<b>CNPJ/CPF:</b> ' + _ep(_fmtC(res.cnpj)) + '<br>' +
+          '<b>Senha:</b> ' + _ep(res.senha) + ' (válida por 30 dias)<br>' +
+          '<b>Link:</b> <a href="' + _ep(url) + '" target="_blank" rel="noopener" style="color:#15803d;word-break:break-all;">' + _ep(url) + '</a>';
+        if(credBox) credBox.style.display = 'block';
+        if(typeof showToast==='function') showToast('✅ Acesso gerado! Senha: ' + res.senha, 6000);
+        window._gpCarregarLista();
+      } else {
+        if(typeof showToast==='function') showToast('⚠️ Não foi possível gerar o acesso. Verifique o CNPJ.', 4000);
+      }
+    }catch(e){
+      console.error('[GestaoPortal] gerar:', e);
+      if(typeof showToast==='function') showToast('❌ Erro: ' + (e.message||e), 4000);
+    }
+    btn.disabled = false; btn.innerHTML = '<i class="ri-key-2-line"></i> Gerar acesso';
+  });
+}
+
+/* ── Botões de compartilhamento da credencial gerada ── */
+function _gpSetupBtnCompartilhar(){
+  var btnLink = document.getElementById('gpBtnCopiarLink');
+  if(btnLink) btnLink.addEventListener('click', function(){
+    if(!_gpUltimaCred || !_gpUltimaCred._url) return;
+    try{ navigator.clipboard.writeText(_gpUltimaCred._url); }catch(_){}
+    if(typeof showToast==='function') showToast('🔗 Link copiado!', 3000);
+  });
+
+  var btnWa = document.getElementById('gpBtnWhats');
+  if(btnWa) btnWa.addEventListener('click', function(){
+    if(!_gpUltimaCred) return;
+    var r = _gpUltimaCred;
+    var msg = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+      'Seu acesso ao Portal do Cliente foi gerado:\n\n' +
+      '🔗 ' + (r._url||'') + '\n' +
+      '👤 Usuário (CNPJ/CPF): ' + _fmtC(r.cnpj) + '\n' +
+      '🔑 Senha: *' + r.senha + '* (válida por 30 dias)\n\n' +
+      'Acesse o portal para visualizar seus Relatórios Técnicos.\n\nQualquer dúvida, estamos à disposição!';
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
+  });
+
+  var btnEmail = document.getElementById('gpBtnEmail');
+  if(btnEmail) btnEmail.addEventListener('click', function(){
+    if(!_gpUltimaCred) return;
+    var r = _gpUltimaCred;
+    var assunto = 'Online-ES – Acesso ao Portal do Cliente';
+    var corpo = [
+      'Olá!',
+      '',
+      'Seu acesso ao Portal do Cliente da ONLINE-ES foi gerado:',
+      '',
+      '🔗 Portal: ' + (r._url||''),
+      '👤 Usuário (CNPJ/CPF): ' + _fmtC(r.cnpj),
+      '🔑 Senha: ' + r.senha + ' (válida por 30 dias)',
+      '',
+      'Acesse o portal para visualizar todos os seus Relatórios Técnicos de Atendimento.',
+      '',
+      'Atenciosamente,',
+      'Online-ES – Eletroeletrônica',
+      'www.onlinees.com.br'
+    ].join('\n');
+    window.open('mailto:?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo), '_blank', 'noopener,noreferrer');
+  });
+}
+
+/* ── Botão Atualizar lista ── */
+function _gpSetupBtnAtualizar(){
+  var btn = document.getElementById('gpBtnAtualizar');
+  if(btn) btn.addEventListener('click', function(){ window._gpCarregarLista(); });
+  var sel = document.getElementById('gpFiltroStatus');
+  if(sel) sel.addEventListener('change', function(){ window._gpCarregarLista(); });
+}
+
+/* ── Init ── */
+function _gpInit(){
+  _gpMascaraCnpj();
+  _gpSetupBtnGerar();
+  _gpSetupBtnCompartilhar();
+  _gpSetupBtnAtualizar();
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _gpInit);
+else _gpInit();
+
 })();
 </script>
 </body>
