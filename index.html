@@ -85,23 +85,35 @@
     var _qs = window.location.search;
     var _ehPortal = _qs.indexOf('portal=') !== -1 || _qs.indexOf('rat=') !== -1;
     if(!_ehPortal) return;
-    // Flag global — usada por _iniciarMobileHome para não sobrescrever o portal
+
+    // Flag global — usada por _iniciarMobileHome e _ppInit para não sobrescrever o portal
     window._modoPortalCliente = true;
-    // Aplica fundo claro no elemento raiz IMEDIATAMENTE (antes do body existir)
-    document.documentElement.style.cssText =
-      'background:#f1f5f9!important;min-height:100vh;';
-    // Quando o body existir, garante que ele também fica claro e sem animação
+
+    // [FIX-v60-PORTAL-CSS] Injeta <style> IMEDIATO antes de qualquer elemento renderizar.
+    // Isso garante que #telaLogin (z-index:9000) fique invisível e #portalCliente apareça,
+    // independente da ordem de execução dos DOMContentLoaded handlers.
+    var _style = document.createElement('style');
+    _style.textContent =
+      'html,body{background:#f1f5f9!important;animation:none!important;}' +
+      '#telaLogin{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}' +
+      '#app{display:none!important;}' +
+      '#portalCliente{display:block!important;}';
+    document.head.appendChild(_style);
+
+    // Aplica fundo claro no elemento raiz IMEDIATAMENTE
+    document.documentElement.style.cssText = 'background:#f1f5f9!important;min-height:100vh;';
+
+    // Quando o body existir, garante estado correto
     document.addEventListener('DOMContentLoaded', function(){
       if(document.body){
-        document.body.style.cssText =
-          'background:#f1f5f9!important;animation:none!important;';
+        document.body.style.cssText = 'background:#f1f5f9!important;animation:none!important;';
       }
-      // Garante que o portalCliente já está visível o mais cedo possível
       var _p = document.getElementById('portalCliente');
-      if(_p){ _p.classList.add('ativo'); }
-      // Esconde a tela de login do app interno se por acaso estiver visível
+      if(_p){ _p.classList.add('ativo'); _p.style.display='block'; }
       var _tl = document.getElementById('telaLogin');
       if(_tl){ _tl.style.display='none'; _tl.classList.add('hidden'); }
+      var _app = document.getElementById('app');
+      if(_app){ _app.style.display='none'; }
     });
   })();
   </script>
@@ -17523,6 +17535,15 @@ async function _buscarRatsDoCnpj(cnpj){
 ──────────────────────────────────────────────────────────── */
 function _renderLogin(opts){
   opts = opts || {};
+  // [FIX-v60-PORTAL-VIS] Garante visibilidade do portal antes de qualquer render
+  var _portalEl = document.getElementById('portalCliente');
+  if(_portalEl && !_portalEl.classList.contains('ativo')){
+    _portalEl.classList.add('ativo');
+    _portalEl.style.display = 'block';
+  }
+  var _telaLoginEl = document.getElementById('telaLogin');
+  if(_telaLoginEl){ _telaLoginEl.style.display='none'; _telaLoginEl.classList.add('hidden'); }
+
   var el = document.getElementById('pv2Conteudo');
   if(!el) return;
 
@@ -18098,14 +18119,18 @@ function _verificarUrl(){
 
   if(!cnpjParam && !ratParam) return false;
 
-  // Oculta tela de login do app
+  // [FIX-v60-PORTAL-VIS] Esconde tudo do app interno e força portal visível
   try{
     var tl = document.getElementById('telaLogin');
     if(tl){ tl.classList.add('hidden'); tl.style.display='none'; }
+    var _appEl = document.getElementById('app');
+    if(_appEl){ _appEl.style.display='none'; }
+    var _sbEl = document.getElementById('sidebar');
+    if(_sbEl){ _sbEl.style.display='none'; }
   }catch(e){}
 
   var portal = document.getElementById('portalCliente');
-  if(portal) portal.classList.add('ativo');
+  if(portal){ portal.classList.add('ativo'); portal.style.display='block'; }
 
   // Se veio com CNPJ direto: pré-preenche o campo (e senha se ?s= presente)
   if(cnpjParam){
