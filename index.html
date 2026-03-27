@@ -17210,9 +17210,10 @@ window._gerarCredencialPortal = async function(rat){
    O portal mostra o CNPJ pré-preenchido e o cliente digita a senha.
 ──────────────────────────────────────────────────────────── */
 window._urlPortalV2 = function(cnpj){
-  var base = window.location.href.split('?')[0];
-  // Senha NUNCA vai na URL — apenas o CNPJ para pré-preencher o campo
-  return base + '?portal=' + _normCnpj(cnpj);
+  // [FIX-v60-PORTAL-SEPARADO] Link aponta para portal.html — arquivo independente do sistema.
+  // Elimina completamente o conflito entre app interno e portal do cliente.
+  var base = window.location.href.split('/').slice(0, -1).join('/');
+  return base + '/portal.html?cnpj=' + (typeof _normCnpj === 'function' ? _normCnpj(cnpj) : String(cnpj||'').replace(/\D/g,''));
 };
 
 /* Mantém _urlPortal para compatibilidade (alguns botões ainda usam).

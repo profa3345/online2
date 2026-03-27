@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Portal do Cliente — ONLINE-ES</title>
+
+  <!-- Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Remix Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:   #f97316;
+      --accent2:  #114f91;
+      --bg:       #f1f5f9;
+      --card:     #ffffff;
+      --text:     #0f172a;
+      --muted:    #64748b;
+      --border:   rgba(148,163,184,.2);
+      --radius:   16px;
+      --shadow:   0 4px 24px rgba(0,0,0,.08);
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: 'Poppins', system-ui, sans-serif;
+      color: var(--text);
+      font-size: 15px;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      background: #0f172a;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .topbar img { width: 36px; height: 36px; object-fit: contain; border-radius: 8px; }
+    .topbar-title { color: #f1f5f9; font-weight: 700; font-size: .95rem; line-height: 1.2; }
+    .topbar-sub   { color: #94a3b8; font-size: .72rem; }
+
+    /* ── Wrapper central ── */
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 28px 16px 80px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 22px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h2 i { color: var(--accent); font-size: 1.2rem; }
+
+    /* ── Form ── */
+    label {
+      display: block;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    input[type=text], input[type=password] {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: .95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #f8fafc;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      margin-bottom: 14px;
+    }
+    input:focus {
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(17,79,145,.1);
+      background: #fff;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent2);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: .95rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background .15s, transform .1s;
+      margin-top: 4px;
+    }
+    .btn:hover  { background: #1a5ea8; }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .btn-sec {
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--muted);
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-sec:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    /* ── Erro / Info ── */
+    .erro {
+      background: #fff1f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      color: #dc2626;
+      font-size: .82rem;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .info-box {
+      background: rgba(249,115,22,.07);
+      border: 1px solid rgba(249,115,22,.25);
+      border-radius: 10px;
+      color: #9a3412;
+      font-size: .82rem;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .senha-dica {
+      background: rgba(17,79,145,.06);
+      border: 1px solid rgba(17,79,145,.18);
+      border-radius: 10px;
+      color: var(--accent2);
+      font-size: .78rem;
+      padding: 9px 13px;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Lista de RATs ── */
+    .session-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .session-info { font-size: .8rem; color: var(--muted); }
+    .session-info strong { color: var(--text); }
+    .btn-logout {
+      padding: 7px 14px;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--muted);
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-logout:hover { border-color: #dc2626; color: #dc2626; }
+
+    .rat-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 15px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: box-shadow .18s, border-color .18s, transform .15s;
+      position: relative;
+    }
+    .rat-card:hover {
+      box-shadow: 0 6px 20px rgba(249,115,22,.12);
+      border-color: rgba(249,115,22,.35);
+      transform: translateY(-1px);
+    }
+    .rat-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .rat-numero { font-weight: 700; font-size: .92rem; color: var(--text); }
+    .rat-data   { font-size: .72rem; color: var(--muted); margin-top: 3px; }
+    .rat-tec    { font-size: .72rem; color: var(--muted); }
+    .badge {
+      font-size: .65rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge-ok   { background: #f0fdf4; color: #16a34a; }
+    .badge-warn { background: #fffbeb; color: #d97706; }
+    .badge-bad  { background: #fff1f2; color: #dc2626; }
+
+    /* ── Detalhe da RAT ── */
+    .detalhe-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .btn-back {
+      padding: 8px 14px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--muted);
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: background .15s;
+    }
+    .btn-back:hover { background: #e2e8f0; }
+    .detalhe-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+
+    .campo { margin-bottom: 12px; }
+    .campo-label {
+      font-size: .68rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 2px;
+    }
+    .campo-valor {
+      font-size: .88rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .divider {
+      border: none;
+      border-top: 1px dashed var(--border);
+      margin: 14px 0;
+    }
+
+    .btn-pdf {
+      background: #0f172a;
+      color: #bfdbfe;
+      border: 1px solid #1e40af;
+      border-radius: 12px;
+      padding: 12px 20px;
+      font-size: .88rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      justify-content: center;
+      transition: background .15s;
+      margin-top: 8px;
+    }
+    .btn-pdf:hover { background: #1e293b; }
+    .btn-pdf:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* ── Loading ── */
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 32px 0;
+      font-size: .88rem;
+    }
+    .loading i { font-size: 1.8rem; display: block; margin-bottom: 8px; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: .82rem;
+      font-weight: 600;
+      box-shadow: 0 6px 24px rgba(0,0,0,.25);
+      z-index: 9999;
+      transition: transform .25s ease;
+      white-space: nowrap;
+      max-width: 90vw;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Rodapé ── */
+    .footer {
+      text-align: center;
+      font-size: .7rem;
+      color: var(--muted);
+      margin-top: 24px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 520px) {
+      .wrap { padding: 16px 12px 60px; }
+      .card { padding: 18px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+  <img src="https://www.onlinees.com.br/logo.png" onerror="this.style.display='none'" alt="Logo">
+  <div>
+    <div class="topbar-title">ONLINE-ES Eletroeletrônica</div>
+    <div class="topbar-sub">Portal do Cliente</div>
+  </div>
+</div>
+
+<!-- Conteúdo principal -->
+<div class="wrap">
+  <div id="conteudo">
+    <!-- Renderizado por JS -->
+    <div class="loading"><i class="ri-loader-4-line"></i> Carregando...</div>
+  </div>
+  <div class="footer">
+    ONLINE-ES Eletroeletrônica &middot; www.onlinees.com.br<br>
+    Dados protegidos conforme a LGPD.
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- jsPDF para download de PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+(function () {
+'use strict';
+
+/* ══════════════════════════════════════════════════
+   CONFIGURAÇÃO FIREBASE
+══════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8",
+  authDomain:        "onlinees-system.firebaseapp.com",
+  projectId:         "onlinees-system",
+  storageBucket:     "onlinees-system.appspot.com",
+  messagingSenderId: "891796507607",
+  appId:             "1:891796507607:web:b5f7e9aab2975beca81992"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db   = firebase.firestore();
+const auth = firebase.auth();
+
+/* ══════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════ */
+const normCnpj = v => String(v || '').replace(/\D/g, '');
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function dataBR(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  } catch { return iso; }
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function badge(status) {
+  if (!status) return '';
+  const cls = status === 'Concluído' ? 'badge-ok' : status.includes('pendência') ? 'badge-warn' : 'badge-bad';
+  return `<span class="badge ${cls}">${esc(status)}</span>`;
+}
+
+function toast(msg, dur = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function maskCnpj(v) {
+  v = v.replace(/\D/g, '').slice(0, 14);
+  if (v.length <= 11)
+    v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  else
+    v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  return v;
+}
+
+/* ══════════════════════════════════════════════════
+   ESTADO DA SESSÃO
+══════════════════════════════════════════════════ */
+let sessao = null; // { cnpj, nome, cred }
+
+/* ══════════════════════════════════════════════════
+   AUTH ANÔNIMO (exigido pelas Firestore Rules)
+══════════════════════════════════════════════════ */
+async function garantirAuth() {
+  for (let i = 0; i < 10; i++) {
+    try {
+      if (auth.currentUser) return true;
+      await auth.signInAnonymously();
+      return true;
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  return false;
+}
+
+/* ══════════════════════════════════════════════════
+   LOGIN
+══════════════════════════════════════════════════ */
+async function fazerLogin(cnpjRaw, senhaRaw) {
+  const cnpj  = normCnpj(cnpjRaw);
+  const senha = String(senhaRaw || '').trim();
+
+  if (cnpj.length < 8)  return { ok: false, msg: 'CNPJ ou CPF inválido.' };
+  if (senha.length < 6) return { ok: false, msg: 'Senha deve ter 6 dígitos.' };
+
+  const authOk = await garantirAuth();
+  if (!authOk) return { ok: false, msg: 'Sem conexão com o servidor. Tente novamente.' };
+
+  let snap;
+  try {
+    snap = await db.collection('onlineEsPortalClientes').doc(cnpj).get();
+  } catch (e) {
+    if (e.code === 'permission-denied')
+      return { ok: false, msg: 'Acesso negado. Verifique sua conexão.' };
+    return { ok: false, msg: 'Erro de conexão. Verifique sua internet.' };
+  }
+
+  if (!snap.exists)
+    return { ok: false, msg: 'CNPJ/CPF não cadastrado. Solicite o link de acesso ao técnico.' };
+
+  const cred = snap.data();
+  if (cred.ativo === false)
+    return { ok: false, msg: 'Acesso desativado. Entre em contato com a ONLINE-ES.' };
+
+  const agora  = new Date();
+  const expira = cred.expiradoEm ? new Date(cred.expiradoEm) : new Date(0);
+  if (agora > expira)
+    return { ok: false, expirada: true, cnpj, cred };
+
+  const hash = await sha256(senha);
+  if (hash !== cred.senhaHash)
+    return { ok: false, msg: 'Senha incorreta. Use a senha de 6 dígitos enviada pelo WhatsApp ou e-mail.' };
+
+  sessao = { cnpj, nome: cred.nome || cnpj, cred };
+
+  // Registra acesso
+  try { await db.collection('onlineEsPortalClientes').doc(cnpj).update({ ultimoAcesso: agora.toISOString() }); } catch {}
+
+  return { ok: true };
+}
+
+/* ══════════════════════════════════════════════════
+   BUSCAR RATs DO CNPJ
+══════════════════════════════════════════════════ */
+async function buscarRats(cnpj) {
+  try {
+    let snap;
+    try {
+      snap = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente', '==', cnpj)
+        .where('_deleted', '==', false)
+        .orderBy('dataHoraIso', 'desc')
+        .limit(50).get();
+    } catch {
+      // Sem índice composto: busca simples e ordena no cliente
+      snap = await db.collection('onlineEsRelatorios')
+        .where('cnpjCliente', '==', cnpj)
+        .limit(80).get();
+    }
+    const arr = [];
+    snap.forEach(d => { const r = d.data(); r._id = d.id; if (!r._deleted) arr.push(r); });
+    arr.sort((a, b) => (b.dataHoraIso || '').localeCompare(a.dataHoraIso || ''));
+    return arr.slice(0, 50);
+  } catch (e) {
+    console.warn('[Portal] buscarRats:', e);
+    return [];
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   RENDERIZAÇÃO
+══════════════════════════════════════════════════ */
+const el = () => document.getElementById('conteudo');
+
+/* ── Tela de Login ── */
+function renderLogin(opts = {}) {
+  el().innerHTML = `
+    <div class="card">
+      <h2><i class="ri-shield-keyhole-line"></i> Acesso ao Portal</h2>
+      ${opts.info ? `<div class="info-box">${opts.info}</div>` : ''}
+      <div id="erroLogin" class="erro"></div>
+
+      <label>CNPJ ou CPF da empresa</label>
+      <input id="inputCnpj" type="text" inputmode="numeric"
+        placeholder="00.000.000/0001-00 ou 000.000.000-00"
+        autocomplete="username" value="${esc(opts.cnpj || '')}">
+
+      <label>Senha (6 dígitos recebidos no WhatsApp ou e-mail)</label>
+      ${opts.cnpj ? '<div class="senha-dica"><i class="ri-key-line"></i> <strong>Digite a senha de 6 dígitos</strong> recebida na mensagem do técnico.</div>' : ''}
+      <input id="inputSenha" type="password" inputmode="numeric"
+        maxlength="6" placeholder="• • • • • •" autocomplete="current-password">
+
+      <button class="btn" id="btnEntrar"><i class="ri-login-box-line"></i> Entrar</button>
+      <button class="btn-sec" id="btnEsqueci">Esqueci minha senha</button>
+    </div>
+
+    <div class="card" style="border-style:dashed;background:#f8fafc;">
+      <div style="font-size:.78rem;color:#64748b;line-height:1.7;">
+        <strong style="color:#0f172a;font-size:.82rem;">Como acessar:</strong><br>
+        ① O técnico envia a senha por WhatsApp ou e-mail após o atendimento<br>
+        ② Digite o CNPJ/CPF da sua empresa e a senha de 6 dígitos<br>
+        ③ Acesse e baixe seus Relatórios Técnicos em PDF<br>
+        ④ A senha é válida por 30 dias
+      </div>
+    </div>`;
+
+  // Máscara CNPJ
+  const ci = document.getElementById('inputCnpj');
+  ci.addEventListener('input', () => { ci.value = maskCnpj(ci.value); });
+
+  // Foco na senha se CNPJ pré-preenchido
+  if (opts.cnpj) setTimeout(() => document.getElementById('inputSenha')?.focus(), 200);
+
+  // Entrar
+  document.getElementById('btnEntrar').addEventListener('click', async () => {
+    const errEl  = document.getElementById('erroLogin');
+    const btnEl  = document.getElementById('btnEntrar');
+    const cnpjV  = document.getElementById('inputCnpj').value;
+    const senhaV = document.getElementById('inputSenha').value;
+
+    errEl.style.display = 'none';
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<i class="ri-loader-4-line" style="animation:spin .8s linear infinite"></i> Verificando...';
+
+    const res = await fazerLogin(cnpjV, senhaV);
+
+    if (res.ok) {
+      renderLista();
+    } else if (res.expirada) {
+      renderExpirada(res.cnpj, res.cred);
+    } else {
+      errEl.textContent = res.msg;
+      errEl.style.display = 'block';
+      btnEl.disabled = false;
+      btnEl.innerHTML = '<i class="ri-login-box-line"></i> Entrar';
+    }
+  });
+
+  // Enter na senha
+  document.getElementById('inputSenha').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btnEntrar').click();
+  });
+
+  document.getElementById('btnEsqueci').addEventListener('click', renderEsqueci);
+}
+
+/* ── Tela: Senha Expirada ── */
+async function renderExpirada(cnpj, cred) {
+  el().innerHTML = `
+    <div class="card">
+      <h2><i class="ri-time-line" style="color:#d97706"></i> Senha expirada</h2>
+      <div class="info-box">
+        Sua senha expirou. Para acessar o portal, solicite uma nova senha ao técnico da ONLINE-ES
+        ou use a opção abaixo se seu e-mail ou WhatsApp estiver cadastrado.
+      </div>
+      <div id="expErr" class="erro"></div>
+      <div id="expAcoes" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button class="btn-sec" id="btnVoltarExp" style="margin-top:10px;">← Voltar ao login</button>
+    </div>`;
+
+  document.getElementById('btnVoltarExp').addEventListener('click', () => renderLogin({ cnpj }));
+
+  const acoesEl = document.getElementById('expAcoes');
+  const emails    = (cred.emails || []).filter(Boolean);
+  const whatsapps = (cred.whatsapps || []).filter(Boolean);
+
+  if (!emails.length && !whatsapps.length) {
+    acoesEl.innerHTML = '<p style="font-size:.82rem;color:#64748b;">Nenhum contato cadastrado. Entre em contato com a ONLINE-ES para renovar o acesso.</p>';
+    return;
+  }
+
+  // Mostra opções de reenvio
+  const novaSenha = String(100000 + ((new Uint8Array(4).fill(0), crypto.getRandomValues(new Uint8Array(4)), (new DataView(new Uint8Array(4).buffer).getUint32(0, false)) % 900000)));
+  const novoHash  = await sha256(novaSenha);
+  const novaExp   = new Date(Date.now() + 30 * 86400000).toISOString();
+
+  async function renovar() {
+    await db.collection('onlineEsPortalClientes').doc(cnpj).update({
+      senhaHash: novoHash, expiradoEm: novaExp, criadaEm: new Date().toISOString()
+    });
+    return novaSenha;
+  }
+
+  emails.forEach(email => {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.background = '#0ea5e9';
+    btn.innerHTML = `<i class="ri-mail-send-line"></i> Enviar nova senha para ${esc(email)}`;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line"></i> Gerando...';
+      const s = await renovar();
+      const url = window.location.href.split('?')[0] + '?cnpj=' + cnpj;
+      window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Portal ONLINE-ES — Nova senha')}&body=${encodeURIComponent(
+        `Sua nova senha para o Portal do Cliente ONLINE-ES:\n\n🔗 Acesso: ${url}\n👤 Usuário (CNPJ/CPF): ${cnpj}\n🔑 Senha: ${s} (válida por 30 dias)\n\nGuarde esta mensagem para acessar seus relatórios.`
+      )}`, '_blank');
+      toast('✅ E-mail aberto com nova senha!', 4000);
+      setTimeout(() => renderLogin({ cnpj, info: `✅ Nova senha gerada: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong> — use-a para entrar.` }), 1500);
+    });
+    acoesEl.appendChild(btn);
+  });
+
+  whatsapps.forEach(num => {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.background = '#16a34a';
+    btn.innerHTML = `<i class="ri-whatsapp-line"></i> Enviar nova senha via WhatsApp (+${esc(num)})`;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line"></i> Gerando...';
+      const s = await renovar();
+      const url = window.location.href.split('?')[0] + '?cnpj=' + cnpj;
+      const numFull = num.length <= 11 ? '55' + num : num;
+      window.open(`https://wa.me/${numFull}?text=${encodeURIComponent(
+        `🔐 *Portal ONLINE-ES — Nova senha*\n\n🔗 Acesse: ${url}\n👤 Usuário (CNPJ/CPF): ${cnpj}\n🔑 Nova senha: *${s}* (válida por 30 dias)\n\n_Guarde esta mensagem para acessar seus relatórios._`
+      )}`, '_blank');
+      toast('✅ WhatsApp aberto com nova senha!', 4000);
+      setTimeout(() => renderLogin({ cnpj, info: `✅ Nova senha gerada: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong> — use-a para entrar.` }), 1500);
+    });
+    acoesEl.appendChild(btn);
+  });
+}
+
+/* ── Esqueci senha ── */
+function renderEsqueci() {
+  el().innerHTML = `
+    <div class="card">
+      <h2><i class="ri-key-line"></i> Recuperar acesso</h2>
+      <p style="font-size:.82rem;color:#64748b;margin-bottom:16px;line-height:1.6;">
+        Para recuperar o acesso, entre em contato com a equipe ONLINE-ES e solicite
+        uma nova senha informando o CNPJ/CPF da sua empresa.
+      </p>
+      <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:.82rem;color:#475569;line-height:1.7;">
+        <strong>Contato ONLINE-ES:</strong><br>
+        📱 WhatsApp: (27) 99XXX-XXXX<br>
+        📧 E-mail: contato@onlinees.com.br
+      </div>
+      <button class="btn-sec" id="btnVoltarEsq" style="margin-top:14px;">← Voltar ao login</button>
+    </div>`;
+
+  document.getElementById('btnVoltarEsq').addEventListener('click', () => renderLogin());
+}
+
+/* ── Lista de RATs ── */
+async function renderLista() {
+  el().innerHTML = `<div class="loading"><i class="ri-loader-4-line"></i> Buscando seus relatórios...</div>`;
+
+  const rats = await buscarRats(sessao.cnpj);
+
+  let html = `
+    <div class="session-bar">
+      <div class="session-info">
+        Olá, <strong>${esc(sessao.nome)}</strong><br>
+        <span>${esc(sessao.cnpj)} &middot; ${rats.length} relatório(s)</span>
+      </div>
+      <button class="btn-logout" id="btnSair"><i class="ri-logout-box-line"></i> Sair</button>
+    </div>`;
+
+  if (!rats.length) {
+    html += `<div class="card" style="text-align:center;color:#94a3b8;padding:36px;">
+      <i class="ri-file-search-line" style="font-size:2.5rem;display:block;margin-bottom:10px;"></i>
+      Nenhum relatório encontrado para este CNPJ/CPF.
+    </div>`;
+  } else {
+    rats.forEach((r, i) => {
+      const data = dataBR(r.dataHoraIso || r.dataHora);
+      html += `
+        <div class="rat-card" data-idx="${i}">
+          <div class="rat-card-top">
+            <div>
+              <div class="rat-numero">${esc(r.numero || 'Sem número')}</div>
+              <div class="rat-data"><i class="ri-calendar-line"></i> ${esc(data)}</div>
+              <div class="rat-tec"><i class="ri-user-line"></i> ${esc(r.tecnico || '—')}</div>
+            </div>
+            ${badge(r.status)}
+          </div>
+        </div>`;
+    });
+  }
+
+  el().innerHTML = html;
+
+  document.getElementById('btnSair')?.addEventListener('click', () => {
+    sessao = null;
+    renderLogin();
+  });
+
+  el().querySelectorAll('.rat-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const i = parseInt(card.getAttribute('data-idx'));
+      renderDetalhe(rats[i], rats);
+    });
+  });
+}
+
+/* ── Detalhe da RAT ── */
+function renderDetalhe(r, rats) {
+  const campo = (label, val) => val
+    ? `<div class="campo"><div class="campo-label">${label}</div><div class="campo-valor">${esc(String(val))}</div></div>`
+    : '';
+
+  el().innerHTML = `
+    <div class="detalhe-header">
+      <button class="btn-back" id="btnVoltar"><i class="ri-arrow-left-line"></i> Voltar</button>
+      <div class="detalhe-title">${esc(r.numero || 'Relatório')}</div>
+      ${badge(r.status)}
+    </div>
+
+    <div class="card">
+      <h2><i class="ri-file-text-line"></i> Dados do Atendimento</h2>
+      ${campo('Número RAT', r.numero)}
+      ${campo('Data / Hora', dataBR(r.dataHoraIso || r.dataHora))}
+      ${campo('Status', r.status)}
+      ${campo('Técnico', r.tecnico)}
+      <hr class="divider">
+      ${campo('Cliente / Empresa', r.cliente)}
+      ${campo('CNPJ / CPF', r.cnpjCliente)}
+      ${campo('Endereço', [r.endereco, r.bairro, r.cidade, r.uf].filter(Boolean).join(', '))}
+      ${campo('Contato', r.contato)}
+      ${campo('Telefone', r.telefone)}
+      <hr class="divider">
+      ${campo('Equipamento', r.equipamento)}
+      ${campo('Nº Série', r.serie)}
+      ${campo('Problema relatado', r.problema)}
+      ${campo('Diagnóstico', r.diagnostico)}
+      ${campo('Serviço realizado', r.servico || r.acoes)}
+      ${campo('Observações', r.observacoes)}
+      ${r.assinaturaCliente
+        ? `<hr class="divider"><div class="campo-label">Assinatura do cliente</div>
+           <img src="${r.assinaturaCliente}" style="max-width:200px;border:1px solid var(--border);border-radius:8px;margin-top:4px;" alt="Assinatura">`
+        : ''}
+
+      <button class="btn-pdf" id="btnPdf">
+        <i class="ri-file-pdf-line"></i> Baixar PDF
+      </button>
+    </div>`;
+
+  document.getElementById('btnVoltar').addEventListener('click', () => renderLista());
+
+  document.getElementById('btnPdf').addEventListener('click', async () => {
+    const btn = document.getElementById('btnPdf');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line"></i> Gerando PDF...';
+    try {
+      await gerarPDF(r);
+    } catch (e) {
+      toast('❌ Erro ao gerar PDF. Tente novamente.', 4000);
+      console.warn('[Portal] gerarPDF:', e);
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ri-file-pdf-line"></i> Baixar PDF';
+  });
+}
+
+/* ══════════════════════════════════════════════════
+   GERAR PDF
+══════════════════════════════════════════════════ */
+async function gerarPDF(r) {
+  if (!window.jspdf) throw new Error('jsPDF não carregado');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const W = 210, M = 14;
+  let y = 20;
+
+  const line = (txt, size = 10, bold = false, color = [30, 30, 30]) => {
+    doc.setFontSize(size);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(String(txt || ''), W - M * 2);
+    lines.forEach(l => {
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.text(l, M, y);
+      y += size * 0.42;
+    });
+  };
+
+  const campo = (label, val) => {
+    if (!val) return;
+    line(label, 8, true, [100, 100, 100]);
+    y += 1;
+    line(val, 10, false);
+    y += 3;
+  };
+
+  const hrLine = () => {
+    doc.setDrawColor(220, 220, 220);
+    doc.line(M, y, W - M, y);
+    y += 5;
+  };
+
+  // Cabeçalho
+  line('ONLINE-ES Eletroeletrônica', 14, true, [17, 79, 145]);
+  y += 2;
+  line('Relatório Técnico de Atendimento', 11, false, [100, 100, 100]);
+  y += 6;
+  hrLine();
+
+  line('Dados do Atendimento', 11, true);
+  y += 3;
+  campo('Número RAT', r.numero);
+  campo('Data / Hora', dataBR(r.dataHoraIso || r.dataHora));
+  campo('Status', r.status);
+  campo('Técnico', r.tecnico);
+  hrLine();
+
+  line('Dados do Cliente', 11, true);
+  y += 3;
+  campo('Cliente / Empresa', r.cliente);
+  campo('CNPJ / CPF', r.cnpjCliente);
+  campo('Endereço', [r.endereco, r.bairro, r.cidade, r.uf].filter(Boolean).join(', '));
+  campo('Contato', r.contato);
+  campo('Telefone', r.telefone);
+  hrLine();
+
+  line('Dados Técnicos', 11, true);
+  y += 3;
+  campo('Equipamento', r.equipamento);
+  campo('Nº Série', r.serie);
+  campo('Problema relatado', r.problema);
+  campo('Diagnóstico', r.diagnostico);
+  campo('Serviço realizado', r.servico || r.acoes);
+  campo('Observações', r.observacoes);
+
+  if (r.assinaturaCliente && r.assinaturaCliente.startsWith('data:image')) {
+    hrLine();
+    line('Assinatura do Cliente', 11, true);
+    y += 3;
+    try { doc.addImage(r.assinaturaCliente, 'PNG', M, y, 60, 25); y += 30; } catch {}
+  }
+
+  doc.save(`RAT-${r.numero || r._id || 'relatorio'}.pdf`);
+  toast('✅ PDF baixado!', 3000);
+}
+
+/* ══════════════════════════════════════════════════
+   INICIALIZAÇÃO
+══════════════════════════════════════════════════ */
+function init() {
+  // Pré-preenche CNPJ se ?cnpj= na URL
+  const params  = new URLSearchParams(window.location.search);
+  const cnpjUrl = params.get('cnpj') || params.get('portal') || null;
+  renderLogin({ cnpj: cnpjUrl ? normCnpj(cnpjUrl) : '' });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+</script>
+</body>
+</html>
