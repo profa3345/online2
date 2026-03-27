@@ -2,6 +2,13 @@
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v60
   Correções v60:
+  - [FIX-v60-PORTAL-PPINIT] _ppInit() e _ppHookInterval abortam quando window._modoPortalCliente
+    está ativo — impede que o módulo de preview admin interfira no portal do cliente.
+  - [FIX-v60-AUTOLOGIN] Auto-login do portal reescrito: não usa mais .click() com setTimeout(600ms)
+    que causava TypeError silencioso (pv2Err null) deixando a tela em branco. Agora chama
+    _loginPortal() diretamente com try/catch completo e feedback visual em todos os casos.
+  - [FIX-v60-PERMISSION] Mensagem de erro mais clara no permission-denied com log no console
+    apontando a regra Firestore correta (request.auth != null sem checar token.email).
   - [FIX-v60-URL-PORTAL] _urlPortal() agora faz strip do prefixo 'cnpj:' antes de passar
     para _urlPortalV2() — resolve URL quebrada ?portal=cnpj:XXXXX que impedia o cliente
     de acessar o portal (login falhava silenciosamente pois o CNPJ não existia no Firestore).
@@ -17406,11 +17413,15 @@ async function _loginPortal(cnpjInput, senhaInput){
   try{
     snap = await db.collection('onlineEsPortalClientes').doc(cnpj).get();
   }catch(e){
-    // Erro de permissão normalmente indica que auth anônimo não funcionou
-    var _eMsg = e && e.code === 'permission-denied'
-      ? 'Erro de permissão. Verifique sua conexão e tente novamente.'
-      : 'Erro de conexão. Verifique sua internet.';
-    return { ok: false, msg: _eMsg };
+    // [FIX-v60-PORTAL] permission-denied = regra Firestore bloqueando auth anônimo.
+    // A regra correta é: allow read, write: if request.auth != null;
+    // (auth anônimo satisfaz != null mas NÃO tem token.email)
+    if(e && e.code === 'permission-denied'){
+      console.error('[Portal] permission-denied em onlineEsPortalClientes — verifique se a regra Firestore usa "request.auth != null" (sem checar token.email). Auth anônimo não tem email.');
+      return { ok: false, msg: 'Acesso temporariamente indisponível. Por favor, tente novamente em alguns segundos.' };
+    }
+    console.warn('[Portal] Erro ao buscar credencial:', e && e.code, e && e.message);
+    return { ok: false, msg: 'Erro de conexão. Verifique sua internet e tente novamente.' };
   }
 
   if(!snap || !snap.exists){
@@ -17563,12 +17574,42 @@ function _renderLogin(opts){
     var _senhaParam = opts.senha || _urlParams.get('s') || null;
     if(_senhaParam && /^\d{6}$/.test(_senhaParam)){
       senhaInput.value = _senhaParam;
-      // Se CNPJ também está preenchido, dispara login automático após pequeno delay
+      // [FIX-v60-AUTOLOGIN] Auto-login direto — não depende do .click() no botão
+      // O setTimeout(600ms) causava tela em branco quando o DOM era modificado
+      // entre o agendamento e a execução (TypeError silencioso no handler do botão)
       if(opts.cnpj){
-        setTimeout(function(){
-          var btnAuto = document.getElementById('pv2BtnLogin');
-          if(btnAuto) btnAuto.click();
-        }, 600);
+        var _cnpjAuto = opts.cnpj;
+        var _senhaAuto = _senhaParam;
+        // Mostra loading imediato no botão
+        var _btnAuto = document.getElementById('pv2BtnLogin');
+        if(_btnAuto){ _btnAuto.disabled=true; _btnAuto.innerHTML='<i class="ri-loader-4-line"></i> Entrando...'; }
+        setTimeout(async function(){
+          try{
+            var resultado = await _loginPortal(_cnpjAuto, _senhaAuto);
+            if(resultado && resultado.ok){
+              try{
+                var _cleanUrl = window.location.href.split('?')[0]+'?portal='+_normCnpj(_cnpjAuto);
+                window.history.replaceState({},'',_cleanUrl);
+              }catch(e){}
+              _renderListaRats();
+            } else if(resultado && resultado.expirada){
+              _renderSenhaExpirada(resultado.cnpj, resultado.cred);
+            } else {
+              // Mostra erro — reabilita botão para o cliente tentar manualmente
+              var _errAuto = document.getElementById('pv2Err');
+              var _msgAuto = (resultado && resultado.msg) || 'Não foi possível entrar automaticamente. Verifique sua conexão e tente novamente.';
+              if(_errAuto){ _errAuto.textContent=_msgAuto; _errAuto.style.display='block'; }
+              var _b2 = document.getElementById('pv2BtnLogin');
+              if(_b2){ _b2.disabled=false; _b2.innerHTML='<i class="ri-login-box-line"></i> Entrar'; }
+            }
+          }catch(e){
+            console.warn('[Portal] Auto-login erro:', e);
+            var _errAuto2 = document.getElementById('pv2Err');
+            if(_errAuto2){ _errAuto2.textContent='Erro inesperado. Verifique sua conexão e tente novamente.'; _errAuto2.style.display='block'; }
+            var _b3 = document.getElementById('pv2BtnLogin');
+            if(_b3){ _b3.disabled=false; _b3.innerHTML='<i class="ri-login-box-line"></i> Entrar'; }
+          }
+        }, 800); // 800ms — suficiente para Firebase inicializar sem travar a UI
       }
     }
   }
@@ -18589,6 +18630,10 @@ window._portalAdminTab = function(aba){
 };
 
 function _ppInit(){
+  // [FIX-v60-PORTAL] Não inicializa o preview admin quando o cliente está acessando
+  // via link ?portal= — evita que o _ppInit manipule o DOM e interfira com o portal do cliente
+  if(window._modoPortalCliente) return;
+
   // Mostra botão apenas para admin/supervisor
   var _checkRole = function(){
     var u = window.usuarioLogado;
@@ -18621,6 +18666,8 @@ function _ppInit(){
 /* ── Hook em mostrarTela para suportar rota 'portalAdmin' ── */
 var _originalMostrarTela = null;
 var _ppHookInterval = setInterval(function(){
+  // [FIX-v60-PORTAL] Não instala o hook quando o cliente está no portal
+  if(window._modoPortalCliente){ clearInterval(_ppHookInterval); return; }
   if(typeof window.mostrarTela === 'function' && !window._ppHooked){
     window._ppHooked = true;
     clearInterval(_ppHookInterval);
