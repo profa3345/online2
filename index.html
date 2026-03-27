@@ -18370,6 +18370,10 @@ function _verificarUrlAssinar(){
       var firebase=window.firebase;
       if(!firebase){for(var i=0;i<16;i++){await new Promise(function(r){setTimeout(r,500);});if(window.firebase){firebase=window.firebase;break;}}}
       if(!firebase) throw new Error('Firebase não disponível');
+      // Garante auth anônimo antes de escrever — regra Firestore exige isAuth()
+      if(!firebase.auth().currentUser){
+        await firebase.auth().signInAnonymously();
+      }
       await firebase.firestore().collection('onlineEsSigSessoes').doc(sessaoId).update({status:'assinado',assinatura:base64,nomeCliente:nome,assinadoEm:new Date().toISOString()});
       document.getElementById('sigQrMsg').innerHTML='<span style="color:#4ade80;font-size:1rem;font-weight:700;">✅ Assinatura enviada com sucesso!</span>';
       btn.textContent='✔ Enviado'; btn.style.background='linear-gradient(90deg,#16a34a,#15803d)';

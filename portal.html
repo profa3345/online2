@@ -518,7 +518,229 @@
     .anim-3 { animation: fadeUp .5s .16s ease both; }
     .anim-4 { animation: fadeUp .5s .24s ease both; }
 
-    /* ── Mobile ── */
+    /* ── Botão WhatsApp ── */
+    .btn-whatsapp {
+      width: 100%; padding: 13px 20px;
+      background: rgba(22,163,74,.1);
+      border: 1px solid rgba(22,163,74,.3);
+      border-radius: var(--r2);
+      color: #4ade80; font-size: .9rem; font-weight: 700;
+      font-family: var(--font-display);
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center; gap: 8px;
+      transition: all .2s; margin-top: 10px; min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-whatsapp:hover {
+      background: rgba(22,163,74,.2);
+      border-color: rgba(34,197,94,.5);
+      box-shadow: 0 4px 16px rgba(22,163,74,.2);
+    }
+
+    /* ── Trust card ── */
+    .trust-card {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      justify-content: center;
+      background: rgba(8,15,30,.5);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
+      margin-bottom: 14px;
+      font-size: .72rem; color: var(--text3);
+    }
+    .trust-card span { display: flex; align-items: center; gap: 5px; }
+
+    /* ── Skeleton loading ── */
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .skel-card { height: 80px; border-radius: 16px; margin-bottom: 10px; }
+    .skel-header { height: 56px; border-radius: 14px; margin-bottom: 18px; }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .filter-chip {
+      padding: 6px 14px; border-radius: 999px;
+      font-size: .72rem; font-weight: 600;
+      border: 1px solid var(--border); cursor: pointer;
+      background: transparent; color: var(--text3);
+      transition: all .18s; font-family: var(--font-body);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .filter-chip.active {
+      background: rgba(249,115,22,.12);
+      border-color: rgba(249,115,22,.35);
+      color: var(--accent);
+    }
+    .search-field {
+      flex: 1; min-width: 140px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 14px 6px 34px;
+      font-size: .78rem; color: #fff;
+      font-family: var(--font-body); outline: none;
+      transition: border-color .2s;
+    }
+    .search-field:focus { border-color: rgba(249,115,22,.4); }
+    .search-wrap { position: relative; flex: 1; min-width: 140px; }
+    .search-wrap i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: .85rem; pointer-events: none; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; padding: 48px 24px;
+      color: var(--text3);
+    }
+    .empty-state i { font-size: 2.8rem; display: block; margin-bottom: 12px; opacity: .5; }
+    .empty-state p { font-size: .85rem; line-height: 1.6; }
+
+    /* ── Inline error state ── */
+    .error-state {
+      text-align: center; padding: 40px 24px;
+    }
+    .error-state i { font-size: 2.4rem; color: var(--text3); display: block; margin-bottom: 12px; }
+    .error-state p { color: var(--text2); font-size: .88rem; margin-bottom: 20px; line-height: 1.6; }
+
+    /* ── Assinatura visível ── */
+    .sig-box {
+      background: #fff; border-radius: 8px;
+      padding: 8px; display: inline-block;
+      margin-top: 8px;
+    }
+    .sig-box img { max-width: 180px; display: block; }
+
+    /* ── Galeria de fotos inline ── */
+    .foto-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px; margin-top: 10px;
+    }
+    .foto-thumb {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      background-size: cover;
+      background-position: center;
+      cursor: zoom-in;
+      border: 1px solid var(--border);
+      transition: transform .18s, box-shadow .18s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .foto-thumb:hover { transform: scale(1.04); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+
+    /* ── Lightbox ── */
+    #lightbox {
+      position: fixed; inset: 0; z-index: 9998;
+      background: rgba(0,0,0,.92);
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(8px);
+      animation: fadeIn .2s ease;
+    }
+    #lightbox.hidden { display: none; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    #lightbox img {
+      max-width: 94vw; max-height: 85vh;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      object-fit: contain;
+    }
+    .lb-close {
+      position: absolute; top: 16px; right: 16px;
+      width: 40px; height: 40px;
+      background: rgba(255,255,255,.12);
+      border: none; border-radius: 50%;
+      color: #fff; font-size: 1.3rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(6px);
+    }
+    .lb-prev, .lb-next {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,.1);
+      border: none; border-radius: 50%;
+      color: #fff; font-size: 1.3rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(6px); transition: background .15s;
+    }
+    .lb-prev { left: 12px; }
+    .lb-next { right: 12px; }
+    .lb-prev:hover, .lb-next:hover { background: rgba(255,255,255,.2); }
+    .lb-counter {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      font-size: .78rem; color: rgba(255,255,255,.6); font-weight: 500;
+    }
+
+    /* ── Botão mapa ── */
+    .btn-mapa {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 11px 16px;
+      background: rgba(37,99,235,.08);
+      border: 1px solid rgba(37,99,235,.2);
+      border-radius: var(--r2);
+      color: #93c5fd; font-size: .83rem; font-weight: 600;
+      text-decoration: none; margin-top: 10px;
+      transition: background .18s, border-color .18s;
+    }
+    .btn-mapa:hover { background: rgba(37,99,235,.15); border-color: rgba(59,130,246,.4); }
+
+    /* ── Timeline de status ── */
+    .timeline {
+      display: flex; align-items: flex-start;
+      justify-content: center;
+      margin-bottom: 16px;
+      padding: 18px 16px;
+      background: linear-gradient(145deg, rgba(12,22,41,.9), rgba(8,15,30,.95));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      position: relative;
+      animation: fadeUp .45s .04s ease both;
+    }
+    .tl-step {
+      display: flex; flex-direction: column;
+      align-items: center; flex: 1;
+      position: relative; z-index: 1;
+    }
+    .tl-icon {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.05);
+      border: 1.5px solid rgba(255,255,255,.1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .95rem; color: var(--text3);
+      transition: all .3s; position: relative; z-index: 2;
+      margin-bottom: 8px;
+    }
+    .tl-step.done .tl-icon {
+      background: rgba(34,197,94,.15);
+      border-color: rgba(34,197,94,.4);
+      color: #4ade80;
+    }
+    .tl-step.current .tl-icon {
+      background: rgba(249,115,22,.18);
+      border-color: rgba(249,115,22,.5);
+      color: var(--accent);
+      box-shadow: 0 0 16px rgba(249,115,22,.25);
+    }
+    .tl-label {
+      font-size: .65rem; font-weight: 600;
+      color: var(--text3); text-align: center;
+      letter-spacing: .02em;
+    }
+    .tl-step.done .tl-label { color: #4ade80; }
+    .tl-step.current .tl-label { color: var(--accent); }
+    .tl-line {
+      position: absolute; top: 18px; left: 60%; right: -40%;
+      height: 1.5px;
+      background: rgba(255,255,255,.1);
+      z-index: 0;
+    }
+    .tl-line.done { background: rgba(34,197,94,.4); }
+
     @media (max-width: 600px) {
       .wrap { padding: 20px 12px 80px; }
       .card { padding: 22px 18px; }
@@ -559,10 +781,18 @@
 
 <div id="toast"></div>
 
+<!-- Lightbox para fotos -->
+<div id="lightbox" class="hidden">
+  <button class="lb-close" id="lbClose"><i class="ri-close-line"></i></button>
+  <button class="lb-prev" id="lbPrev"><i class="ri-arrow-left-s-line"></i></button>
+  <img id="lbImg" src="" alt="Foto do atendimento">
+  <button class="lb-next" id="lbNext"><i class="ri-arrow-right-s-line"></i></button>
+  <div class="lb-counter" id="lbCounter"></div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
-<script src="./onlinees-pdf-shared.js"></script>
 
 <script>
 (function(){
@@ -613,6 +843,43 @@ function toast(msg,dur=3000){
   el.textContent=msg;el.classList.add('show');
   clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),dur);
 }
+
+/* ── Lightbox ── */
+let _lbImgs=[],_lbIdx=0;
+function lbOpen(imgs,idx){
+  _lbImgs=imgs;_lbIdx=idx;
+  _lbUpdate();
+  document.getElementById('lightbox').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+}
+function lbClose(){
+  document.getElementById('lightbox').classList.add('hidden');
+  document.body.style.overflow='';
+}
+function _lbUpdate(){
+  document.getElementById('lbImg').src=_lbImgs[_lbIdx];
+  document.getElementById('lbCounter').textContent=(_lbIdx+1)+' / '+_lbImgs.length;
+}
+document.getElementById('lbClose').addEventListener('click',lbClose);
+document.getElementById('lbPrev').addEventListener('click',()=>{_lbIdx=(_lbIdx-1+_lbImgs.length)%_lbImgs.length;_lbUpdate();});
+document.getElementById('lbNext').addEventListener('click',()=>{_lbIdx=(_lbIdx+1)%_lbImgs.length;_lbUpdate();});
+document.getElementById('lightbox').addEventListener('click',e=>{if(e.target.id==='lightbox')lbClose();});
+document.addEventListener('keydown',e=>{
+  const lb=document.getElementById('lightbox');if(lb.classList.contains('hidden'))return;
+  if(e.key==='Escape')lbClose();
+  if(e.key==='ArrowLeft'){_lbIdx=(_lbIdx-1+_lbImgs.length)%_lbImgs.length;_lbUpdate();}
+  if(e.key==='ArrowRight'){_lbIdx=(_lbIdx+1)%_lbImgs.length;_lbUpdate();}
+});
+// Swipe touch support
+(function(){let sx=0;
+  document.getElementById('lightbox').addEventListener('touchstart',e=>{sx=e.touches[0].clientX;},{passive:true});
+  document.getElementById('lightbox').addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>50){_lbIdx=dx<0?(_lbIdx+1)%_lbImgs.length:(_lbIdx-1+_lbImgs.length)%_lbImgs.length;_lbUpdate();}
+  },{passive:true});
+})();
+
+
 const el=()=>document.getElementById('conteudo');
 
 /* rate limit */
@@ -632,7 +899,12 @@ async function garantirAuth(){
 
 let sessao=null;
 
-/* login */
+/* ── persistência de sessão (sessionStorage) ── */
+function salvarSessao(s){try{sessionStorage.setItem('onlinees_portal_sess',JSON.stringify({cnpj:s.cnpj,nome:s.nome,exp:Date.now()+3600000}));}catch{}}
+function restaurarSessao(){try{const raw=sessionStorage.getItem('onlinees_portal_sess');if(!raw)return null;const d=JSON.parse(raw);if(!d||Date.now()>d.exp){sessionStorage.removeItem('onlinees_portal_sess');return null;}return{cnpj:d.cnpj,nome:d.nome,cred:{}};}catch{return null;}}
+function limparSessao(){try{sessionStorage.removeItem('onlinees_portal_sess');}catch{}}
+
+
 async function fazerLogin(cnpjRaw,senhaRaw){
   const cnpj=normCnpj(cnpjRaw),senha=String(senhaRaw??'').trim();
   if(cnpj.length<8)return{ok:false,msg:'CNPJ ou CPF inválido.'};
@@ -658,6 +930,7 @@ async function fazerLogin(cnpjRaw,senhaRaw){
   const hash=await sha256(senha);
   if(hash!==cred.senhaHash)return{ok:false,msg:'Senha incorreta. Use os 6 dígitos enviados pelo técnico.'};
   resetRL();sessao={cnpj,nome:cred.nome||cnpj,cred};
+  salvarSessao(sessao);
   try{db.collection('onlineEsPortalClientes').doc(cnpj).update({ultimoAcesso:agora.toISOString()});}catch{}
   return{ok:true};
 }
@@ -676,6 +949,10 @@ async function buscarRats(cnpj){
 
 /* ── render login ── */
 function renderLogin(opts={}){
+  document.title='Login — Portal do Cliente ONLINE-ES';
+  // Restaurar CNPJ salvo se não veio por parâmetro
+  let cnpjSalvo=opts.cnpj||'';
+  if(!cnpjSalvo){try{cnpjSalvo=sessionStorage.getItem('onlinees_ultimo_cnpj')||'';}catch{}}
   el().innerHTML=`
     <div class="login-hero anim-1">
       <div class="login-logo-wrap">
@@ -696,12 +973,12 @@ function renderLogin(opts={}){
           <i class="field-icon ri-building-line"></i>
           <input id="inputCnpj" type="text" inputmode="numeric"
             placeholder="00.000.000/0001-00 ou 000.000.000-00"
-            autocomplete="username" value="${esc(opts.cnpj||'')}">
+            autocomplete="username" value="${esc(cnpjSalvo)}">
         </div>
       </div>
       <div class="field">
         <label>Senha (6 dígitos)</label>
-        ${opts.cnpj?`<div class="msg-hint"><i class="ri-key-line"></i><span><strong>Digite a senha de 6 dígitos</strong> recebida no WhatsApp ou e-mail do técnico.</span></div>`:''}
+        ${cnpjSalvo?`<div class="msg-hint"><i class="ri-key-line"></i><span><strong>Digite a senha de 6 dígitos</strong> recebida no WhatsApp ou e-mail do técnico.</span></div>`:''}
         <div class="field-inner">
           <i class="field-icon ri-lock-line"></i>
           <input id="inputSenha" type="password" inputmode="numeric"
@@ -723,15 +1000,21 @@ function renderLogin(opts={}){
 
   const ci=document.getElementById('inputCnpj');
   ci.addEventListener('input',()=>{const p=ci.selectionStart;ci.value=maskCnpj(ci.value);try{ci.setSelectionRange(p,p);}catch{}});
-  if(opts.cnpj) setTimeout(()=>document.getElementById('inputSenha')?.focus(),250);
+  if(cnpjSalvo) setTimeout(()=>document.getElementById('inputSenha')?.focus(),250);
 
   async function tentarLogin(){
     const errEl=document.getElementById('erroLogin'),btnEl=document.getElementById('btnEntrar');
     if(!errEl||!btnEl)return;
     errEl.style.display='none';btnEl.disabled=true;
     btnEl.innerHTML='<i class="ri-loader-4-line spin"></i> Verificando...';
-    const res=await fazerLogin(document.getElementById('inputCnpj')?.value||'',document.getElementById('inputSenha')?.value||'');
-    if(res.ok){renderLista();}
+    const cnpjVal=document.getElementById('inputCnpj')?.value||'';
+    const res=await fazerLogin(cnpjVal,document.getElementById('inputSenha')?.value||'');
+    if(res.ok){
+      // Lembrar CNPJ para próximo acesso
+      try{sessionStorage.setItem('onlinees_ultimo_cnpj',maskCnpj(cnpjVal));}catch{}
+      document.title='Meus Relatórios — Portal ONLINE-ES';
+      renderLista();
+    }
     else if(res.expirada){renderExpirada(res.cnpj,res.cred);}
     else{if(errEl){errEl.textContent=res.msg;errEl.style.display='block';}if(btnEl){btnEl.disabled=false;btnEl.innerHTML='<i class="ri-login-circle-line"></i> Entrar';}}
   }
@@ -789,12 +1072,63 @@ function renderEsqueci(){
 
 /* ── render lista ── */
 async function renderLista(){
-  el().innerHTML=`<div class="loading"><div class="loading-icon"></div>Buscando seus relatórios...</div>`;
+  document.title='Meus Relatórios — Portal ONLINE-ES';
+  // Show skeleton loading
+  el().innerHTML=`
+    <div class="skel-card skeleton anim-1"></div>
+    <div class="skel-header skeleton anim-2" style="height:38px;border-radius:999px;margin-bottom:14px;"></div>
+    <div class="skel-card skeleton anim-2"></div>
+    <div class="skel-card skeleton anim-3"></div>
+    <div class="skel-card skeleton anim-4"></div>`;
   const rats=await buscarRats(sessao.cnpj);
   if(rats===null){
-    el().innerHTML=`<div class="card" style="text-align:center;padding:40px 24px;"><i class="ri-wifi-off-line" style="font-size:2.5rem;color:var(--text3);display:block;margin-bottom:12px;"></i><p style="color:var(--text2);font-size:.88rem;margin-bottom:20px;">Erro ao buscar relatórios.<br>Verifique sua conexão.</p><button class="btn-primary" id="btnRetentar" style="max-width:200px;margin:0 auto;"><i class="ri-refresh-line"></i> Tentar novamente</button></div>`;
+    el().innerHTML=`
+      <div class="card error-state anim-1">
+        <div class="card-glow"></div>
+        <i class="ri-wifi-off-line"></i>
+        <p>Não foi possível carregar os relatórios.<br>Verifique sua conexão e tente novamente.</p>
+        <button class="btn-primary" id="btnRetentar" style="max-width:220px;margin:0 auto;">
+          <i class="ri-refresh-line"></i> Tentar novamente
+        </button>
+      </div>`;
     document.getElementById('btnRetentar').addEventListener('click',renderLista);return;
   }
+
+  let filtroStatus='todos', termoBusca='';
+  function renderCards(){
+    const lista=document.getElementById('listaRats');if(!lista)return;
+    let filtrados=rats.filter(r=>{
+      const matchStatus=filtroStatus==='todos'||r.status===filtroStatus;
+      const matchBusca=!termoBusca||(r.numero||'').toLowerCase().includes(termoBusca)||(r.equipamento||'').toLowerCase().includes(termoBusca)||(r.cliente||'').toLowerCase().includes(termoBusca);
+      return matchStatus&&matchBusca;
+    });
+    if(!filtrados.length){
+      lista.innerHTML=`<div class="empty-state"><i class="ri-file-search-line"></i><p>Nenhum relatório encontrado para este filtro.</p></div>`;return;
+    }
+    lista.innerHTML=filtrados.map((r,i)=>`
+      <div class="rat-card" data-id="${esc(r._id||'')}" style="animation:fadeUp .35s ${i*0.04}s ease both;">
+        <div class="rat-top">
+          <div style="min-width:0;flex:1;padding-right:28px;">
+            <div class="rat-num">${esc(r.numero||'Sem número')}</div>
+            <div class="rat-meta">
+              <span><i class="ri-calendar-line"></i> ${esc(dataBR(r.dataHoraIso||r.dataHora))}</span>
+              <span><i class="ri-user-line"></i> ${esc(r.tecnico||'—')}</span>
+              ${r.equipamento?`<span><i class="ri-settings-3-line"></i> ${esc(r.equipamento)}</span>`:''}
+            </div>
+          </div>
+          ${badge(r.status)}
+        </div>
+        <i class="ri-arrow-right-s-line rat-arrow"></i>
+      </div>`).join('');
+    lista.querySelectorAll('.rat-card').forEach(card=>{
+      card.addEventListener('click',()=>{
+        const id=card.getAttribute('data-id');
+        const rat=filtrados.find(r=>r._id===id)||filtrados[0];
+        if(rat)renderDetalhe(rat);
+      });
+    });
+  }
+
   let html=`
     <div class="session-bar anim-1">
       <div>
@@ -803,45 +1137,77 @@ async function renderLista(){
       </div>
       <button class="btn-logout" id="btnSair"><i class="ri-logout-box-line"></i> Sair</button>
     </div>
-    <div class="section-label anim-2"><i class="ri-file-list-3-line"></i> Relatórios</div>`;
+    <div class="trust-card anim-2">
+      <span><i class="ri-shield-check-line" style="color:#4ade80;"></i> Dados protegidos</span>
+      <span><i class="ri-refresh-line" style="color:var(--blue2);"></i> Atualizado em tempo real</span>
+      <span><i class="ri-whatsapp-line" style="color:#4ade80;"></i> (27) 99806-7411</span>
+    </div>
+    <div class="filter-bar anim-2">
+      <div class="search-wrap">
+        <i class="ri-search-line"></i>
+        <input class="search-field" id="inputBusca" type="text" placeholder="Buscar por número, equip...">
+      </div>
+    </div>
+    <div class="filter-bar anim-2" id="statusChips">
+      <button class="filter-chip active" data-status="todos">Todos</button>
+      <button class="filter-chip" data-status="Concluído">Concluído</button>
+      <button class="filter-chip" data-status="Pendente">Pendente</button>
+    </div>
+    <div class="section-label anim-2"><i class="ri-file-list-3-line"></i> Relatórios</div>
+    <div id="listaRats"></div>`;
+
   if(!rats.length){
-    html+=`<div class="card" style="text-align:center;padding:40px 24px;color:var(--text3);"><i class="ri-file-search-line" style="font-size:2.5rem;display:block;margin-bottom:12px;"></i>Nenhum relatório encontrado.</div>`;
-  }else{
-    rats.forEach((r,i)=>{
-      html+=`
-        <div class="rat-card" data-idx="${i}" style="animation:fadeUp .4s ${i*0.05}s ease both;">
-          <div class="rat-top">
-            <div style="min-width:0;flex:1;padding-right:28px;">
-              <div class="rat-num">${esc(r.numero||'Sem número')}</div>
-              <div class="rat-meta">
-                <span><i class="ri-calendar-line"></i> ${esc(dataBR(r.dataHoraIso||r.dataHora))}</span>
-                <span><i class="ri-user-line"></i> ${esc(r.tecnico||'—')}</span>
-              </div>
-            </div>
-            ${badge(r.status)}
-          </div>
-          <i class="ri-arrow-right-s-line rat-arrow"></i>
-        </div>`;
-    });
+    html+=`<div class="empty-state anim-2"><i class="ri-file-search-line"></i><p>Nenhum relatório disponível no momento.<br>Aguarde o técnico registrar o atendimento.</p></div>`;
   }
   el().innerHTML=html;
-  document.getElementById('btnSair')?.addEventListener('click',()=>{sessao=null;renderLogin();});
-  el().querySelectorAll('.rat-card').forEach(card=>{
-    card.addEventListener('click',()=>{const i=parseInt(card.getAttribute('data-idx'),10);if(!isNaN(i)&&rats[i])renderDetalhe(rats[i]);});
+  renderCards();
+
+  document.getElementById('btnSair')?.addEventListener('click',()=>{sessao=null;limparSessao();renderLogin();});
+  document.getElementById('inputBusca')?.addEventListener('input',e=>{termoBusca=e.target.value.toLowerCase().trim();renderCards();});
+  document.getElementById('statusChips')?.querySelectorAll('.filter-chip').forEach(chip=>{
+    chip.addEventListener('click',()=>{
+      filtroStatus=chip.getAttribute('data-status');
+      document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      renderCards();
+    });
   });
 }
 
 /* ── render detalhe ── */
 function renderDetalhe(r){
+  document.title=`${r.numero||'RAT'} — Portal ONLINE-ES`;
   const campo=(label,val)=>{if(val===null||val===undefined||val==='')return'';return`<div class="campo"><div class="campo-label">${label}</div><div class="campo-valor">${esc(String(val))}</div></div>`;};
-  const sigHtml=(r.assinaturaCliente&&/^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(r.assinaturaCliente))?`<hr class="divider"><div class="campo-label">Assinatura do cliente</div><img src="${r.assinaturaCliente}" style="max-width:200px;border:1px solid var(--border);border-radius:8px;margin-top:6px;display:block;" alt="Assinatura">`:'';
+  const sigHtml=(r.assinaturaCliente&&/^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(r.assinaturaCliente))?`<hr class="divider"><div class="campo-label">Assinatura do cliente</div><div class="sig-box"><img src="${r.assinaturaCliente}" style="max-width:180px;display:block;" alt="Assinatura"></div>`:'';
   const endFull=[r.endereco,r.bairro,r.cidade,r.uf].filter(Boolean).join(', ');
+
+  // Timeline de status
+  const etapas=[
+    {key:'aberto',label:'Aberto',icon:'ri-file-add-line'},
+    {key:'andamento',label:'Em andamento',icon:'ri-settings-3-line'},
+    {key:'concluido',label:'Concluído',icon:'ri-check-double-line'},
+  ];
+  const statusLower=(r.status||'').toLowerCase();
+  let etapaAtual=0;
+  if(statusLower.includes('andamento'))etapaAtual=1;
+  else if(statusLower.includes('conclu'))etapaAtual=2;
+  const timelineHtml=`
+    <div class="timeline">
+      ${etapas.map((e,i)=>`
+        <div class="tl-step ${i<=etapaAtual?'done':''}${i===etapaAtual?' current':''}">
+          <div class="tl-icon"><i class="${e.icon}"></i></div>
+          <div class="tl-label">${e.label}</div>
+          ${i<etapas.length-1?'<div class="tl-line '+(i<etapaAtual?'done':'')+'"></div>':''}
+        </div>`).join('')}
+    </div>`;
+
   el().innerHTML=`
     <div class="back-bar anim-1">
       <button class="btn-back" id="btnVoltar"><i class="ri-arrow-left-s-line"></i> Voltar</button>
       <div class="back-title">${esc(r.numero||'Relatório')}</div>
       ${badge(r.status)}
     </div>
+    ${timelineHtml}
     <div class="card anim-2">
       <div class="card-glow"></div>
       <h2><span class="icon-wrap"><i class="ri-file-text-line"></i></span> Detalhes do Atendimento</h2>
@@ -859,38 +1225,221 @@ function renderDetalhe(r){
       <div class="sec-head"><i class="ri-tools-line"></i> Dados Técnicos</div>
       ${campo('Equipamento', r.equipamento)}
       ${campo('Nº de Série', r.serie)}
+      ${campo('Potência / kVA', r.kva)}
       ${campo('Problema informado', r.problema)}
       ${campo('Diagnóstico', r.diagnostico)}
       ${campo('Serviço realizado', r.servico||r.acoes)}
       ${campo('Peças utilizadas', r.pecas)}
       ${campo('Observações', r.observacoes)}
+      ${(()=>{
+        // Galeria de fotos inline
+        const allImgs=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[])
+          .filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
+        if(!allImgs.length)return '';
+        const thumbs=allImgs.map((src,i)=>`<div class="foto-thumb" data-idx="${i}" style="background-image:url('${src}')"></div>`).join('');
+        return `<hr class="divider"><div class="sec-head"><i class="ri-image-2-line"></i> Fotos do Atendimento</div><div class="foto-grid">${thumbs}</div>`;
+      })()}
+      ${r.localizacaoLink?`<hr class="divider"><a href="${esc(r.localizacaoLink)}" target="_blank" rel="noopener" class="btn-mapa"><i class="ri-map-pin-2-line"></i> Ver localização no Google Maps</a>`:''}
       ${sigHtml}
       <hr class="divider">
       <button class="btn-pdf" id="btnPdf"><i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF</button>
+      <button class="btn-whatsapp" id="btnWhatsApp"><i class="ri-whatsapp-line"></i> Compartilhar via WhatsApp</button>
+    </div>
+    <div class="trust-card anim-3">
+      <span><i class="ri-shield-check-line" style="color:#4ade80;"></i> Seus dados estão seguros</span>
+      <span><i class="ri-refresh-line" style="color:var(--blue2);"></i> Atualizado em tempo real</span>
+      <span><i class="ri-whatsapp-line" style="color:#4ade80;"></i> Suporte: (27) 99806-7411</span>
     </div>`;
   document.getElementById('btnVoltar').addEventListener('click',renderLista);
-  document.getElementById('btnPdf').addEventListener('click', async () => {
-    const btn = document.getElementById('btnPdf');
-    if (!btn) return;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="ri-loader-4-line spin"></i> Gerando PDF...';
-    try {
-      await _ensureJsPDF();
-      await exportarPDF(prepararRelatorioParaPDF(r));
-    } catch (e) {
-      toast('❌ Erro ao gerar PDF.', 4000);
-      console.warn('[Portal] PDF:', e.message || e);
-    } finally {
-      if (document.getElementById('btnPdf')) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF';
+
+  // Wire photo thumbnails to lightbox
+  const allImgsDetalhe=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[])
+    .filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
+  if(allImgsDetalhe.length){
+    el().querySelectorAll('.foto-thumb').forEach((thumb,i)=>{
+      thumb.addEventListener('click',()=>lbOpen(allImgsDetalhe,i));
+    });
+  }
+  document.getElementById('btnPdf').addEventListener('click',async()=>{
+    const btn=document.getElementById('btnPdf');if(!btn)return;
+    btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando PDF...';
+    try{
+      await gerarPDF(r);
+    }catch(e){
+      console.warn('[Portal] PDF error:',e.message||e);
+      // Try fallback open in new tab
+      try{
+        await gerarPDF(r, true);
+      }catch(e2){
+        toast('❌ Erro ao gerar PDF. Tente novamente.',4000);
+        console.warn('[Portal] PDF fallback failed:',e2.message||e2);
       }
     }
+    finally{
+      const b=document.getElementById('btnPdf');
+      if(b){b.disabled=false;b.innerHTML='<i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF';}
+    }
+  });
+  // WhatsApp share button
+  const btnWa=document.getElementById('btnWhatsApp');
+  if(btnWa){
+    btnWa.addEventListener('click',()=>{
+      const tel=String(r.whatsapp||r.telefone||'').replace(/\D/g,'');
+      const num=tel?(tel.length<=11?'55'+tel:tel):'';
+      const msg=`Olá! Segue o resumo do seu atendimento técnico ONLINE-ES:\n\n📄 *${esc(r.numero||'RAT')}*\n📅 ${esc(dataBR(r.dataHoraIso||r.dataHora))}\n🔧 ${esc(r.equipamento||'-')}\n✅ ${esc(r.status||'-')}\n\nAcesse o portal para baixar o PDF completo:\n${window.location.href}`;
+      const url=num?`https://wa.me/${num}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(url,'_blank');
+    });
+  }
+}
+
+/* ── lazy jsPDF ── */
+var _jspdfPromise=null;
+function _ensureJsPDF(){
+  if(_jspdfPromise)return _jspdfPromise;
+  return _jspdfPromise=new Promise(function(resolve,reject){
+    if(window.jspdf&&window.jspdf.jsPDF){resolve();return;}
+    var scripts=['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'];
+    var loaded=0;
+    scripts.forEach(function(src){
+      var s=document.createElement('script');s.src=src;
+      s.onload=function(){if(++loaded===scripts.length)resolve();};
+      s.onerror=function(){var fb=document.createElement('script');fb.src=src.includes('autotable')?'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js':'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';fb.onload=function(){if(++loaded===scripts.length)resolve();};fb.onerror=function(){_jspdfPromise=null;reject(new Error('jsPDF não carregou'));};document.head.appendChild(fb);};
+      document.head.appendChild(s);
+    });
   });
 }
 
+async function normalizarAssinaturaPNG(dataUrl,w,h){
+  try{return await new Promise(function(res,rej){var img=new Image();img.onload=function(){var cv=document.createElement('canvas');cv.width=w;cv.height=h;var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);var scale=Math.min(w/img.width,h/img.height);var sw=img.width*scale,sh=img.height*scale;ctx.drawImage(img,(w-sw)/2,(h-sh)/2,sw,sh);res(cv.toDataURL('image/png'));};img.onerror=rej;img.src=dataUrl;});}catch{return null;}
+}
+async function addImagemReduzidaAoPdf(doc,src,x,y,maxW,maxH){
+  try{return await new Promise(function(res){var img=new Image();img.onload=function(){try{var scale=Math.min(maxW/img.width,maxH/img.height,1);var w=img.width*scale,h=img.height*scale;doc.addImage(src,'JPEG',x,y,w,h);res(h);}catch{res(0);}};img.onerror=function(){res(0);};img.src=src;});}catch{return 0;}
+}
+
+/* ── gerar PDF (modelo idêntico ao sistema) ── */
+async function gerarPDF(r, abrirAba=false){
+  await _ensureJsPDF();
+  if(!window.jspdf?.jsPDF)throw new Error('jsPDF não carregado');
+  const{jsPDF}=window.jspdf;
+  const nomeTecPdf=(r.tecnico&&String(r.tecnico).trim())||(r.nomeTecnico&&String(r.nomeTecnico).trim())||'Técnico';
+  if(r.fornecidoEstoque==='sim'&&r.equipEstoqueId&&!r.equipEstoqueDescricao)r.equipEstoqueDescricao=r.equipEstoqueId;
+  const doc=new jsPDF('p','mm','a4');
+  doc.setFillColor(15,23,42);doc.rect(0,0,210,22,'F');
+  // Converte a logo para PNG via canvas antes de inserir no PDF
+  // (jsPDF é sensível ao formato — PNG é mais confiável que JPEG aqui)
+  try{
+    const _logoParaPdf = await new Promise(function(res){
+      const img=new Image();
+      img.onload=function(){
+        try{
+          const cv=document.createElement('canvas');
+          cv.width=img.naturalWidth||img.width;
+          cv.height=img.naturalHeight||img.height;
+          const ctx=cv.getContext('2d');
+          ctx.drawImage(img,0,0);
+          res(cv.toDataURL('image/png'));
+        }catch(e){res(null);}
+      };
+      img.onerror=function(){res(null);};
+      img.src=LOGO_DATA_URI;
+    });
+    if(_logoParaPdf) doc.addImage(_logoParaPdf,'PNG',10,3,16,16);
+  }catch(e){}
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('ONLINE-ES ELETROELETRÔNICA - CNPJ 34.740.527/0001-74',105,8,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('www.onlinees.com.br | (27) 99806-7411',105,13,{align:'center'});
+  doc.setFontSize(8);doc.text('RELATÓRIO TÉCNICO DE ATENDIMENTO AO CLIENTE.',105,18,{align:'center'});
+  doc.setTextColor(15,23,42);doc.setFont('helvetica','bold');doc.setFontSize(10);
+  doc.text('Relatório nº '+(r.numero||'-'),10,28);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Data do atendimento: '+(r.dataHoraBr||isoToBR(r.dataHoraIso)),130,28);
+  let y=34;const endFull=[r.endereco,r.bairro,r.cidade,r.uf].filter(Boolean).join(' • ')||'-';
+  const tOpts={theme:'grid',styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[15,23,42],textColor:255},columnStyles:{0:{cellWidth:55,fontStyle:'bold'},1:{cellWidth:130}}};
+  function tL(label,texto){return[{content:label,styles:{fontStyle:'bold'}},{content:(texto&&texto.toString().trim().length?texto:'-').toString().replace(/\r\n/g,'\n')}];}
+  doc.autoTable({startY:y,head:[['1. Dados do cliente','']],body:[['Cliente / Empresa',r.cliente||'-'],[r.docClienteTipo==='CPF'?'CPF do cliente':'CNPJ do cliente',r.cnpjCliente||'-'],['Contato',r.contato||'-'],['Telefone',r.telefone||'-'],['WhatsApp',r.whatsapp||'-'],['Coordenadas (GPS)',r.localizacaoCoordenadas||'-'],['Google Maps',r.localizacaoLink||'-'],['Endereço',endFull]],...tOpts});y=doc.lastAutoTable.finalY+4;
+  doc.autoTable({startY:y,head:[['2. Equipamento','']],body:[['Modelo / Marca',r.equipamento||'-'],['Nº de série',r.serie||'-'],['Potência / kVA',r.kva||'-'],['Local de instalação',r.localInstalacao||'-'],['Condição na chegada',r.condicao||'-'],['Equipamento fornecido de estoque',r.equipEstoqueDescricao||(r.fornecidoEstoque==='sim'?(r.equipEstoqueId||'-'):'-')]],...tOpts});y=doc.lastAutoTable.finalY+4;
+  const acoesTexto=(r.acoes&&r.acoes.length)?(Array.isArray(r.acoes)?r.acoes.map(a=>'- '+a).join('\n'):String(r.acoes)):'-';
+  doc.autoTable({startY:y,head:[['3. Serviço executado','']],body:[['Tipo de serviço',r.tipo||'-'],tL('Problema informado',r.problema),tL('Diagnóstico do técnico',r.diagnostico),tL('Ações realizadas',acoesTexto),['Peças utilizadas',r.pecas||'-'],['Status final',r.status||'-']],...{...tOpts,styles:{...tOpts.styles,valign:'top'}}});y=doc.lastAutoTable.finalY+4;
+  doc.autoTable({startY:y,head:[['4. Baterias / Observações','']],body:[['Quantidade de baterias',r.bateriasQtd||'-'],['Tensão',r.bateriasTensao||'-'],tL('Observações',r.bateriasObs||r.observacoes)],...{...tOpts,styles:{...tOpts.styles,valign:'top'}}});y=doc.lastAutoTable.finalY+4;
+  const temImgs=(r.imgsEquip&&r.imgsEquip.length)||(r.imgsServico&&r.imgsServico.length)||(r.imgsBaterias&&r.imgsBaterias.length);
+  const temVids=(r.vidsEquip&&r.vidsEquip.length)||(r.vidsServico&&r.vidsServico.length)||(r.vidsBaterias&&r.vidsBaterias.length);
+  if(temImgs||temVids){const lm=[];if(r.imgsEquip?.length)lm.push(['Fotos de equipamento',r.imgsEquip.length+' anexada(s)']);if(r.imgsServico?.length)lm.push(['Fotos do serviço',r.imgsServico.length+' anexada(s)']);if(r.imgsBaterias?.length)lm.push(['Fotos de baterias/painel',r.imgsBaterias.length+' anexada(s)']);if(r.vidsEquip?.length)lm.push(['Vídeos de equipamento',r.vidsEquip.length+' anexado(s)']);if(r.vidsServico?.length)lm.push(['Vídeos do serviço',r.vidsServico.length+' anexado(s)']);if(r.vidsBaterias?.length)lm.push(['Vídeos de baterias/painel',r.vidsBaterias.length+' anexado(s)']);doc.autoTable({startY:y,head:[['5. Mídias anexadas','Qtd./Observação']],body:lm,theme:'grid',styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[15,23,42],textColor:255},columnStyles:{0:{cellWidth:70,fontStyle:'bold'},1:{cellWidth:115}}});y=doc.lastAutoTable.finalY+4;}
+  if(temImgs){
+    if(y>240){doc.addPage();y=15;}
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(15,23,42);doc.text('6. Anexos fotográficos',10,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(8);
+    const allImages=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[]).filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
+    if(!allImages.length){doc.setTextColor(150);doc.text('As fotos estão salvas no dispositivo do técnico.',10,y);doc.setTextColor(0);y+=8;}
+    else{doc.setTextColor(15,23,42);doc.text('As imagens abaixo foram reduzidas automaticamente para envio em PDF.',10,y);y+=5;await Promise.allSettled(allImages.map(src=>new Promise(res=>{var pi=new Image();pi.onload=res;pi.onerror=res;pi.src=src;})));let col=0,rowMaxH=40;for(let i=0;i<allImages.length;i++){if(y>265){doc.addPage();y=15;}const x=col===0?10:110;const imgH=await addImagemReduzidaAoPdf(doc,allImages[i],x,y,85,55);if(imgH>0){rowMaxH=Math.max(rowMaxH,imgH);if(col===1){y+=rowMaxH+6;col=0;rowMaxH=40;}else col=1;}}if(col===1)y+=rowMaxH+6;y+=4;}
+  }
+  if(y>230){doc.addPage();y=30;}else y+=15;
+  const topoAssY=y,SIG_W=60,SIG_H=28,SIG_NORM_W=600,SIG_NORM_H=168;
+  if(r.assinaturaCliente){const sn=await normalizarAssinaturaPNG(r.assinaturaCliente,SIG_NORM_W,SIG_NORM_H);if(sn)try{doc.addImage(sn,'PNG',20+(70-SIG_W)/2,topoAssY,SIG_W,SIG_H);}catch{}}
+  if(r.assinaturaTecnicoImg){const sn=await normalizarAssinaturaPNG(r.assinaturaTecnicoImg,SIG_NORM_W,SIG_NORM_H);if(sn)try{doc.addImage(sn,'PNG',120+(70-SIG_W)/2,topoAssY,SIG_W,SIG_H);}catch{}}
+  const linhaY=topoAssY+28+2;
+  doc.setDrawColor(148,163,184);doc.line(20,linhaY,90,linhaY);const mC=(20+90)/2;
+  if(r.nomeAssinaturaCliente){doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(r.nomeAssinaturaCliente,mC,linhaY+6,{align:'center'});}
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text(r.cliente||'Cliente',mC,linhaY+12,{align:'center'});
+  const mT=(120+190)/2;doc.setDrawColor(148,163,184);doc.line(120,linhaY,190,linhaY);
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(nomeTecPdf,mT,linhaY+6,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text('Técnico',mT,linhaY+12,{align:'center'});
+  doc.setFontSize(7);doc.text('Gerado em '+agoraBR(),mT,linhaY+18,{align:'center'});
+  const pc=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pc;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(15,23,42);doc.setDrawColor(148,163,184);doc.setLineWidth(0.3);doc.line(20,283,190,283);doc.text('ONLINE-ES Eletroeletrônica - www.onlinees.com.br - CNPJ 34.740.527/0001-74',105,287,{align:'center'});doc.text('Rua Maria Lourdes Garcia 176, Ilha de Santa Maria, Vitória - Cep 29.051-250',105,292,{align:'center'});doc.text('Página '+i+'/'+pc,105,296,{align:'center'});}
+  const nomeArq='relatorio-'+(r.numero||r._id||'online').replace(/[^a-zA-Z0-9\-_]/g,'_')+'.pdf';
+  // Blob approach — works on iOS Safari, Android, desktop
+  try{
+    const blob=doc.output('blob');
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=nomeArq;a.style.display='none';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},3000);
+    toast('✅ PDF baixado com sucesso!',3000);
+  }catch(blobErr){
+    // Fallback: open as data URI in new tab (iOS workaround)
+    try{
+      const dataUri=doc.output('datauristring');
+      const w=window.open('','_blank');
+      if(w){
+        w.document.write('<html><head><title>'+nomeArq+'</title></head><body style="margin:0"><iframe src="'+dataUri+'" style="border:none;width:100%;height:100vh"></iframe></body></html>');
+        w.document.close();
+        toast('✅ PDF aberto em nova aba!',3000);
+      }else{
+        // Popup blocked — try direct data URI
+        const link=document.createElement('a');
+        link.href='data:application/pdf;base64,'+btoa(doc.output());
+        link.download=nomeArq;link.click();
+        toast('✅ PDF gerado!',3000);
+      }
+    }catch(fallbackErr){
+      throw fallbackErr;
+    }
+  }
+}
+
 /* init */
-function init(){const p=new URLSearchParams(window.location.search);renderLogin({cnpj:normCnpj(p.get('cnpj')||p.get('portal')||'')});}
+async function init(){
+  const p=new URLSearchParams(window.location.search);
+  const cnpjUrl=normCnpj(p.get('cnpj')||p.get('portal')||'');
+  // Try restore session
+  const sess=restaurarSessao();
+  if(sess&&!cnpjUrl){
+    // Show skeleton while verifying
+    el().innerHTML=`<div class="skel-card skeleton anim-1"></div><div class="skel-header skeleton anim-2" style="height:38px;border-radius:999px;margin-bottom:14px;"></div><div class="skel-card skeleton anim-2"></div><div class="skel-card skeleton anim-3"></div>`;
+    if(!await garantirAuth()){renderLogin({cnpj:sess.cnpj});return;}
+    // Quick check session still valid in Firestore
+    try{
+      const snap=await Promise.race([db.collection('onlineEsPortalClientes').doc(sess.cnpj).get(),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))]);
+      if(snap.exists&&snap.data().ativo!==false){
+        const cred=snap.data();
+        const agora=new Date(),expira=cred.expiradoEm?new Date(cred.expiradoEm):new Date(0);
+        if(agora<=expira){sessao={cnpj:sess.cnpj,nome:cred.nome||sess.cnpj,cred};salvarSessao(sessao);renderLista();return;}
+      }
+    }catch{}
+    limparSessao();
+  }
+  renderLogin({cnpj:cnpjUrl});
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
