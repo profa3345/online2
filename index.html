@@ -10611,12 +10611,14 @@ if (logoBase64) {
       if (portalUrl) {
         _linhasEmail.push('🔗 Acesse o Portal do Cliente para visualizar e baixar o PDF:');
         _linhasEmail.push(portalUrl);
+        _linhasEmail.push('');
+        _linhasEmail.push('🔑 Seus dados de acesso ao portal:');
+        _linhasEmail.push('   👤 Usuário (CNPJ/CPF): ' + (r.cnpjCliente || ''));
         if (r._portalSenha) {
-          _linhasEmail.push('👤 Usuário (CNPJ/CPF): ' + (r.cnpjCliente || ''));
-          _linhasEmail.push('🔑 Senha de acesso: ' + r._portalSenha + ' (válida por 30 dias)');
-          _linhasEmail.push('ℹ️ Clique no link acima para acessar diretamente (login automático).');
+          _linhasEmail.push('   🔑 Senha: ' + r._portalSenha + ' (válida por 30 dias)');
+          _linhasEmail.push('ℹ️ Guarde esta senha — você precisará dela para entrar no portal.');
         } else {
-          _linhasEmail.push('👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já cadastrada');
+          _linhasEmail.push('   🔑 Use a senha recebida anteriormente.');
         }
       } else {
         // [FIX-v54-4] Sem link (offline ou erro): avisa que o PDF será enviado em anexo
@@ -10694,10 +10696,19 @@ if (logoBase64) {
     // 3. Monta mensagem com link do portal e abre WhatsApp
     hideLoader();
     var msgFinal;
-    // [PORTAL-V2] Usa mensagem com credenciais se o portal v2 gerou credencial
-    if (typeof window._montarMensagemPortalV2 === 'function' && r._portalCnpj) {
-      var _credResultWa = { cnpj: r._portalCnpj, nova: !!r._portalSenha, senha: r._portalSenha || null };
-      msgFinal = window._montarMensagemPortalV2(r, _credResultWa, 'whats');
+    // [PORTAL-V2] [FIX-v60-LINK] Link sem senha — senha em destaque no corpo da mensagem
+    if (r._portalCnpj) {
+      var _urlWa = window._urlPortalV2 ? window._urlPortalV2(r._portalCnpj) : null;
+      var _senhaWa = r._portalSenha || null;
+      msgFinal =
+        'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+        'Segue o Relatório Técnico de Atendimento RAT *' + (r.numero||'') + '* — ' + (r.cliente||'') + '.\n\n' +
+        '📂 *Acesse o Portal do Cliente:*\n' + (_urlWa||'') + '\n\n' +
+        '🔑 *Seus dados de acesso:*\n' +
+        '   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') + '\n' +
+        '   🔑 Senha: *' + (_senhaWa||'(use a senha anterior)') + '*' +
+        (_senhaWa ? ' (válida por 30 dias)' : '') + '\n\n' +
+        'Qualquer dúvida estamos à disposição!';
     } else if (portalUrlWa) {
       msgFinal =
         'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
@@ -17180,12 +17191,16 @@ window._gerarCredencialPortal = async function(rat){
 
 /* ─────────────────────────────────────────────────────────────
    URL do portal — usa parâmetro ?portal=CNPJ (substitui ?rat=)
+   [FIX-v60-LINK] A senha NÃO vai mais na URL (?s=) — vai apenas
+   no corpo da mensagem (WhatsApp/e-mail). Isso elimina o bug onde
+   a senha sumia da URL em certos fluxos, e é mais seguro (senha
+   não fica no histórico do browser nem em logs de servidor).
+   O portal mostra o CNPJ pré-preenchido e o cliente digita a senha.
 ──────────────────────────────────────────────────────────── */
-window._urlPortalV2 = function(cnpj, senha){
+window._urlPortalV2 = function(cnpj){
   var base = window.location.href.split('?')[0];
-  var url = base + '?portal=' + _normCnpj(cnpj);
-  if(senha) url += '&s=' + encodeURIComponent(senha);
-  return url;
+  // Senha NUNCA vai na URL — apenas o CNPJ para pré-preencher o campo
+  return base + '?portal=' + _normCnpj(cnpj);
 };
 
 /* Mantém _urlPortal para compatibilidade (alguns botões ainda usam).
@@ -17568,19 +17583,16 @@ function _renderLogin(opts){
     senhaInput.addEventListener('keydown', function(e){
       if(e.key==='Enter') document.getElementById('pv2BtnLogin') && document.getElementById('pv2BtnLogin').click();
     });
-    // [FIX-PORTAL] Auto-preenche senha: prioriza opts.senha (passado pelo _verificarUrl),
-    // fallback para parâmetro ?s= na URL (compatibilidade com links antigos)
+    // [FIX-v60-LINK] Senha não vem mais na URL — cliente digita a senha recebida na mensagem.
+    // Apenas pré-preenche o CNPJ e foca no campo de senha com instrução visual.
     var _urlParams = new URLSearchParams(window.location.search);
-    var _senhaParam = opts.senha || _urlParams.get('s') || null;
+    var _senhaParam = opts.senha || _urlParams.get('s') || null; // mantém compatibilidade legada
     if(_senhaParam && /^\d{6}$/.test(_senhaParam)){
+      // Fluxo legado (link antigo com &s=): preenche e faz auto-login
       senhaInput.value = _senhaParam;
-      // [FIX-v60-AUTOLOGIN] Auto-login direto — não depende do .click() no botão
-      // O setTimeout(600ms) causava tela em branco quando o DOM era modificado
-      // entre o agendamento e a execução (TypeError silencioso no handler do botão)
       if(opts.cnpj){
         var _cnpjAuto = opts.cnpj;
         var _senhaAuto = _senhaParam;
-        // Mostra loading imediato no botão
         var _btnAuto = document.getElementById('pv2BtnLogin');
         if(_btnAuto){ _btnAuto.disabled=true; _btnAuto.innerHTML='<i class="ri-loader-4-line"></i> Entrando...'; }
         setTimeout(async function(){
@@ -17595,22 +17607,33 @@ function _renderLogin(opts){
             } else if(resultado && resultado.expirada){
               _renderSenhaExpirada(resultado.cnpj, resultado.cred);
             } else {
-              // Mostra erro — reabilita botão para o cliente tentar manualmente
               var _errAuto = document.getElementById('pv2Err');
-              var _msgAuto = (resultado && resultado.msg) || 'Não foi possível entrar automaticamente. Verifique sua conexão e tente novamente.';
+              var _msgAuto = (resultado && resultado.msg) || 'Não foi possível entrar. Verifique sua conexão.';
               if(_errAuto){ _errAuto.textContent=_msgAuto; _errAuto.style.display='block'; }
               var _b2 = document.getElementById('pv2BtnLogin');
               if(_b2){ _b2.disabled=false; _b2.innerHTML='<i class="ri-login-box-line"></i> Entrar'; }
             }
           }catch(e){
-            console.warn('[Portal] Auto-login erro:', e);
             var _errAuto2 = document.getElementById('pv2Err');
-            if(_errAuto2){ _errAuto2.textContent='Erro inesperado. Verifique sua conexão e tente novamente.'; _errAuto2.style.display='block'; }
+            if(_errAuto2){ _errAuto2.textContent='Erro inesperado. Tente novamente.'; _errAuto2.style.display='block'; }
             var _b3 = document.getElementById('pv2BtnLogin');
             if(_b3){ _b3.disabled=false; _b3.innerHTML='<i class="ri-login-box-line"></i> Entrar'; }
           }
-        }, 800); // 800ms — suficiente para Firebase inicializar sem travar a UI
+        }, 800);
       }
+    } else if(opts.cnpj){
+      // [FIX-v60-LINK] Novo fluxo: CNPJ pré-preenchido, senha em branco — cliente digita
+      // Adiciona dica visual no campo de senha
+      senhaInput.placeholder = '🔑 Digite a senha recebida no WhatsApp/e-mail';
+      senhaInput.style.border = '2px solid #f97316';
+      senhaInput.style.boxShadow = '0 0 0 3px rgba(249,115,22,.15)';
+      setTimeout(function(){ try{ senhaInput.focus(); }catch(e){} }, 300);
+      // Instrução adicional acima do botão
+      var _dica = document.createElement('div');
+      _dica.style.cssText = 'font-size:.78rem;color:#f97316;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:10px;padding:8px 12px;margin-bottom:10px;line-height:1.5;';
+      _dica.innerHTML = '<i class="ri-key-line"></i> <strong>Digite a senha de 6 dígitos</strong> recebida no WhatsApp ou e-mail para acessar seus relatórios.';
+      var _btnEl = document.getElementById('pv2BtnLogin');
+      if(_btnEl && _btnEl.parentNode) _btnEl.parentNode.insertBefore(_dica, _btnEl);
     }
   }
 
