@@ -1297,17 +1297,35 @@ function renderDetalhe(r){
 var _jspdfPromise=null;
 function _ensureJsPDF(){
   if(_jspdfPromise)return _jspdfPromise;
-  return _jspdfPromise=new Promise(function(resolve,reject){
-    if(window.jspdf&&window.jspdf.jsPDF){resolve();return;}
-    var scripts=['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'];
-    var loaded=0;
-    scripts.forEach(function(src){
-      var s=document.createElement('script');s.src=src;
-      s.onload=function(){if(++loaded===scripts.length)resolve();};
-      s.onerror=function(){var fb=document.createElement('script');fb.src=src.includes('autotable')?'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js':'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';fb.onload=function(){if(++loaded===scripts.length)resolve();};fb.onerror=function(){_jspdfPromise=null;reject(new Error('jsPDF não carregou'));};document.head.appendChild(fb);};
+  _jspdfPromise=new Promise(function(resolve,reject){
+    if(window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.prototype.autoTable){resolve();return;}
+    // Carrega sequencialmente: primeiro jsPDF, depois o plugin autoTable
+    function loadScript(src,fallbackSrc,cb){
+      var s=document.createElement('script');
+      s.src=src;
+      s.onload=cb;
+      s.onerror=function(){
+        var fb=document.createElement('script');
+        fb.src=fallbackSrc;
+        fb.onload=cb;
+        fb.onerror=function(){_jspdfPromise=null;reject(new Error('jsPDF não carregou: '+src));};
+        document.head.appendChild(fb);
+      };
       document.head.appendChild(s);
-    });
+    }
+    loadScript(
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+      function(){
+        loadScript(
+          'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
+          'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js',
+          function(){resolve();}
+        );
+      }
+    );
   });
+  return _jspdfPromise;
 }
 
 async function normalizarAssinaturaPNG(dataUrl,w,h){
