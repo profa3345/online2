@@ -562,6 +562,7 @@
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+<script src="./onlinees-pdf-shared.js"></script>
 
 <script>
 (function(){
@@ -868,89 +869,24 @@ function renderDetalhe(r){
       <button class="btn-pdf" id="btnPdf"><i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF</button>
     </div>`;
   document.getElementById('btnVoltar').addEventListener('click',renderLista);
-  document.getElementById('btnPdf').addEventListener('click',async()=>{
-    const btn=document.getElementById('btnPdf');if(!btn)return;
-    btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando PDF...';
-    try{await gerarPDF(r);}catch(e){toast('❌ Erro ao gerar PDF.',4000);console.warn('[Portal] PDF:',e.message||e);}
-    finally{if(document.getElementById('btnPdf')){btn.disabled=false;btn.innerHTML='<i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF';}}
+  document.getElementById('btnPdf').addEventListener('click', async () => {
+    const btn = document.getElementById('btnPdf');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line spin"></i> Gerando PDF...';
+    try {
+      await _ensureJsPDF();
+      await exportarPDF(prepararRelatorioParaPDF(r));
+    } catch (e) {
+      toast('❌ Erro ao gerar PDF.', 4000);
+      console.warn('[Portal] PDF:', e.message || e);
+    } finally {
+      if (document.getElementById('btnPdf')) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF';
+      }
+    }
   });
-}
-
-/* ── lazy jsPDF ── */
-var _jspdfPromise=null;
-function _ensureJsPDF(){
-  if(_jspdfPromise)return _jspdfPromise;
-  return _jspdfPromise=new Promise(function(resolve,reject){
-    if(window.jspdf&&window.jspdf.jsPDF){resolve();return;}
-    var scripts=['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'];
-    var loaded=0;
-    scripts.forEach(function(src){
-      var s=document.createElement('script');s.src=src;
-      s.onload=function(){if(++loaded===scripts.length)resolve();};
-      s.onerror=function(){var fb=document.createElement('script');fb.src=src.includes('autotable')?'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js':'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';fb.onload=function(){if(++loaded===scripts.length)resolve();};fb.onerror=function(){_jspdfPromise=null;reject(new Error('jsPDF não carregou'));};document.head.appendChild(fb);};
-      document.head.appendChild(s);
-    });
-  });
-}
-
-async function normalizarAssinaturaPNG(dataUrl,w,h){
-  try{return await new Promise(function(res,rej){var img=new Image();img.onload=function(){var cv=document.createElement('canvas');cv.width=w;cv.height=h;var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);var scale=Math.min(w/img.width,h/img.height);var sw=img.width*scale,sh=img.height*scale;ctx.drawImage(img,(w-sw)/2,(h-sh)/2,sw,sh);res(cv.toDataURL('image/png'));};img.onerror=rej;img.src=dataUrl;});}catch{return null;}
-}
-async function addImagemReduzidaAoPdf(doc,src,x,y,maxW,maxH){
-  try{return await new Promise(function(res){var img=new Image();img.onload=function(){try{var scale=Math.min(maxW/img.width,maxH/img.height,1);var w=img.width*scale,h=img.height*scale;doc.addImage(src,'JPEG',x,y,w,h);res(h);}catch{res(0);}};img.onerror=function(){res(0);};img.src=src;});}catch{return 0;}
-}
-
-/* ── gerar PDF (modelo idêntico ao sistema) ── */
-async function gerarPDF(r){
-  await _ensureJsPDF();
-  if(!window.jspdf?.jsPDF)throw new Error('jsPDF não carregado');
-  const{jsPDF}=window.jspdf;
-  const nomeTecPdf=(r.tecnico&&String(r.tecnico).trim())||(r.nomeTecnico&&String(r.nomeTecnico).trim())||'Técnico';
-  if(r.fornecidoEstoque==='sim'&&r.equipEstoqueId&&!r.equipEstoqueDescricao)r.equipEstoqueDescricao=r.equipEstoqueId;
-  const doc=new jsPDF('p','mm','a4');
-  doc.setFillColor(15,23,42);doc.rect(0,0,210,22,'F');
-  try{doc.addImage(LOGO_DATA_URI,'JPEG',10,3,16,16);}catch(e){}
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
-  doc.text('ONLINE-ES ELETROELETRÔNICA - CNPJ 34.740.527/0001-74',105,8,{align:'center'});
-  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('www.onlinees.com.br | (27) 99806-7411',105,13,{align:'center'});
-  doc.setFontSize(8);doc.text('RELATÓRIO TÉCNICO DE ATENDIMENTO AO CLIENTE.',105,18,{align:'center'});
-  doc.setTextColor(15,23,42);doc.setFont('helvetica','bold');doc.setFontSize(10);
-  doc.text('Relatório nº '+(r.numero||'-'),10,28);
-  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Data do atendimento: '+(r.dataHoraBr||isoToBR(r.dataHoraIso)),130,28);
-  let y=34;const endFull=[r.endereco,r.bairro,r.cidade,r.uf].filter(Boolean).join(' • ')||'-';
-  const tOpts={theme:'grid',styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[15,23,42],textColor:255},columnStyles:{0:{cellWidth:55,fontStyle:'bold'},1:{cellWidth:130}}};
-  function tL(label,texto){return[{content:label,styles:{fontStyle:'bold'}},{content:(texto&&texto.toString().trim().length?texto:'-').toString().replace(/\r\n/g,'\n')}];}
-  doc.autoTable({startY:y,head:[['1. Dados do cliente','']],body:[['Cliente / Empresa',r.cliente||'-'],[r.docClienteTipo==='CPF'?'CPF do cliente':'CNPJ do cliente',r.cnpjCliente||'-'],['Contato',r.contato||'-'],['Telefone',r.telefone||'-'],['WhatsApp',r.whatsapp||'-'],['Coordenadas (GPS)',r.localizacaoCoordenadas||'-'],['Google Maps',r.localizacaoLink||'-'],['Endereço',endFull]],...tOpts});y=doc.lastAutoTable.finalY+4;
-  doc.autoTable({startY:y,head:[['2. Equipamento','']],body:[['Modelo / Marca',r.equipamento||'-'],['Nº de série',r.serie||'-'],['Potência / kVA',r.kva||'-'],['Local de instalação',r.localInstalacao||'-'],['Condição na chegada',r.condicao||'-'],['Equipamento fornecido de estoque',r.equipEstoqueDescricao||(r.fornecidoEstoque==='sim'?(r.equipEstoqueId||'-'):'-')]],...tOpts});y=doc.lastAutoTable.finalY+4;
-  const acoesTexto=(r.acoes&&r.acoes.length)?(Array.isArray(r.acoes)?r.acoes.map(a=>'- '+a).join('\n'):String(r.acoes)):'-';
-  doc.autoTable({startY:y,head:[['3. Serviço executado','']],body:[['Tipo de serviço',r.tipo||'-'],tL('Problema informado',r.problema),tL('Diagnóstico do técnico',r.diagnostico),tL('Ações realizadas',acoesTexto),['Peças utilizadas',r.pecas||'-'],['Status final',r.status||'-']],...{...tOpts,styles:{...tOpts.styles,valign:'top'}}});y=doc.lastAutoTable.finalY+4;
-  doc.autoTable({startY:y,head:[['4. Baterias / Observações','']],body:[['Quantidade de baterias',r.bateriasQtd||'-'],['Tensão',r.bateriasTensao||'-'],tL('Observações',r.bateriasObs||r.observacoes)],...{...tOpts,styles:{...tOpts.styles,valign:'top'}}});y=doc.lastAutoTable.finalY+4;
-  const temImgs=(r.imgsEquip&&r.imgsEquip.length)||(r.imgsServico&&r.imgsServico.length)||(r.imgsBaterias&&r.imgsBaterias.length);
-  const temVids=(r.vidsEquip&&r.vidsEquip.length)||(r.vidsServico&&r.vidsServico.length)||(r.vidsBaterias&&r.vidsBaterias.length);
-  if(temImgs||temVids){const lm=[];if(r.imgsEquip?.length)lm.push(['Fotos de equipamento',r.imgsEquip.length+' anexada(s)']);if(r.imgsServico?.length)lm.push(['Fotos do serviço',r.imgsServico.length+' anexada(s)']);if(r.imgsBaterias?.length)lm.push(['Fotos de baterias/painel',r.imgsBaterias.length+' anexada(s)']);if(r.vidsEquip?.length)lm.push(['Vídeos de equipamento',r.vidsEquip.length+' anexado(s)']);if(r.vidsServico?.length)lm.push(['Vídeos do serviço',r.vidsServico.length+' anexado(s)']);if(r.vidsBaterias?.length)lm.push(['Vídeos de baterias/painel',r.vidsBaterias.length+' anexado(s)']);doc.autoTable({startY:y,head:[['5. Mídias anexadas','Qtd./Observação']],body:lm,theme:'grid',styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[15,23,42],textColor:255},columnStyles:{0:{cellWidth:70,fontStyle:'bold'},1:{cellWidth:115}}});y=doc.lastAutoTable.finalY+4;}
-  if(temImgs){
-    if(y>240){doc.addPage();y=15;}
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(15,23,42);doc.text('6. Anexos fotográficos',10,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(8);
-    const allImages=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[]).filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
-    if(!allImages.length){doc.setTextColor(150);doc.text('As fotos estão salvas no dispositivo do técnico.',10,y);doc.setTextColor(0);y+=8;}
-    else{doc.setTextColor(15,23,42);doc.text('As imagens abaixo foram reduzidas automaticamente para envio em PDF.',10,y);y+=5;await Promise.allSettled(allImages.map(src=>new Promise(res=>{var pi=new Image();pi.onload=res;pi.onerror=res;pi.src=src;})));let col=0,rowMaxH=40;for(let i=0;i<allImages.length;i++){if(y>265){doc.addPage();y=15;}const x=col===0?10:110;const imgH=await addImagemReduzidaAoPdf(doc,allImages[i],x,y,85,55);if(imgH>0){rowMaxH=Math.max(rowMaxH,imgH);if(col===1){y+=rowMaxH+6;col=0;rowMaxH=40;}else col=1;}}if(col===1)y+=rowMaxH+6;y+=4;}
-  }
-  if(y>230){doc.addPage();y=30;}else y+=15;
-  const topoAssY=y,SIG_W=60,SIG_H=28,SIG_NORM_W=600,SIG_NORM_H=168;
-  if(r.assinaturaCliente){const sn=await normalizarAssinaturaPNG(r.assinaturaCliente,SIG_NORM_W,SIG_NORM_H);if(sn)try{doc.addImage(sn,'PNG',20+(70-SIG_W)/2,topoAssY,SIG_W,SIG_H);}catch{}}
-  if(r.assinaturaTecnicoImg){const sn=await normalizarAssinaturaPNG(r.assinaturaTecnicoImg,SIG_NORM_W,SIG_NORM_H);if(sn)try{doc.addImage(sn,'PNG',120+(70-SIG_W)/2,topoAssY,SIG_W,SIG_H);}catch{}}
-  const linhaY=topoAssY+28+2;
-  doc.setDrawColor(148,163,184);doc.line(20,linhaY,90,linhaY);const mC=(20+90)/2;
-  if(r.nomeAssinaturaCliente){doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(r.nomeAssinaturaCliente,mC,linhaY+6,{align:'center'});}
-  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text(r.cliente||'Cliente',mC,linhaY+12,{align:'center'});
-  const mT=(120+190)/2;doc.setDrawColor(148,163,184);doc.line(120,linhaY,190,linhaY);
-  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(nomeTecPdf,mT,linhaY+6,{align:'center'});
-  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text('Técnico',mT,linhaY+12,{align:'center'});
-  doc.setFontSize(7);doc.text('Gerado em '+agoraBR(),mT,linhaY+18,{align:'center'});
-  const pc=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pc;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(15,23,42);doc.setDrawColor(148,163,184);doc.setLineWidth(0.3);doc.line(20,283,190,283);doc.text('ONLINE-ES Eletroeletrônica - www.onlinees.com.br - CNPJ 34.740.527/0001-74',105,287,{align:'center'});doc.text('Rua Maria Lourdes Garcia 176, Ilha de Santa Maria, Vitória - Cep 29.051-250',105,292,{align:'center'});doc.text('Página '+i+'/'+pc,105,296,{align:'center'});}
-  doc.save('relatorio-'+(r.numero||r._id||'online').replace(/[^a-zA-Z0-9\-_]/g,'_')+'.pdf');
-  toast('✅ PDF baixado com sucesso!',3000);
 }
 
 /* init */
