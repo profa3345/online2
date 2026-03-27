@@ -1,7 +1,18 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v60
-  Correções v60:
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v61
+  Correções v61:
+  - [FIX-v61-CAM-FLIPBTN] flipBtn agora tem touchend+preventDefault com flag _tocouFlip
+    anti-duplo-disparo — resolve botão de virar câmera que não respondia no Android.
+  - [FIX-v61-CAM-CLOSEBTN] closeBtn agora tem touchend+preventDefault com flag _tocouFechar
+    — resolve botão fechar câmera que não respondia ao toque no Android.
+  - [FIX-v61-CAM-SENDBTN] sendBtn refatorado para _dispararEnvio() com touchend+preventDefault
+    e flag _tocouEnvio — resolve botão Confirmar que não respondia ao toque no Android.
+  - [FIX-v61-MOBILE-LAYOUT] .content, .app, .topbar, .main, .form-panel, #stepNav e
+    .section-card recebem width:100%/max-width:100vw/box-sizing:border-box no breakpoint
+    ≤880px — elimina overflow horizontal e garante ajuste perfeito à tela do técnico.
+  - [FIX-v61-HTML-BODY] html,body agora têm box-sizing:border-box para prevenir
+    extrapolação de largura em qualquer elemento filho.
   - [FIX-v60-PORTAL-PPINIT] _ppInit() e _ppHookInterval abortam quando window._modoPortalCliente
     está ativo — impede que o módulo de preview admin interfira no portal do cliente.
   - [FIX-v60-AUTOLOGIN] Auto-login do portal reescrito: não usa mais .click() com setTimeout(600ms)
@@ -200,7 +211,7 @@
 
     :root{--surface-dark:rgba(15,23,42,.35);--surface-dark-solid:#0f172a;--text:#e2e8f0;--muted:#94a3b8;--accent:#f97316;--accent-soft:rgba(249,115,22,.12);--radius:16px;--bg-form:#d4d7dd;--bg-supervisor:#d6d9df;--border-soft:rgba(148,163,184,.14);--text-strong:#0f172a;--blue-btn:#114f91}
     *{box-sizing:border-box;font-family:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif} /* [B-03] Poppins única fonte */
-    html,body{overflow-x:hidden;max-width:100vw}
+    html,body{overflow-x:hidden;max-width:100vw;box-sizing:border-box}
     body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0f172a 0%,#020617 65%,#0f172a 100%);background-size:140% 140%;animation:bgMove 20s ease-in-out infinite alternate;color:var(--text);display:flex;font-size:.9rem}
     *,*::before,*::after{box-sizing:border-box}
     @keyframes bgMove{0%{background-position:0 0}100%{background-position:90% 90%}}
@@ -549,7 +560,57 @@
     @media (max-width:880px){
       .sidebar{transform:translateX(-100%);transition:.2s;width:225px;z-index:100}
       .sidebar.open{transform:translateX(0)}
-      .content{margin-left:0}
+      /* [FIX-MOBILE-LAYOUT] Garante que o conteúdo ocupe exatamente a viewport */
+      .content{
+        margin-left:0;
+        width:100%;
+        max-width:100vw;
+        overflow-x:hidden;
+        box-sizing:border-box;
+      }
+      .app{
+        width:100%;
+        max-width:100vw;
+        overflow-x:hidden;
+      }
+      /* [FIX-MOBILE-TOPBAR] Topbar não ultrapassa a largura da tela */
+      .topbar{
+        width:100%;
+        max-width:100vw;
+        box-sizing:border-box;
+        padding-left:10px!important;
+        padding-right:10px!important;
+      }
+      /* [FIX-MOBILE-MAIN] área de conteúdo principal */
+      .main{
+        width:100%;
+        max-width:100vw;
+        box-sizing:border-box;
+        overflow-x:hidden;
+      }
+      /* [FIX-MOBILE-FORMPANEL] formulário de atendimento ocupa tela completa */
+      .form-panel{
+        width:100%;
+        max-width:100vw;
+        box-sizing:border-box;
+        padding-left:10px!important;
+        padding-right:10px!important;
+      }
+      /* [FIX-MOBILE-STEPNAV] stepNav não transborda */
+      #stepNav{
+        width:100%;
+        max-width:100%;
+        box-sizing:border-box;
+        overflow:hidden;
+        padding:10px 8px 8px!important;
+      }
+      /* [FIX-MOBILE-SECTIONCARD] cards de seção */
+      .section-card{
+        width:100%;
+        max-width:100%;
+        box-sizing:border-box;
+        overflow:hidden;
+      }
       /* Título central no topbar */
       /* Rows viram coluna */
       .row{flex-direction:column;gap:6px}
@@ -15953,13 +16014,34 @@ async function fazerLogin(){
   }
 
   // ── Virar câmera ──────────────────────────────────────────────
-  flipBtn.addEventListener('click', function() {
+  var _tocouFlip = false;
+  function _dispararFlip() {
     facingMode = facingMode === 'environment' ? 'user' : 'environment';
     iniciarCamera();
+  }
+  flipBtn.addEventListener('click', function() {
+    if (_tocouFlip) { _tocouFlip = false; return; }
+    _dispararFlip();
   });
+  flipBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    _tocouFlip = true;
+    setTimeout(function(){ _tocouFlip = false; }, 400);
+    _dispararFlip();
+  }, { passive: false });
 
   // ── Fechar sem confirmar ──────────────────────────────────────
-  closeBtn.addEventListener('click', fechar);
+  var _tocouFechar = false;
+  closeBtn.addEventListener('click', function() {
+    if (_tocouFechar) { _tocouFechar = false; return; }
+    fechar();
+  });
+  closeBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    _tocouFechar = true;
+    setTimeout(function(){ _tocouFechar = false; }, 400);
+    fechar();
+  }, { passive: false });
   modal.addEventListener('click', function(e){ if (e.target === modal) fechar(); });
 
   function fechar() {
@@ -15985,7 +16067,8 @@ async function fazerLogin(){
   // _sigCamCallback: quando definido, o envio vai para a assinatura em vez do preview normal
   var _sigCamCallback = null;
 
-  sendBtn.addEventListener('click', function() {
+  function _dispararEnvio() {
+    if (sendBtn.disabled) return;
     // Modo assinatura: delega para o callback registrado por _abrirModalCameraAssinatura
     if (typeof _sigCamCallback === 'function') {
       var cb = _sigCamCallback;
@@ -16026,10 +16109,21 @@ async function fazerLogin(){
       showToast('📷 ' + enviadas + (enviadas === 1 ? ' foto adicionada!' : ' fotos adicionadas!'));
     }
     // [FIX-CAM-v40] Força atualização do contador de fotos PDF após envio da câmera.
-    // O MutationObserver pode não disparar a tempo quando fechar() ainda está em execução.
     fechar();
     try { if (typeof window._atualizarContadorFotos === 'function') window._atualizarContadorFotos(); } catch(e) {}
+  }
+
+  var _tocouEnvio = false;
+  sendBtn.addEventListener('click', function() {
+    if (_tocouEnvio) { _tocouEnvio = false; return; }
+    _dispararEnvio();
   });
+  sendBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    _tocouEnvio = true;
+    setTimeout(function(){ _tocouEnvio = false; }, 400);
+    _dispararEnvio();
+  }, { passive: false });
 
   // ── Fallback: input nativo com capture ───────────────────────
   function _abrirCameraFallback(previewContainerId) {
