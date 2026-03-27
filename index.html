@@ -1,6 +1,29 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v58
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v60
+  Correções v60:
+  - [FIX-v60-URL-PORTAL] _urlPortal() agora faz strip do prefixo 'cnpj:' antes de passar
+    para _urlPortalV2() — resolve URL quebrada ?portal=cnpj:XXXXX que impedia o cliente
+    de acessar o portal (login falhava silenciosamente pois o CNPJ não existia no Firestore).
+  - [FIX-v60-OVERLAY-SENHA] Botão "Ver portal" no overlay de RAT agora passa o objeto `r`
+    para _urlPortal() — inclui _portalSenha no link para login automático do cliente.
+  - [FIX-v60-BTN-CLASSES] Cards iniciais das funções mobile e cache agora usam as classes
+    semânticas corretas: meus-btn-ver e meus-btn-pdf (antes ficavam sem estilo colorido).
+  - [FIX-v60-CARREGAR-MAIS-MOBILE] "Carregar mais" mobile agora renderiza TODOS os botões
+    com classes e ordem padronizadas: Ver → Editar → WhatsApp → E-mail → PDF → Excluir
+    (antes tinha apenas Ver, Editar e PDF sem WhatsApp, E-mail e Excluir).
+  - [FIX-v60-CARREGAR-MAIS-WEB] "Carregar mais" supervisor/web agora inclui botão Excluir
+    para admin/supervisor com handler correto (antes ausente neste bloco).
+  - [FIX-v59-TELA-AZUL] Script inline no <head> detecta ?portal= / ?rat= ANTES de qualquer
+    CSS ou JS carregar e aplica background:#f1f5f9 no <html> imediatamente — cliente nunca
+    vê a tela azul/preta do app interno.
+  - [FIX-v59-MOBILE-PORTAL] _iniciarMobileHome() verifica window._modoPortalCliente e aborta
+    se o portal do cliente já está ativo — impede que a home mobile sobrescreva o portal no
+    celular do cliente.
+  - [FIX-v59-DB-RETRY] _loginPortal() aguarda até 4s em ciclos de 500ms pelo Firebase antes
+    de retornar erro de conexão — resolve race condition na primeira carga (tela "Carregando...").
+  - [FIX-v59-AUTH-RETRY] _garantirAuthPortal() também faz retry de até 8x antes de desistir
+    do signInAnonymously — garante auth mesmo com Firebase demorando para inicializar.
   Correções v58:
   - [FIX-PORTAL-TELA-AZUL] _loginPortal agora garante auth anônimo ANTES de acessar Firestore.
     Sem auth, a regra Firestore bloqueava silenciosamente e o portal ficava na tela azul/carregando.
@@ -47,6 +70,34 @@
   <meta charset="UTF-8" />
   <title>ONLINE – Relatórios de Atendimento ao Cliente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- [FIX-v59-TELA-AZUL] Detecta ?portal= / ?rat= IMEDIATAMENTE no <head>,
+       antes de qualquer script ou CSS carregar, e aplica fundo claro no <html>
+       para que o cliente nunca veja a tela azul/preta do app interno. -->
+  <script>
+  (function(){
+    var _qs = window.location.search;
+    var _ehPortal = _qs.indexOf('portal=') !== -1 || _qs.indexOf('rat=') !== -1;
+    if(!_ehPortal) return;
+    // Flag global — usada por _iniciarMobileHome para não sobrescrever o portal
+    window._modoPortalCliente = true;
+    // Aplica fundo claro no elemento raiz IMEDIATAMENTE (antes do body existir)
+    document.documentElement.style.cssText =
+      'background:#f1f5f9!important;min-height:100vh;';
+    // Quando o body existir, garante que ele também fica claro e sem animação
+    document.addEventListener('DOMContentLoaded', function(){
+      if(document.body){
+        document.body.style.cssText =
+          'background:#f1f5f9!important;animation:none!important;';
+      }
+      // Garante que o portalCliente já está visível o mais cedo possível
+      var _p = document.getElementById('portalCliente');
+      if(_p){ _p.classList.add('ativo'); }
+      // Esconde a tela de login do app interno se por acaso estiver visível
+      var _tl = document.getElementById('telaLogin');
+      if(_tl){ _tl.style.display='none'; _tl.classList.add('hidden'); }
+    });
+  })();
+  </script>
   <!-- Segurança: X-Frame-Options deve ser configurado via HTTP header no vercel.json, não via meta.
        Meta tag foi removida pois browsers a ignoram e geram erro no console. -->
   <!-- Segurança: impede detecção automática de tipo MIME -->
@@ -130,7 +181,9 @@
 
     :root{--surface-dark:rgba(15,23,42,.35);--surface-dark-solid:#0f172a;--text:#e2e8f0;--muted:#94a3b8;--accent:#f97316;--accent-soft:rgba(249,115,22,.12);--radius:16px;--bg-form:#d4d7dd;--bg-supervisor:#d6d9df;--border-soft:rgba(148,163,184,.14);--text-strong:#0f172a;--blue-btn:#114f91}
     *{box-sizing:border-box;font-family:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif} /* [B-03] Poppins única fonte */
+    html,body{overflow-x:hidden;max-width:100vw}
     body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0f172a 0%,#020617 65%,#0f172a 100%);background-size:140% 140%;animation:bgMove 20s ease-in-out infinite alternate;color:var(--text);display:flex;font-size:.9rem}
+    *,*::before,*::after{box-sizing:border-box}
     @keyframes bgMove{0%{background-position:0 0}100%{background-position:90% 90%}}
     @media (prefers-reduced-motion: reduce) {
       body { animation: none !important; }
@@ -284,6 +337,8 @@
       max-width:130px;
     }
     .list-relatorios{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+    /* [FIX-v60-WEB] #listaMeus não deve ter max-height restritivo — usa scroll do painel */
+    #listaMeus{max-height:none;overflow-y:visible;}
     /* [FIX-SCR1] No mobile remove o scroll interno — a lista flui na página normalmente,
        evitando o padrão confuso de scroll-dentro-de-scroll */
     @media(max-width:880px){.list-relatorios{max-height:none;overflow-y:visible;}}
@@ -6911,12 +6966,12 @@ function autoFillCamposAtendimento(){
           <span class="badge-status ${statusClass}">${esc(r.status)}</span>
         </div>
         <div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-          <button class="btn small" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Visualizar</button>
-          <button class="btn small" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
-          ${r.whatsapp || r.telefone ? `<button class="btn small" data-painel-whats="${esc(r.id)}" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;"><i class="ri-whatsapp-line"></i> WhatsApp</button>` : ''}
-          ${r.emailCliente ? `<button class="btn small" data-painel-email="${esc(r.id)}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><i class="ri-mail-send-line"></i> E-mail</button>` : ''}
-          <button class="btn small" data-editar-rat="${esc(r.id)}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
-          ${isSupervisorOrAdmin(usuarioLogado) ? `<button class="btn small" data-deletar-rat="${esc(r.id)}" style="background:#fff1f2;color:#dc2626;border-color:#fecaca;"><i class="ri-delete-bin-2-line"></i> Excluir</button>` : ''}
+          <button class="btn small meus-btn-ver" data-ver="${esc(r.id)}"><i class="ri-eye-line"></i> Ver</button>
+          <button class="btn small meus-btn-editar" data-editar-rat="${esc(r.id)}"><i class="ri-edit-2-line"></i> Editar</button>
+          ${r.whatsapp || r.telefone ? `<button class="btn small meus-btn-whats" data-painel-whats="${esc(r.id)}"><i class="ri-whatsapp-line"></i> WhatsApp</button>` : ''}
+          ${r.emailCliente ? `<button class="btn small meus-btn-email" data-painel-email="${esc(r.id)}"><i class="ri-mail-send-line"></i> E-mail</button>` : ''}
+          <button class="btn small meus-btn-pdf" data-pdf="${esc(r.id)}"><i class="ri-file-pdf-line"></i> PDF</button>
+          ${isSupervisorOrAdmin(usuarioLogado) ? `<button class="btn small meus-btn-excluir" data-deletar-rat="${esc(r.id)}"><i class="ri-delete-bin-2-line"></i> Excluir</button>` : ''}
         </div>
         ${(temImg||temVid)?`<div class="mini-gallery" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
           ${(r.imgsEquip||[]).map(src=>{var _ss=(/^data:(image|video)\//i.test(src)||/^https?:\/\//i.test(src))?esc(src):'';return _ss?`<img src="${_ss}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`:''}).join('')}
@@ -6950,10 +7005,49 @@ function autoFillCamposAtendimento(){
             '<div><small>Téc.: ' + esc(r.tecnico) + '</small></div></div>' +
             '<span class="badge-status ' + sc3 + '">' + esc(r.status) + '</span></div>' +
             '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">' +
-            '<button class="btn small" data-ver3="' + esc(r.id) + '"><i class="ri-eye-line"></i> Visualizar</button>' +
-            '<button class="btn small" data-pdf3="' + esc(r.id) + '"><i class="ri-file-pdf-line"></i> PDF</button></div>';
+            '<button class="btn small meus-btn-ver" data-ver3="' + esc(r.id) + '"><i class="ri-eye-line"></i> Ver</button>' +
+            '<button class="btn small meus-btn-editar" data-editar3="' + esc(r.id) + '"><i class="ri-edit-2-line"></i> Editar</button>' +
+            (r.whatsapp || r.telefone ? '<button class="btn small meus-btn-whats" data-whats3="' + esc(r.id) + '"><i class="ri-whatsapp-line"></i> WhatsApp</button>' : '') +
+            (r.emailCliente ? '<button class="btn small meus-btn-email" data-email3="' + esc(r.id) + '"><i class="ri-mail-send-line"></i> E-mail</button>' : '') +
+            '<button class="btn small meus-btn-pdf" data-pdf3="' + esc(r.id) + '"><i class="ri-file-pdf-line"></i> PDF</button>' +
+            // [FIX-v60] Botão Excluir no Carregar mais (supervisor/web) — ausente nas versões anteriores
+            (isSupervisorOrAdmin(usuarioLogado) ? '<button class="btn small meus-btn-excluir" data-excluir3="' + esc(r.id) + '"><i class="ri-delete-bin-2-line"></i> Excluir</button>' : '') +
+            '</div>';
           div3.querySelector('[data-ver3]').onclick = function(){ visualizarRelatorio(r.id); };
           div3.querySelector('[data-pdf3]').onclick = async function(){ try{ await _ensureJsPDF(); await exportarPDF(r); }catch(e){ showToast('❌ Não foi possível gerar o PDF.', 4000); } };
+          var _e3 = div3.querySelector('[data-editar3]');
+          if(_e3) _e3.onclick = function(){ editarRelatorio(r); };
+          var _w3 = div3.querySelector('[data-whats3]');
+          if(_w3) _w3.onclick = async function(){
+            var tok = r.portalToken;
+            if(!tok && typeof window._gerarTokenPortal==='function') try{ tok=await window._gerarTokenPortal(r); }catch(e){}
+            var pUrl = null;
+            if(tok && typeof window._urlPortal==='function') pUrl = window._urlPortal(tok, r);
+            var _si = r._portalSenha ? '\n🔑 Senha: *'+r._portalSenha+'* (válida 30 dias)\n (Usuário: CNPJ/CPF — '+(r.cnpjCliente||'')+')' : '';
+            var msg = pUrl
+              ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente:\n'+pUrl+_si+'\n\nQualquer dúvida estamos à disposição!'
+              : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o Relatório Técnico de Atendimento RAT *'+(r.numero||'')+'* do cliente *'+(r.cliente||'')+'*.\n\nQualquer dúvida estamos à disposição!';
+            var num = String(r.whatsapp||r.telefone||'').replace(/\D/g,'');
+            if(num.length<=11) num='55'+num;
+            window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank','noopener,noreferrer');
+          };
+          var _em3 = div3.querySelector('[data-email3]');
+          if(_em3) _em3.onclick = async function(){
+            var pUrl2 = null;
+            var tok2 = r.portalToken;
+            if(!tok2 && typeof window._gerarTokenPortal==='function') try{ tok2=await window._gerarTokenPortal(r); }catch(e){}
+            if(tok2 && typeof window._urlPortal==='function') pUrl2 = window._urlPortal(tok2, r);
+            var subj = 'ONLINE-ES – Relatório Técnico RAT '+(r.numero||'');
+            var body = ['Olá, '+(r.cliente||'')+'!','','Segue o Relatório Técnico RAT '+(r.numero||'')+'.',''].concat(pUrl2?['📂 Acesse o Portal do Cliente para baixar o relatório:',pUrl2,'']:['Atenciosamente,','ONLINE-ES Eletroeletrônica']).join('\n');
+            window.open('mailto:'+encodeURIComponent(r.emailCliente||'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body),'_blank','noopener,noreferrer');
+          };
+          // [FIX-v60] Handler Excluir no Carregar mais supervisor/web
+          var _excl3 = div3.querySelector('[data-excluir3]');
+          if(_excl3) _excl3.onclick = async function(){
+            if(!await showConfirm('Excluir o relatório Nº '+(r.numero||'')+'?\n\nEsta ação não pode ser desfeita.')) return;
+            if(typeof deletarRelatorio==='function') deletarRelatorio(r.id);
+            else showToast('⚠️ Função de exclusão não disponível.',3000);
+          };
           _frag3.appendChild(div3);
         });
         listaRelatorios.appendChild(_frag3);
@@ -7186,7 +7280,8 @@ function autoFillCamposAtendimento(){
           btnVP.disabled = false; btnVP.innerHTML = '<i class="ri-eye-line"></i> Ver portal';
         }
         if (token && typeof window._urlPortal === 'function') {
-          window.open(window._urlPortal(token), '_blank', 'noopener,noreferrer');
+          // [FIX-v60-URL] Passa rat para incluir _portalSenha no link (login automático)
+          window.open(window._urlPortal(token, r), '_blank', 'noopener,noreferrer');
         }
       };
     }
@@ -12545,6 +12640,10 @@ window.setCustomLogoBase64 = function(b64){
   }
 
   function _iniciarMobileHome(user) {
+    // [FIX-v59-MOBILE-PORTAL] Se a URL tem ?portal= ou ?rat=, o portal do cliente
+    // já está ativo — não iniciar a home mobile para não sobrescrever o portal.
+    if(window._modoPortalCliente) return;
+
     var isMobile = window.matchMedia('(max-width: 880px)').matches;
 
     // Define cards e bottom nav conforme perfil
@@ -13448,11 +13547,11 @@ async function renderMeus(){
         '</div>'+
         '<div class="rat-data" style="font-size:.72rem;margin-top:4px;">'+ _e(dataBr || '') +'</div>'+
         '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
-          '<button class="btn small" data-meus-ver="'+ _e(r.id) +'"><i class="ri-eye-line"></i> Ver</button>'+
+          '<button class="btn small meus-btn-ver" data-meus-ver="'+ _e(r.id) +'"><i class="ri-eye-line"></i> Ver</button>'+
           '<button class="btn small meus-btn-editar" data-meus-editar="'+ _e(r.id) +'"><i class="ri-pencil-line"></i> Editar</button>'+
           '<button class="btn small meus-btn-whats" data-meus-whats="'+ _e(r.id) +'"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
           (r.emailCliente ? '<button class="btn small meus-btn-email" data-meus-email="'+ _e(r.id) +'"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
-          '<button class="btn small" data-meus-pdf="'+ _e(r.id) +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+          '<button class="btn small meus-btn-pdf" data-meus-pdf="'+ _e(r.id) +'"><i class="ri-file-pdf-line"></i> PDF</button>'+
         '</div>';
       card.onclick = null; // botões individuais tratam o clique
       _meusFragment.appendChild(card);
@@ -13483,13 +13582,62 @@ async function renderMeus(){
             '</div>'+
             '<div class="rat-data" style="font-size:.72rem;margin-top:3px;">'+_e2(db2)+'</div>'+
             '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">'+
-              '<button class="btn small" data-meus-ver="'+_e2(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
+              '<button class="btn small meus-btn-ver" data-meus-ver="'+_e2(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
               '<button class="btn small meus-btn-editar" data-meus-editar="'+_e2(r.id)+'"><i class="ri-pencil-line"></i> Editar</button>'+
-              '<button class="btn small" data-meus-pdf="'+_e2(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+              (r.whatsapp || r.telefone ? '<button class="btn small meus-btn-whats" data-meus-whats="'+_e2(r.id)+'"><i class="ri-whatsapp-line"></i> WhatsApp</button>' : '')+
+              (r.emailCliente ? '<button class="btn small meus-btn-email" data-meus-email="'+_e2(r.id)+'"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
+              '<button class="btn small meus-btn-pdf" data-meus-pdf="'+_e2(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+              ((typeof isSupervisorOrAdmin==='function' && isSupervisorOrAdmin(usuarioLogado)) ? '<button class="btn small meus-btn-excluir" data-meus-excluir="'+_e2(r.id)+'"><i class="ri-delete-bin-2-line"></i> Excluir</button>' : '')+
             '</div>';
           card2.querySelector('[data-meus-ver]').onclick = function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(rr&&typeof abrirRelatorioOverlay==='function')abrirRelatorioOverlay(rr);};
           card2.querySelector('[data-meus-editar]').onclick = async function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(!rr)return;if(!await showConfirm('Editar o relatório Nº '+(rr.numero||'')+'?'))return;if(typeof editarRelatorio==='function')editarRelatorio(rr);};
           card2.querySelector('[data-meus-pdf]').onclick = async function(ev){ev.stopPropagation();var rr=filtrados.find(function(x){return x.id===r.id;});if(!rr)return;try{await _ensureJsPDF();await exportarPDF(rr);}catch(e){showToast('❌ Não foi possível gerar o PDF.',4000);}};
+          // [FIX-v60] WhatsApp handler no Carregar mais mobile
+          var _w2 = card2.querySelector('[data-meus-whats]');
+          if(_w2) _w2.onclick = async function(ev){ ev.stopPropagation();
+            var rr=filtrados.find(function(x){return x.id===r.id;}); if(!rr) return;
+            var num=(rr.whatsapp||rr.telefone||'').replace(/\D/g,'');
+            if(!num){showToast('⚠️ WhatsApp não informado.',3000);return;}
+            if(num.length<=11) num='55'+num;
+            var pUrl=null;
+            if(window.location.protocol!=='file:' && typeof window._gerarTokenPortal==='function'){
+              try{ showToast('🔗 Gerando link...',2000); var tok2=await window._gerarTokenPortal(rr); if(tok2&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok2,rr); }catch(e){}
+            }
+            var _si2=rr._portalSenha?'\n🔑 Senha: *'+rr._portalSenha+'* (válida 30 dias)\n    (Usuário: CNPJ/CPF — '+(rr.cnpjCliente||'')+')'
+              :'\n🔑 Use seu CNPJ/CPF e a senha já recebida.';
+            var msg2=pUrl?'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o RAT *'+(rr.numero||'')+'*.\n\n📂 Portal do Cliente:\n'+pUrl+_si2+'\n\nQualquer dúvida estamos à disposição!'
+              :'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o RAT *'+(rr.numero||'')+'* – '+(rr.cliente||'')+'.';
+            window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg2),'_blank','noopener,noreferrer');
+            showToast('✅ WhatsApp aberto!'+(pUrl?' Link e senha incluídos.':''),5000);
+          };
+          // [FIX-v60] E-mail handler no Carregar mais mobile
+          var _em2 = card2.querySelector('[data-meus-email]');
+          if(_em2) _em2.onclick = async function(ev){ ev.stopPropagation();
+            var rr=filtrados.find(function(x){return x.id===r.id;}); if(!rr) return;
+            var email=(rr.emailCliente||'').trim();
+            if(!email){showToast('⚠️ E-mail não informado.',3000);return;}
+            var pUrl2=null;
+            if(window.location.protocol!=='file:' && typeof window._gerarTokenPortal==='function'){
+              try{ showToast('🔗 Gerando link...',2000); var tok3=await window._gerarTokenPortal(rr); if(tok3&&typeof window._urlPortal==='function') pUrl2=window._urlPortal(tok3,rr); }catch(e){}
+            }
+            var assunto2='Online-ES – Relatório Técnico nº '+(rr.numero||'');
+            var linhas2=['Olá'+(rr.nomeAssinaturaCliente?', '+rr.nomeAssinaturaCliente:'')+'!','',
+              'Segue o Relatório Técnico RAT Nº '+(rr.numero||'')+'.','• Cliente: '+(rr.cliente||''),
+              '• Data: '+(rr.dataHoraBr||rr.dataHoraBR||''),'• Técnico: '+(rr.tecnico||''),''];
+            if(pUrl2){ linhas2.push('🔗 Acesse o Portal do Cliente:',pUrl2);
+              if(rr._portalSenha){ linhas2.push('👤 Usuário (CNPJ/CPF): '+(rr.cnpjCliente||''),'🔑 Senha: '+rr._portalSenha+' (válida 30 dias)'); } }
+            linhas2.push('','Atenciosamente,','Online-ES – Eletroeletrônica','www.onlinees.com.br');
+            window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(assunto2)+'&body='+encodeURIComponent(linhas2.join('\n')),'_blank','noopener,noreferrer');
+            showToast('✅ E-mail aberto!'+(pUrl2?' Link e senha incluídos.':''),5000);
+          };
+          // [FIX-v60] Excluir handler no Carregar mais mobile (admin/supervisor)
+          var _ex2 = card2.querySelector('[data-meus-excluir]');
+          if(_ex2) _ex2.onclick = async function(ev){ ev.stopPropagation();
+            var rr=filtrados.find(function(x){return x.id===r.id;}); if(!rr) return;
+            if(!await showConfirm('Excluir o relatório Nº '+(rr.numero||'')+'?\n\nEsta ação não pode ser desfeita.')) return;
+            if(typeof deletarRelatorio==='function') deletarRelatorio(rr.id||rr._fsId);
+            else showToast('⚠️ Função de exclusão não disponível.',3000);
+          };
           _frag2.appendChild(card2);
         });
         lista.appendChild(_frag2);
@@ -13734,11 +13882,11 @@ async function _renderMeusComCache() {
       '</div>'+
       '<div class="rat-data" style="font-size:.72rem;margin-top:4px;">'+_e(dataBr)+'</div>'+
       '<div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'+
-        '<button class="btn small" data-meus-ver="'+_e(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
+        '<button class="btn small meus-btn-ver" data-meus-ver="'+_e(r.id)+'"><i class="ri-eye-line"></i> Ver</button>'+
         '<button class="btn small meus-btn-editar" data-meus-editar="'+_e(r.id)+'"><i class="ri-pencil-line"></i> Editar</button>'+
         '<button class="btn small meus-btn-whats" data-meus-whats="'+_e(r.id)+'"><i class="ri-whatsapp-line"></i> WhatsApp</button>'+
         (r.emailCliente ? '<button class="btn small meus-btn-email" data-meus-email="'+_e(r.id)+'"><i class="ri-mail-send-line"></i> E-mail</button>' : '')+
-        '<button class="btn small" data-meus-pdf="'+_e(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
+        '<button class="btn small meus-btn-pdf" data-meus-pdf="'+_e(r.id)+'"><i class="ri-file-pdf-line"></i> PDF</button>'+
       '</div>';
     // Handlers
     card.querySelector('[data-meus-ver]').onclick = function(ev) { ev.stopPropagation(); var r2 = filtrados.find(function(x){ return x.id === r.id; }); if (r2 && typeof abrirRelatorioOverlay === 'function') abrirRelatorioOverlay(r2); };
@@ -17034,10 +17182,16 @@ window._urlPortalV2 = function(cnpj, senha){
 };
 
 /* Mantém _urlPortal para compatibilidade (alguns botões ainda usam).
-   Aceita (token) ou (token, rat) — se rat._portalSenha existir, inclui no link. */
+   Aceita (token) ou (token, rat) — se rat._portalSenha existir, inclui no link.
+   [FIX-v60-URL] Remove prefixo 'cnpj:' que _gerarTokenPortal salva no portalToken —
+   evita URL quebrada ?portal=cnpj:XXXXX que o _loginPortal não consegue resolver. */
 window._urlPortal = function(token, rat){
   var senha = (rat && rat._portalSenha) ? rat._portalSenha : null;
-  return window._urlPortalV2 ? window._urlPortalV2(token, senha) : '#';
+  // Strip do prefixo 'cnpj:' se presente (formato legado do portalToken)
+  var cnpj = (typeof token === 'string' && token.startsWith('cnpj:'))
+    ? token.slice(5)
+    : token;
+  return window._urlPortalV2 ? window._urlPortalV2(cnpj, senha) : '#';
 };
 
 /* ─────────────────────────────────────────────────────────────
@@ -17205,16 +17359,23 @@ var _portalSessao = null; // { cnpj, nome, cred, loginEm }
 
 /* ── Garante auth anônimo antes de qualquer acesso ao Firestore ── */
 async function _garantirAuthPortal(){
-  try{
-    var fbAuth = window.firebase && window.firebase.auth ? window.firebase.auth() : null;
-    if(!fbAuth) return false;
-    if(fbAuth.currentUser) return true;
-    await fbAuth.signInAnonymously();
-    return true;
-  }catch(e){
-    console.warn('[Portal v2] auth anônimo falhou:', e.message||e);
-    return false;
+  // [FIX-v59] Aguarda até 4s pelo Firebase Auth se ainda não estiver disponível
+  for(var _ra=0; _ra<8; _ra++){
+    try{
+      var fbAuth = window.firebase && window.firebase.auth ? window.firebase.auth() : null;
+      if(!fbAuth){
+        await new Promise(function(res){ setTimeout(res, 500); });
+        continue;
+      }
+      if(fbAuth.currentUser) return true;
+      await fbAuth.signInAnonymously();
+      return true;
+    }catch(e){
+      console.warn('[Portal v2] auth anônimo falhou (tentativa '+ (_ra+1) +'):', e.message||e);
+      if(_ra < 7) await new Promise(function(res){ setTimeout(res, 500); });
+    }
   }
+  return false;
 }
 
 async function _loginPortal(cnpjInput, senhaInput){
@@ -17229,7 +17390,16 @@ async function _loginPortal(cnpjInput, senhaInput){
     console.warn('[Portal v2] Auth anônimo não disponível — tentando acesso direto.');
   }
 
+  // [FIX-v59-DB-RETRY] Se o Firebase ainda não terminou de inicializar (race condition
+  // na primeira carga), aguarda até 4s em ciclos de 500ms antes de desistir.
   var db = _db();
+  if(!db){
+    for(var _r=0; _r<8; _r++){
+      await new Promise(function(res){ setTimeout(res, 500); });
+      db = _db();
+      if(db) break;
+    }
+  }
   if(!db) return { ok: false, msg: 'Sem conexão com o servidor. Tente novamente em instantes.' };
 
   var snap;
@@ -19013,6 +19183,7 @@ else _ppInit();
   padding: 16px 15px !important;
   display: flex !important;
   flex-direction: column !important;
+  flex-shrink: 0 !important; /* [FIX-v60-WEB] impede compressão pelo flex container pai (.list-relatorios) */
   gap: 0 !important;
   color: #e2e8f0 !important;
   transition: box-shadow .2s ease, transform .18s ease, border-color .2s ease !important;
@@ -19058,44 +19229,82 @@ else _ppInit();
   font-size: .71rem !important;
   margin-top: 8px !important;
 }
-/* Acoes — row de botões */
+/* ── Acoes — row de botões ── */
 #telaMeus .relatorio-card .relatorio-acoes {
   margin-top: 12px !important;
   gap: 6px !important;
   flex-wrap: wrap !important;
 }
+
+/* Base de todos os botões de ação — reset do estilo escuro genérico */
 #telaMeus .relatorio-card .relatorio-acoes .btn.small {
-  background: rgba(255,255,255,.06) !important;
-  border: 1px solid rgba(148,163,184,.18) !important;
-  color: #cbd5e1 !important;
   border-radius: 10px !important;
   font-size: .68rem !important;
+  font-weight: 600 !important;
   padding: 6px 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  transition: filter .15s, transform .1s, box-shadow .15s !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18) !important;
 }
 #telaMeus .relatorio-card .relatorio-acoes .btn.small:active {
-  background: rgba(249,115,22,.14) !important;
-  border-color: rgba(249,115,22,.38) !important;
-  color: #fb923c !important;
+  transform: scale(.95) !important;
+  filter: brightness(.9) !important;
 }
-/* Botão editar */
-#telaMeus .relatorio-card .relatorio-acoes .meus-btn-editar,
-#telaMeus .relatorio-card .relatorio-acoes [style*="color:#1d4ed8"] {
-  background: rgba(59,130,246,.1) !important;
-  border-color: rgba(59,130,246,.28) !important;
-  color: #93c5fd !important;
+@media (hover: hover) {
+  #telaMeus .relatorio-card .relatorio-acoes .btn.small:hover {
+    filter: brightness(1.12) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,.28) !important;
+  }
 }
-/* Botão WhatsApp */
-#telaMeus .relatorio-card .relatorio-acoes .meus-btn-whats,
-#telaMeus .relatorio-card .relatorio-acoes [style*="color:#16a34a"] {
-  background: rgba(34,197,94,.08) !important;
-  border-color: rgba(34,197,94,.28) !important;
-  color: #86efac !important;
+
+/* ── Ver — azul sólido ── */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-ver {
+  background: #1d4ed8 !important;
+  border: 1px solid #1e40af !important;
+  color: #fff !important;
 }
-/* Botão E-mail */
+
+/* ── Editar — azul claro (sky) ── */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-editar {
+  background: #0ea5e9 !important;
+  border: 1px solid #0284c7 !important;
+  color: #fff !important;
+}
+
+/* ── WhatsApp — verde ── */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-whats {
+  background: #16a34a !important;
+  border: 1px solid #15803d !important;
+  color: #fff !important;
+}
+
+/* ── E-mail — azul contorno ── */
 #telaMeus .relatorio-card .relatorio-acoes .meus-btn-email {
-  background: rgba(59,130,246,.1) !important;
-  border-color: rgba(59,130,246,.28) !important;
+  background: transparent !important;
+  border: 1.5px solid #3b82f6 !important;
   color: #93c5fd !important;
+}
+@media (hover: hover) {
+  #telaMeus .relatorio-card .relatorio-acoes .meus-btn-email:hover {
+    background: rgba(59,130,246,.14) !important;
+  }
+}
+
+/* ── PDF — azul escuro (navy) ── */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-pdf {
+  background: #0f172a !important;
+  border: 1px solid #1e40af !important;
+  color: #bfdbfe !important;
+}
+
+/* ── Excluir — mantém vermelho ── */
+#telaMeus .relatorio-card .relatorio-acoes .meus-btn-excluir {
+  background: rgba(220,38,38,.12) !important;
+  border: 1px solid rgba(220,38,38,.38) !important;
+  color: #fca5a5 !important;
 }
 /* Badge status */
 #telaMeus .relatorio-card .badge-status {
@@ -19117,16 +19326,28 @@ else _ppInit();
 
 /* ── Mobile: viewport-fill sem scroll lateral ── */
 @media (max-width: 880px) {
+  /* [FIX-v60-MOB] #telaMeus cancela o padding do .main para ocupar largura total */
   #telaMeus {
-    padding: 10px 10px 8px !important;
+    padding: 0 !important;
     margin: 0 !important;
+    /* Compensa o padding lateral do .main (10px cada lado) */
+    width: calc(100% + 0px) !important;
+  }
+  #telaMeus #listaMeus {
+    padding: 0 8px !important;
+  }
+  /* Campo de busca e contador respeitam o padding lateral */
+  #telaMeus > p,
+  #telaMeus > #dicaExclusaoTecnico,
+  #telaMeus > div:has(#meusBusca) {
+    padding: 0 8px !important;
   }
   #telaMeus .relatorio-card {
-    padding: 13px 13px !important;
+    padding: 13px 12px !important;
     border-radius: 14px !important;
     margin-bottom: 9px !important;
     gap: 0 !important;
-    /* Toque mais fácil no mobile */
+    width: 100% !important;
     min-height: 72px !important;
   }
   #telaMeus .relatorio-card strong {
@@ -19142,12 +19363,16 @@ else _ppInit();
   #telaMeus .relatorio-card .relatorio-acoes {
     margin-top: 10px !important;
     gap: 5px !important;
+    flex-wrap: wrap !important;
   }
-  /* Touch targets mínimos 44px */
+  /* [FIX-v60-MOB-BTN] Botões menores para caber na linha sem overflow */
   #telaMeus .relatorio-card .relatorio-acoes .btn.small {
-    min-height: 40px !important;
-    padding: 7px 12px !important;
-    font-size: .67rem !important;
+    min-height: 36px !important;
+    padding: 6px 10px !important;
+    font-size: .64rem !important;
+    border-radius: 8px !important;
+    min-width: unset !important;
+    white-space: nowrap !important;
   }
 }
 
