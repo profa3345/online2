@@ -1003,15 +1003,18 @@ html[data-role="technician"] nav button {
     border-radius:10px;
     background:#ffffff;
     cursor:crosshair;
-    /* [FIX-v39] touch-action:manipulation permite scroll ANTES de iniciar o traço;
-       o JS já bloqueia via preventDefault() apenas durante o desenho (startDraw/startDrawTec).
-       'none' travava a tela inteira no mobile ao simples toque no canvas. */
-    touch-action:pan-y;
+    /* [FIX-SCROLL-V2] pointer-events:none por padrão — toque passa livremente para
+       o scroll da página. JS adiciona classe .sig-ativo para habilitar o desenho. */
+    touch-action:none;
+    pointer-events:none;
     display:block;
-    /* [FIX-SCROLL] Começa com pan-y: rolar a página funciona antes de iniciar traço.
-       O JS muda para touch-action:none ao iniciar o traço (startDraw/startDrawTec),
-       garantindo captura precisa do desenho sem interferência do scroll.           */
     overscroll-behavior:none;
+  }
+  #sigCliente.sig-ativo,
+  #sigTecnico.sig-ativo{
+    pointer-events:auto;
+    border-color:rgba(249,115,22,.6);
+    box-shadow:0 0 0 3px rgba(249,115,22,.18);
   }
 
   /* Ambos os cards de assinatura com o mesmo layout — usando section-card como base */
@@ -2341,7 +2344,14 @@ html[data-role="technician"] nav button {
             Peça para o cliente assinar com o dedo (celular/tablet) ou com o mouse / touchpad:
           </p>
 
-          <canvas id="sigCliente"></canvas>
+          <div style="position:relative;">
+            <canvas id="sigCliente"></canvas>
+            <!-- [FIX-SCROLL] Overlay de ativação — cobre o canvas enquanto pointer-events:none.
+                 Toque aqui ativa o canvas para desenho sem bloquear scroll da página. -->
+            <div id="sigClienteOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(249,115,22,.07);border:2px dashed rgba(249,115,22,.4);cursor:pointer;touch-action:pan-y;">
+              <span style="color:#f97316;font-weight:700;font-size:.85rem;pointer-events:none;"><i class="ri-edit-2-line"></i> Toque aqui para assinar</span>
+            </div>
+          </div>
 
           <div id="sigBtns">
             <button type="button" class="btn small" id="btnLimparAssinatura">
@@ -2413,7 +2423,12 @@ html[data-role="technician"] nav button {
           </p>
 
           <!-- Canvas de assinatura do técnico -->
-          <canvas id="sigTecnico"></canvas>
+          <div style="position:relative;">
+            <canvas id="sigTecnico"></canvas>
+            <div id="sigTecnicoOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(249,115,22,.07);border:2px dashed rgba(249,115,22,.4);cursor:pointer;touch-action:pan-y;">
+              <span style="color:#f97316;font-weight:700;font-size:.85rem;pointer-events:none;"><i class="ri-edit-2-line"></i> Toque aqui para assinar</span>
+            </div>
+          </div>
 
           <div id="sigTecBtns" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
             <button type="button" class="btn small" id="btnLimparAssinaturaTec">
@@ -6021,9 +6036,13 @@ function autoFillCamposAtendimento(){
           window.assinaturaClienteAtual = assinaturaClienteAtual;
           if (assinaturaClienteAtual && sigStatus) sigStatus.textContent = 'Assinatura do cliente carregada.';
           if (assinaturaClienteAtual && sigNomeWrap) sigNomeWrap.style.display = 'block';
+          // [FIX-OVERLAY] Assinatura existente: ativa canvas para exibir/editar
+          if (assinaturaClienteAtual && typeof _ativarSigCliente === 'function') setTimeout(_ativarSigCliente, 50);
           assinaturaTecnicoAtual = r.assinaturaTecnicoImg || null;
           window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
           if (assinaturaTecnicoAtual && sigStatusTec) sigStatusTec.textContent = 'Assinatura do t\u00e9cnico carregada.';
+          // [FIX-OVERLAY] Assinatura técnico existente: ativa canvas
+          if (assinaturaTecnicoAtual && typeof _ativarSigTecnico === 'function') setTimeout(_ativarSigTecnico, 50);
         } catch(e) { console.warn('Restaurar assinaturas ao editar:', e); }
 
         // BUG FIX: para o relógio automático ao editar RAT existente,
@@ -11386,6 +11405,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     // [TRAVA-SIG] Destrava ao limpar — técnico precisa assinar de novo
     _sigClienteTravado = false;
     _atualizarBotaoTravaCli();
+    // [FIX-OVERLAY] Reexibe overlay ao limpar — canvas volta a ter pointer-events:none
+    if (typeof _desativarSigCliente === 'function') _desativarSigCliente();
   }
 
   function getPosCanvas(e){
@@ -11398,9 +11419,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   }
 
   function startDraw(e){
-    // [FIX-SCROLL] Ao iniciar traço: muda touch-action para none (captura total)
-    // e previne o scroll neste toque específico.
-    sigCanvas.style.touchAction = 'none';
     e.preventDefault();
     if (sigCanvas.width === 0 || sigCanvas.height === 0){
       resizeSignatureCanvas();
@@ -11425,8 +11443,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   function endDraw(){
     desenhando = false;
     ultimoPonto = null;
-    // [FIX-SCROLL] Restaura pan-y após levantar o dedo — scroll volta a funcionar
-    sigCanvas.style.touchAction = 'pan-y';
   }
 
   // [FIX-SCROLL-FINAL] Usa Pointer Events em vez de touch/mouse separados.
@@ -11447,6 +11463,46 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   }, {passive: false});
   sigCanvas.addEventListener('pointerup', endDraw);
   sigCanvas.addEventListener('pointercancel', endDraw);
+
+  // ── [FIX-SCROLL-V2] Overlay de ativação do canvas do cliente ──────────────
+  // Canvas começa com pointer-events:none — scroll da página funciona livremente.
+  // Overlay capta o toque e ativa o canvas sem chamar e.preventDefault() no início.
+  var _sigClienteOverlay = document.getElementById('sigClienteOverlay');
+
+  function _ativarSigCliente() {
+    sigCanvas.classList.add('sig-ativo');
+    if (_sigClienteOverlay) _sigClienteOverlay.style.display = 'none';
+  }
+
+  function _desativarSigCliente() {
+    sigCanvas.classList.remove('sig-ativo');
+    sigCanvas.style.touchAction = 'none'; // mantém none no CSS, pointer-events:none via classe
+    if (_sigClienteOverlay) _sigClienteOverlay.style.display = 'flex';
+  }
+
+  if (_sigClienteOverlay) {
+    _sigClienteOverlay.addEventListener('click', _ativarSigCliente);
+    _sigClienteOverlay.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      _ativarSigCliente();
+    }, {passive: false});
+  }
+
+  // Desativa ao confirmar ou limpar assinatura (volta ao modo scroll)
+  var _origBtnUsarAss = document.getElementById('btnUsarAssinatura');
+  var _origBtnLimpar  = document.getElementById('btnLimparAssinatura');
+  if (_origBtnUsarAss) {
+    var _origOnclickUsar = _origBtnUsarAss.onclick;
+    _origBtnUsarAss.addEventListener('click', function() {
+      setTimeout(_desativarSigCliente, 100);
+    });
+  }
+  if (_origBtnLimpar) {
+    _origBtnLimpar.addEventListener('click', function() {
+      _desativarSigCliente();
+    });
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   // [FIX-SIG] Debounce de 300ms no resize — evita apagar canvas quando teclado virtual
   // abre/fecha no mobile (o que também dispara o evento resize do window).
@@ -11532,8 +11588,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if (sigCanvas) {
         sigCanvas.style.opacity = '0.7';
         sigCanvas.style.cursor = 'not-allowed';
-        // [FIX-SCROLL] Travado: libera scroll vertical sobre o canvas
-        sigCanvas.style.touchAction = 'pan-y';
+        // [FIX-SCROLL-V2] Travado = desativa canvas (pointer-events:none via classe)
+        if (typeof _desativarSigCliente === 'function') _desativarSigCliente();
       }
     } else {
       _btnTravarSigCli.style.background = 'rgba(148,163,184,.12)';
@@ -11544,8 +11600,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if (sigCanvas) {
         sigCanvas.style.opacity = '';
         sigCanvas.style.cursor = '';
-        // [FIX-SCROLL] Desbloqueado: captura todos os toques para desenho
-        sigCanvas.style.touchAction = 'none';
       }
     }
   }
@@ -11668,8 +11722,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     }
 
     function startDrawTec(e){
-      // [FIX-SCROLL] Ao iniciar traço: muda touch-action para none (captura total)
-      sigTecnicoCanvas.style.touchAction = 'none';
       e.preventDefault();
       if (sigTecnicoCanvas.width === 0 || sigTecnicoCanvas.height === 0){
         resizeSigTecnicoCanvas();
@@ -11691,8 +11743,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     function endDrawTec(){
       desenhandoTec = false;
       ultimoPontoTec = null;
-      // [FIX-SCROLL] Restaura pan-y após levantar o dedo
-      sigTecnicoCanvas.style.touchAction = 'pan-y';
     }
 
     // [FIX-POINTER] Pointer Events cobre mouse + touch sem conflito com scroll.
@@ -11708,6 +11758,39 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     }, {passive: false});
     sigTecnicoCanvas.addEventListener('pointerup', endDrawTec);
     sigTecnicoCanvas.addEventListener('pointercancel', endDrawTec);
+
+    // ── [FIX-SCROLL-V2] Overlay de ativação do canvas do técnico ────────────
+    var _sigTecnicoOverlay = document.getElementById('sigTecnicoOverlay');
+
+    function _ativarSigTecnico() {
+      sigTecnicoCanvas.classList.add('sig-ativo');
+      if (_sigTecnicoOverlay) _sigTecnicoOverlay.style.display = 'none';
+    }
+
+    function _desativarSigTecnico() {
+      sigTecnicoCanvas.classList.remove('sig-ativo');
+      if (_sigTecnicoOverlay) _sigTecnicoOverlay.style.display = 'flex';
+    }
+
+    if (_sigTecnicoOverlay) {
+      _sigTecnicoOverlay.addEventListener('click', _ativarSigTecnico);
+      _sigTecnicoOverlay.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        _ativarSigTecnico();
+      }, {passive: false});
+    }
+
+    var _btnUsarAssTec = document.getElementById('btnUsarAssinaturaTec');
+    var _btnLimparTec  = document.getElementById('btnLimparAssinaturaTec');
+    if (_btnUsarAssTec) {
+      _btnUsarAssTec.addEventListener('click', function() {
+        setTimeout(_desativarSigTecnico, 100);
+      });
+    }
+    if (_btnLimparTec) {
+      _btnLimparTec.addEventListener('click', function() { _desativarSigTecnico(); });
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // [TRAVA-SIG] Botão de trava do canvas de assinatura do TÉCNICO
     var _sigTecTravado = false;
@@ -11725,8 +11808,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Assinatura travada';
         sigTecnicoCanvas.style.opacity = '0.7';
         sigTecnicoCanvas.style.cursor  = 'not-allowed';
-        // [FIX-SCROLL] Travado: libera scroll vertical sobre o canvas
-        sigTecnicoCanvas.style.touchAction = 'pan-y';
+        // [FIX-SCROLL-V2] Travado = desativa canvas
+        if (typeof _desativarSigTecnico === 'function') _desativarSigTecnico();
       } else {
         _btnTravarSigTec.style.background = 'rgba(148,163,184,.12)';
         _btnTravarSigTec.style.borderColor = 'rgba(148,163,184,.35)';
@@ -11735,8 +11818,6 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar assinatura';
         sigTecnicoCanvas.style.opacity = '';
         sigTecnicoCanvas.style.cursor  = '';
-        // [FIX-SCROLL] Desbloqueado: captura todos os toques para desenho
-        sigTecnicoCanvas.style.touchAction = 'none';
       }
     }
 
