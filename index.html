@@ -1008,7 +1008,6 @@ html[data-role="technician"] nav button {
     touch-action:none;
     pointer-events:none;
     display:block;
-    overscroll-behavior:none;
   }
   #sigCliente.sig-ativo,
   #sigTecnico.sig-ativo{
@@ -1027,33 +1026,9 @@ html[data-role="technician"] nav button {
     padding:8px 10px 12px;
     box-sizing:border-box;
     width:100%;
-    /* [FIX-SIG1] Contém o comportamento de scroll dentro do card */
-    overscroll-behavior:contain;
   }
-  /* [FIX-SIG1] Hint mais visível com ícone de dedo e borda de destaque no mobile */
   @media (max-width:880px){
-    #assinaturaClienteBox,
-    #assinaturaTecnicoBox{
-      border:2px solid rgba(249,115,22,.35);
-    }
-    #assinaturaClienteBox::before,
-    #assinaturaTecnicoBox::before{
-      content: '☝️ Para assinar, toque nesta área. Para rolar a página, toque fora dela.';
-      display:block;
-      font-size:12px;
-      color:#475569;
-      background:rgba(249,115,22,.07);
-      border-radius:6px;
-      padding:5px 8px;
-      margin-bottom:6px;
-      line-height:1.5;
-    }
-    /* Destaca o canvas quando está em foco (após primeiro toque) */
-    #sigCliente:focus,
-    #sigTecnico:focus{
-      outline:2px solid rgba(249,115,22,.6);
-      border-color:rgba(249,115,22,.6);
-    }
+    #sigCliente, #sigTecnico{ height:180px !important; }
   }
 
   /* [FIX-CURSOR] Cursor consistente em todos os campos readonly */
@@ -2344,11 +2319,11 @@ html[data-role="technician"] nav button {
             Peça para o cliente assinar com o dedo (celular/tablet) ou com o mouse / touchpad:
           </p>
 
-          <div style="position:relative;">
+          <div style="position:relative;touch-action:pan-y;">
             <canvas id="sigCliente"></canvas>
             <!-- [FIX-SCROLL] Overlay de ativação — cobre o canvas enquanto pointer-events:none.
                  Toque aqui ativa o canvas para desenho sem bloquear scroll da página. -->
-            <div id="sigClienteOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(249,115,22,.07);border:2px dashed rgba(249,115,22,.4);cursor:pointer;touch-action:pan-y;">
+            <div id="sigClienteOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(249,115,22,.07);border:2px dashed rgba(249,115,22,.4);cursor:pointer;touch-action:pan-y;overscroll-behavior:none;">
               <span style="color:#f97316;font-weight:700;font-size:.85rem;pointer-events:none;"><i class="ri-edit-2-line"></i> Toque aqui para assinar</span>
             </div>
           </div>
@@ -2423,9 +2398,9 @@ html[data-role="technician"] nav button {
           </p>
 
           <!-- Canvas de assinatura do técnico -->
-          <div style="position:relative;">
+          <div style="position:relative;touch-action:pan-y;">
             <canvas id="sigTecnico"></canvas>
-            <div id="sigTecnicoOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(249,115,22,.07);border:2px dashed rgba(249,115,22,.4);cursor:pointer;touch-action:pan-y;">
+            <div id="sigTecnicoOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(249,115,22,.07);border:2px dashed rgba(249,115,22,.4);cursor:pointer;touch-action:pan-y;overscroll-behavior:none;">
               <span style="color:#f97316;font-weight:700;font-size:.85rem;pointer-events:none;"><i class="ri-edit-2-line"></i> Toque aqui para assinar</span>
             </div>
           </div>
