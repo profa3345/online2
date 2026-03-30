@@ -1,16 +1,6 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v64
-  Correções v64:
-  - [FIX-v64-SEMPRE-SENHA] _gerarCredencialPortal: removido bloco que retornava nova:false
-    e senha:null quando faltaDias>7. Agora sempre gera nova senha e atualiza senhaHash.
-    Isso garante que o link SEMPRE chega com a senha — elimina o bug "Use a senha já
-    recebida anteriormente" que aparecia quando o cliente já tinha acesso válido.
-  - [FIX-v64-CRED-EMAIL] r._portalSenha = _credEmail.senha (em vez de nova?senha:null).
-  - [FIX-v64-CRED-WA]    r._portalSenha = _credWa.senha    (em vez de nova?senha:null).
-  - [FIX-v64-TOKEN]      rat._portalSenha = resultado.senha (em vez de nova?senha:null)
-    em _gerarTokenPortal — garante que fluxos secundários (meus, cache, supervisor)
-    também sempre incluam a senha na mensagem.
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v63
   Correções v63:
   - [FIX-v63-PORTAL-BF] Rate limiting brute force no portal do cliente: 5 tentativas
     de senha errada bloqueiam o CNPJ por 15 minutos (localStorage). Funções
@@ -460,7 +450,8 @@
       display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
       padding:12px 16px;
       background:linear-gradient(transparent, rgba(0,0,0,.6));
-      z-index:2;
+      z-index:10201;
+      pointer-events:auto;
     }
     #camSendBar {
       position:fixed;
@@ -468,7 +459,8 @@
       left:0;right:0;
       display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
       padding:6px 16px;
-      z-index:2;
+      z-index:10201;
+      pointer-events:auto;
     }
     /* Strip de miniaturas — topo da tela */
     #camPreviewStrip{
@@ -477,24 +469,24 @@
       left:0;right:0;
       display:flex;gap:8px;padding:0 12px;
       overflow-x:auto;
-      z-index:2;
+      z-index:10201;
       pointer-events:auto;
     }
     #modalCamera canvas{display:none}
     /* .cam-controls legacy removed — replaced by fullscreen overlay version */
-    .cam-capture-btn{width:68px;height:68px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 6px 28px rgba(249,115,22,.6),0 0 0 6px rgba(249,115,22,.2);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
+    .cam-capture-btn{width:68px;height:68px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 6px 28px rgba(249,115,22,.6),0 0 0 6px rgba(249,115,22,.2);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;pointer-events:auto;position:relative;z-index:10;}
     .cam-capture-btn:hover{transform:scale(1.08);box-shadow:0 10px 32px rgba(249,115,22,.65)}
     .cam-capture-btn:active{transform:scale(.95)}
-    .cam-flip-btn{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
+    .cam-flip-btn{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;pointer-events:auto;position:relative;z-index:10;}
     .cam-flip-btn:hover{background:rgba(255,255,255,.22)}
-    .cam-close-btn{width:42px;height:42px;border-radius:999px;background:rgba(248,113,113,.18);border:1px solid rgba(248,113,113,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fca5a5;transition:.15s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
+    .cam-close-btn{width:42px;height:42px;border-radius:999px;background:rgba(248,113,113,.18);border:1px solid rgba(248,113,113,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fca5a5;transition:.15s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;pointer-events:auto;position:relative;z-index:10;}
     .cam-close-btn:hover{background:rgba(248,113,113,.35)}
     /* #camPreviewStrip legacy removed — replaced by fullscreen fixed version */
     #camPreviewStrip .cam-thumb{position:relative;width:64px;height:52px;border-radius:8px;overflow:hidden;border:2px solid rgba(249,115,22,.6);flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.4)}
     #camPreviewStrip .cam-thumb img{width:100%;height:100%;object-fit:cover}
     #camPreviewStrip .cam-thumb-rm{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:.5rem;display:flex;align-items:center;justify-content:center}
     .cam-hint{font-size:.72rem;color:rgba(255,255,255,.8);text-align:center;max-width:340px;line-height:1.4;text-shadow:0 1px 4px rgba(0,0,0,.6)}
-    .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;}
+    .cam-send-btn{background:linear-gradient(90deg,#22c55e,#16a34a);border:1px solid rgba(34,197,94,.4);border-radius:999px;padding:9px 22px;color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;display:flex;gap:7px;align-items:center;box-shadow:0 6px 20px rgba(34,197,94,.3);transition:.15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;pointer-events:auto;position:relative;z-index:10;}
     .cam-send-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(34,197,94,.45)}
     .cam-send-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
     /* Multi-step navigation */
@@ -7133,13 +7125,11 @@ function autoFillCamposAtendimento(){
           if(_e3) _e3.onclick = function(){ editarRelatorio(r); };
           var _w3 = div3.querySelector('[data-whats3]');
           if(_w3) _w3.onclick = async function(){
-            var _tokSW3 = null, _senhaSW3 = null;
-            try{ _tokSW3=await window._gerarTokenPortal(r); }catch(e){}
-            var _tokSW3cnpj=_tokSW3?(_tokSW3.cnpj||_tokSW3):null;
-            _senhaSW3=(_tokSW3?_tokSW3.senha:null)||r._portalSenha||null;
+            var tok = r.portalToken;
+            if(!tok && typeof window._gerarTokenPortal==='function') try{ tok=await window._gerarTokenPortal(r); }catch(e){}
             var pUrl = null;
-            if(_tokSW3cnpj && typeof window._urlPortal==='function') pUrl = window._urlPortal(_tokSW3cnpj, r);
-            var _si = _senhaSW3 ? '\n🔑 Senha: *'+_senhaSW3+'* (válida 30 dias)\n (Usuário: CNPJ/CPF — '+(r.cnpjCliente||'')+')' : '';
+            if(tok && typeof window._urlPortal==='function') pUrl = window._urlPortal(tok, r);
+            var _si = r._portalSenha ? '\n🔑 Senha: *'+r._portalSenha+'* (válida 30 dias)\n (Usuário: CNPJ/CPF — '+(r.cnpjCliente||'')+')' : '';
             var msg = pUrl
               ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente:\n'+pUrl+_si+'\n\nQualquer dúvida estamos à disposição!'
               : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o Relatório Técnico de Atendimento RAT *'+(r.numero||'')+'* do cliente *'+(r.cliente||'')+'*.\n\nQualquer dúvida estamos à disposição!';
@@ -7150,14 +7140,11 @@ function autoFillCamposAtendimento(){
           var _em3 = div3.querySelector('[data-email3]');
           if(_em3) _em3.onclick = async function(){
             var pUrl2 = null;
-            var _tokSE3=null,_senhaSE3=null;
-            try{ _tokSE3=await window._gerarTokenPortal(r); }catch(e){}
-            var _tokSE3cnpj=_tokSE3?(_tokSE3.cnpj||_tokSE3):null;
-            _senhaSE3=(_tokSE3?_tokSE3.senha:null)||r._portalSenha||null;
-            if(_tokSE3cnpj && typeof window._urlPortal==='function') pUrl2 = window._urlPortal(_tokSE3cnpj, r);
+            var tok2 = r.portalToken;
+            if(!tok2 && typeof window._gerarTokenPortal==='function') try{ tok2=await window._gerarTokenPortal(r); }catch(e){}
+            if(tok2 && typeof window._urlPortal==='function') pUrl2 = window._urlPortal(tok2, r);
             var subj = 'ONLINE-ES – Relatório Técnico RAT '+(r.numero||'');
-            var _linhasSenha3=_senhaSE3?['👤 Usuário: '+(r.cnpjCliente||''),'🔑 Senha: '+_senhaSE3+' (válida 30 dias)']:['🔑 Use seu CNPJ/CPF para entrar no portal'];
-            var body = ['Olá, '+(r.cliente||'')+'!','','Segue o Relatório Técnico RAT '+(r.numero||'')+'.',''].concat(pUrl2?['📂 Acesse o Portal do Cliente para baixar o relatório:',pUrl2].concat(_linhasSenha3).concat(['']):['Atenciosamente,','ONLINE-ES Eletroeletrônica']).join('\n');
+            var body = ['Olá, '+(r.cliente||'')+'!','','Segue o Relatório Técnico RAT '+(r.numero||'')+'.',''].concat(pUrl2?['📂 Acesse o Portal do Cliente para baixar o relatório:',pUrl2,'']:['Atenciosamente,','ONLINE-ES Eletroeletrônica']).join('\n');
             window.open('mailto:'+encodeURIComponent(r.emailCliente||'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body),'_blank','noopener,noreferrer');
           };
           // [FIX-v60] Handler Excluir no Carregar mais supervisor/web
@@ -7226,21 +7213,17 @@ function autoFillCamposAtendimento(){
         if (!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         if (num.length <= 11) num = '55' + num;
         var portalUrlP = null;
-        var _senhaPainelWa = null; // [FIX-v64b] senha obtida diretamente do resultado
         if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
           try {
             showToast('🔗 Gerando link...', 2000);
-            var _tokPWa = await window._gerarTokenPortal(r);
-            var _tokCnpjPWa = _tokPWa ? (_tokPWa.cnpj || _tokPWa) : null;
-            _senhaPainelWa = _tokPWa ? _tokPWa.senha : null;
-            if (_tokCnpjPWa && typeof window._urlPortal === 'function') portalUrlP = window._urlPortal(_tokCnpjPWa, r);
-            if (_tokCnpjPWa && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
+            const tok = await window._gerarTokenPortal(r);
+            if (tok && typeof window._urlPortal === 'function') portalUrlP = window._urlPortal(tok, r);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
               salvarRelatorioNoFirestore(r).catch(()=>{});
           } catch(e){ console.warn('[Painel/WhatsApp]', e); }
         }
-        _senhaPainelWa = _senhaPainelWa || r._portalSenha || null;
-        var _senhaInfoP = _senhaPainelWa
-          ? '\n🔑 Senha de acesso: *' + _senhaPainelWa + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r.cnpjCliente||'') + ')'
+        var _senhaInfoP = r._portalSenha
+          ? '\n🔑 Senha de acesso: *' + r._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r.cnpjCliente||'') + ')'
           : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
         const msg = portalUrlP
           ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n'+portalUrlP+_senhaInfoP+'\n\nQualquer dúvida estamos à disposição!'
@@ -7264,19 +7247,15 @@ function autoFillCamposAtendimento(){
         const email = (r.emailCliente || '').trim();
         if (!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
         var portalUrlE = null;
-        var _senhaPainelEmail = null; // [FIX-v64b]
         if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
           try {
             showToast('🔗 Gerando link...', 2000);
-            var _tokPEmail = await window._gerarTokenPortal(r);
-            var _tokCnpjPEmail = _tokPEmail ? (_tokPEmail.cnpj || _tokPEmail) : null;
-            _senhaPainelEmail = _tokPEmail ? _tokPEmail.senha : null;
-            if (_tokCnpjPEmail && typeof window._urlPortal === 'function') portalUrlE = window._urlPortal(_tokCnpjPEmail, r);
-            if (_tokCnpjPEmail && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
+            const tok = await window._gerarTokenPortal(r);
+            if (tok && typeof window._urlPortal === 'function') portalUrlE = window._urlPortal(tok, r);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
               salvarRelatorioNoFirestore(r).catch(()=>{});
           } catch(e){ console.warn('[Painel/Email]', e); }
         }
-        _senhaPainelEmail = _senhaPainelEmail || r._portalSenha || null;
         const assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + (r.numero||'');
         const linhas = [
           'Olá' + (r.nomeAssinaturaCliente ? ', ' + r.nomeAssinaturaCliente : '') + '!',
@@ -7289,7 +7268,7 @@ function autoFillCamposAtendimento(){
           '',
           ...(portalUrlE ? [
             '🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):', portalUrlE,
-            ...(_senhaPainelEmail ? ['👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),'🔑 Senha de acesso: '+_senhaPainelEmail+' (válida por 30 dias)'] : ['👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente']),
+            ...(r._portalSenha ? ['👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),'🔑 Senha de acesso: '+r._portalSenha+' (válida por 30 dias)'] : ['👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente']),
             ''
           ] : []),
           'Fico à disposição para quaisquer esclarecimentos.',
@@ -8725,7 +8704,7 @@ if (logoBase64) {
       cidade: (document.getElementById('aCidade') ? document.getElementById('aCidade').value : ''),
       cepCliente: (aCep && aCep.value) ? aCep.value.trim() : '',
       uf: (document.getElementById('aUF') ? document.getElementById('aUF').value : ''),
-      cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim().replace(/\D/g,'') : '', // [FIX-v63b-CNPJ] salva apenas dígitos — portal busca com normCnpj() que também remove máscara
+      cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim() : '',
       docClienteTipo: (typeof tipoDocCliente !== 'undefined' ? tipoDocCliente : 'CNPJ'),
       emailCliente: (aEmailCliente && aEmailCliente.value) ? aEmailCliente.value.trim() : '',
       localizacao: (document.getElementById('aLocalizacao') ? document.getElementById('aLocalizacao').value : ''),
@@ -8764,11 +8743,7 @@ if (logoBase64) {
       criadoEm: '',
       editadoPor: '',
       editadoEm: '',
-      historicoEdicoes: [],
-      // [FIX-v63b-DELETED] Campo _deleted sempre definido como false em RATs novas.
-      // Sem este campo, a query Firestore .where('_deleted','==',false) no portal
-      // não encontra o documento (campo ausente != false no Firestore).
-      _deleted: false
+      historicoEdicoes: []
     };
   }
   // montarRelatorioAtual definida acima
@@ -10710,7 +10685,7 @@ if (logoBase64) {
           var _credEmail = await window._gerarCredencialPortal(r);
           if (_credEmail && _credEmail.cnpj) {
             r._portalCnpj  = _credEmail.cnpj;
-            r._portalSenha = _credEmail.senha || null; // [FIX-v64] sempre inclui senha na mensagem
+            r._portalSenha = _credEmail.senha || null; // [FIX-v64]
             portalUrl      = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj, _credEmail.senha || null) : null;
             if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
               salvarRelatorioNoFirestore(r).catch(function(){});
@@ -10806,7 +10781,7 @@ if (logoBase64) {
         var _credWa = await window._gerarCredencialPortal(r);
         if (_credWa && _credWa.cnpj) {
           r._portalCnpj  = _credWa.cnpj;
-          r._portalSenha = _credWa.senha || null; // [FIX-v64] sempre inclui senha na mensagem
+          r._portalSenha = _credWa.senha || null; // [FIX-v64]
           portalUrlWa    = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj, _credWa.senha || null) : null;
           // Atualiza também no Firestore e localmente
           if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
@@ -12008,10 +11983,10 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if(num.length<=11) num='55'+num;
       var pUrl=null;
       if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
-        try{ showToast('🔗 Gerando link...',2000); var _tokBW=await window._gerarTokenPortal(r); var _tokBWcnpj=_tokBW?(_tokBW.cnpj||_tokBW):null; var _tokBWsenha=_tokBW?_tokBW.senha:null; if(_tokBWcnpj&&typeof window._urlPortal==='function') pUrl=window._urlPortal(_tokBWcnpj, r); }catch(e){}
+        try{ showToast('🔗 Gerando link...',2000); const tok=await window._gerarTokenPortal(r); if(tok&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok, r); }catch(e){}
       }
-      var _senhaInfoBusca = (typeof _tokBWsenha!=='undefined'?_tokBWsenha:null)||r._portalSenha
-        ? '\n🔑 Senha de acesso: *' + ((typeof _tokBWsenha!=='undefined'?_tokBWsenha:null)||r._portalSenha) + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r.cnpjCliente||'') + ')'
+      var _senhaInfoBusca = r._portalSenha
+        ? '\n🔑 Senha de acesso: *' + r._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r.cnpjCliente||'') + ')'
         : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
       const msg=pUrl
         ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n'+pUrl+_senhaInfoBusca+'\n\nQualquer dúvida estamos à disposição!'
@@ -12026,14 +12001,13 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const email=(r.emailCliente||'').trim(); if(!email) return;
       var pUrl=null;
       if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
-        try{ showToast('🔗 Gerando link...',2000); var _tokBE=await window._gerarTokenPortal(r); var _tokBEcnpj=_tokBE?(_tokBE.cnpj||_tokBE):null; var _tokBEsenha=_tokBE?_tokBE.senha:null; if(_tokBEcnpj&&typeof window._urlPortal==='function') pUrl=window._urlPortal(_tokBEcnpj, r); }catch(e){}
+        try{ showToast('🔗 Gerando link...',2000); const tok=await window._gerarTokenPortal(r); if(tok&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok, r); }catch(e){}
       }
-      var _senhaBE=(typeof _tokBEsenha!=='undefined'?_tokBEsenha:null)||r._portalSenha||null;
       const assunto='Online-ES – Relatório Técnico de Atendimento nº '+(r.numero||'');
       const linhas=['Olá'+(r.nomeAssinaturaCliente?', '+r.nomeAssinaturaCliente:'')+'!','','Segue o Relatório Técnico referente à visita da Online-ES'+(r.cliente?' na empresa '+r.cliente:'')+'.',''
         ,'• Relatório nº: '+(r.numero||''),'• Data: '+(r.dataHoraBr||r.dataHoraBR||''),'• Técnico: '+(r.tecnico||''),''
         ,...(pUrl?['🔗 Acesse e baixe seu Relatório Técnico (disponível por 30 dias):',pUrl,
-          ...(_senhaBE?['👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),'🔑 Senha de acesso: '+_senhaBE+' (válida por 30 dias)']:['👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida']),
+          ...(r._portalSenha?['👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),'🔑 Senha de acesso: '+r._portalSenha+' (válida por 30 dias)']:['👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida']),
           '']:[])
         ,'Fico à disposição.','','Atenciosamente,','Online-ES – Eletroeletrônica'];
       window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(assunto)+'&body='+encodeURIComponent(linhas.join('\n')),'_blank','noopener,noreferrer');
@@ -13744,10 +13718,9 @@ async function renderMeus(){
             if(num.length<=11) num='55'+num;
             var pUrl=null;
             if(window.location.protocol!=='file:' && typeof window._gerarTokenPortal==='function'){
-              try{ showToast('🔗 Gerando link...',2000); var _tokCM2=await window._gerarTokenPortal(rr); var _tokCM2cnpj=_tokCM2?(_tokCM2.cnpj||_tokCM2):null; var _tokCM2senha=_tokCM2?_tokCM2.senha:null; if(_tokCM2cnpj&&typeof window._urlPortal==='function') pUrl=window._urlPortal(_tokCM2cnpj,rr); }catch(e){}
+              try{ showToast('🔗 Gerando link...',2000); var tok2=await window._gerarTokenPortal(rr); if(tok2&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok2,rr); }catch(e){}
             }
-            var _senhaCM2=(typeof _tokCM2senha!=='undefined'?_tokCM2senha:null)||rr._portalSenha||null;
-            var _si2=_senhaCM2?'\n🔑 Senha: *'+_senhaCM2+'* (válida 30 dias)\n    (Usuário: CNPJ/CPF — '+(rr.cnpjCliente||'')+')'
+            var _si2=rr._portalSenha?'\n🔑 Senha: *'+rr._portalSenha+'* (válida 30 dias)\n    (Usuário: CNPJ/CPF — '+(rr.cnpjCliente||'')+')'
               :'\n🔑 Use seu CNPJ/CPF e a senha já recebida.';
             var msg2=pUrl?'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o RAT *'+(rr.numero||'')+'*.\n\n📂 Portal do Cliente:\n'+pUrl+_si2+'\n\nQualquer dúvida estamos à disposição!'
               :'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o RAT *'+(rr.numero||'')+'* – '+(rr.cliente||'')+'.';
@@ -13769,7 +13742,7 @@ async function renderMeus(){
               'Segue o Relatório Técnico RAT Nº '+(rr.numero||'')+'.','• Cliente: '+(rr.cliente||''),
               '• Data: '+(rr.dataHoraBr||rr.dataHoraBR||''),'• Técnico: '+(rr.tecnico||''),''];
             if(pUrl2){ linhas2.push('🔗 Acesse o Portal do Cliente:',pUrl2);
-              var _senhaCM2e=(typeof _tokCM2senha!=='undefined'?_tokCM2senha:null)||rr._portalSenha||null; if(_senhaCM2e){ linhas2.push('👤 Usuário (CNPJ/CPF): '+(rr.cnpjCliente||''),'🔑 Senha: '+_senhaCM2e+' (válida 30 dias)'); } }
+              if(rr._portalSenha){ linhas2.push('👤 Usuário (CNPJ/CPF): '+(rr.cnpjCliente||''),'🔑 Senha: '+rr._portalSenha+' (válida 30 dias)'); } }
             linhas2.push('','Atenciosamente,','Online-ES – Eletroeletrônica','www.onlinees.com.br');
             window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(assunto2)+'&body='+encodeURIComponent(linhas2.join('\n')),'_blank','noopener,noreferrer');
             showToast('✅ E-mail aberto!'+(pUrl2?' Link e senha incluídos.':''),5000);
@@ -13823,11 +13796,9 @@ async function renderMeus(){
         if(window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
           try {
             showToast('🔗 Gerando link...', 2000);
-            var _tokME=await window._gerarTokenPortal(r2);
-            var _tokMEcnpj=_tokME?(_tokME.cnpj||_tokME):null;
-            var _tokMEsenha=_tokME?_tokME.senha:null;
-            if(_tokMEcnpj && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(_tokMEcnpj, r2);
-            if(_tokMEcnpj && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
+            var tok = await window._gerarTokenPortal(r2);
+            if(tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
+            if(tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
               salvarRelatorioNoFirestore(r2).catch(function(){});
             }
           } catch(eP){ console.warn('[Meus/Email] Falha ao gerar token:', eP); }
@@ -13850,10 +13821,9 @@ async function renderMeus(){
         if(portalUrl){
           linhas.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
           linhas.push(portalUrl);
-          var _senhaME=(typeof _tokMEsenha!=='undefined'?_tokMEsenha:null)||r2._portalSenha||null;
-          if(_senhaME){
+          if(r2._portalSenha){
             linhas.push('👤 Usuário (CNPJ/CPF): ' + (r2.cnpjCliente || ''));
-            linhas.push('🔑 Senha de acesso: ' + _senhaME + ' (válida por 30 dias)');
+            linhas.push('🔑 Senha de acesso: ' + r2._portalSenha + ' (válida por 30 dias)');
           } else {
             linhas.push('👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente');
           }
@@ -13886,12 +13856,10 @@ async function renderMeus(){
         if(window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
           try {
             showToast('🔗 Gerando link...', 2000);
-            var _tokMW=await window._gerarTokenPortal(r2);
-            var _tokMWcnpj=_tokMW?(_tokMW.cnpj||_tokMW):null;
-            var _tokMWsenha=_tokMW?_tokMW.senha:null;
-            if(_tokMWcnpj && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(_tokMWcnpj, r2);
+            var tok = await window._gerarTokenPortal(r2);
+            if(tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
             // Persiste token no Firestore caso ainda não esteja salvo
-            if(_tokMWcnpj && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
+            if(tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
               salvarRelatorioNoFirestore(r2).catch(function(){});
             }
           } catch(eP){ console.warn('[Meus/WhatsApp] Falha ao gerar token:', eP); }
@@ -13899,9 +13867,8 @@ async function renderMeus(){
 
         var msg;
         if(portalUrl){
-          var _senhaMW=(typeof _tokMWsenha!=='undefined'?_tokMWsenha:null)||r2._portalSenha||null;
-          var _senhaInfo2 = _senhaMW
-            ? '\n🔑 Senha de acesso: *' + _senhaMW + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r2.cnpjCliente||'') + ')'
+          var _senhaInfo2 = r2._portalSenha
+            ? '\n🔑 Senha de acesso: *' + r2._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r2.cnpjCliente||'') + ')'
             : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
           msg = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
                 'Segue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n' +
@@ -14056,16 +14023,13 @@ async function _renderMeusComCache() {
         if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
           try {
             showToast('🔗 Gerando link...', 2000);
-            var _tokCW=await window._gerarTokenPortal(r2);
-            var _tokCWcnpj=_tokCW?(_tokCW.cnpj||_tokCW):null;
-            var _tokCWsenha=_tokCW?_tokCW.senha:null;
-            if (_tokCWcnpj && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(_tokCWcnpj, r2);
-            if (_tokCWcnpj && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
+            var tok = await window._gerarTokenPortal(r2);
+            if (tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
           } catch(eP) { console.warn('[Cache/WhatsApp] Falha ao gerar token:', eP); }
         }
-        var _senhaCW=(typeof _tokCWsenha!=='undefined'?_tokCWsenha:null)||r2._portalSenha||null;
-        var _senhaInfoCache = _senhaCW
-          ? '\n🔑 Senha de acesso: *' + _senhaCW + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r2.cnpjCliente||'') + ')'
+        var _senhaInfoCache = r2._portalSenha
+          ? '\n🔑 Senha de acesso: *' + r2._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r2.cnpjCliente||'') + ')'
           : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
         var msg = portalUrl
           ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n' + portalUrl + _senhaInfoCache + '\n\nQualquer dúvida estamos à disposição!'
@@ -14085,11 +14049,9 @@ async function _renderMeusComCache() {
         if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
           try {
             showToast('🔗 Gerando link...', 2000);
-            var _tokCE=await window._gerarTokenPortal(r2);
-            var _tokCEcnpj=_tokCE?(_tokCE.cnpj||_tokCE):null;
-            var _tokCEsenha=_tokCE?_tokCE.senha:null;
-            if (_tokCEcnpj && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(_tokCEcnpj, r2);
-            if (_tokCEcnpj && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
+            var tok = await window._gerarTokenPortal(r2);
+            if (tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
+            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
           } catch(eP) { console.warn('[Cache/Email] Falha ao gerar token:', eP); }
         }
         var assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + (r2.numero||'');
@@ -14106,10 +14068,9 @@ async function _renderMeusComCache() {
         if (portalUrl) {
           linhas.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
           linhas.push(portalUrl);
-          var _senhaCE=(typeof _tokCEsenha!=='undefined'?_tokCEsenha:null)||r2._portalSenha||null;
-          if(_senhaCE){
+          if(r2._portalSenha){
             linhas.push('👤 Usuário (CNPJ/CPF): ' + (r2.cnpjCliente || ''));
-            linhas.push('🔑 Senha de acesso: ' + _senhaCE + ' (válida por 30 dias)');
+            linhas.push('🔑 Senha de acesso: ' + r2._portalSenha + ' (válida por 30 dias)');
           } else {
             linhas.push('👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente');
           }
@@ -16179,7 +16140,7 @@ async function fazerLogin(){
     setTimeout(function(){ _tocouFechar = false; }, 400);
     fechar();
   }, { passive: false });
-  modal.addEventListener('click', function(e){ if (e.target === modal) fechar(); });
+  // [FIX-v64] Removido: modal ocupa 100% da tela, qualquer toque fechava a câmera
 
   function fechar() {
     pararCamera();
@@ -17390,10 +17351,7 @@ window._gerarCredencialPortal = async function(rat){
       var expira = cred.expiradoEm ? new Date(cred.expiradoEm) : new Date(0);
       // Renova apenas se expirada (ou faltam < 7 dias) OU se chamado com forçar renovação
       var faltaDias = (expira - agora) / 86400000;
-      // [FIX-v64-SEMPRE-SENHA] Sempre gera nova senha independente de faltaDias.
-      // O cliente recebe a senha nova junto com o link na mesma mensagem —
-      // não há cenário onde o link chega sem senha. Remover o bloco nova:false
-      // que causava "Use a senha já recebida anteriormente" no WhatsApp/e-mail.
+      // [FIX-v64] Sempre gera nova senha — cliente recebe no mesmo envio
     }
 
     // Gera nova senha
@@ -17470,15 +17428,13 @@ window._gerarTokenPortal = async function(rat){
   try{
     var resultado = await window._gerarCredencialPortal(rat);
     if(resultado && resultado.cnpj){
-      // Salva cnpj e senha no objeto rat (mutação da referência original)
-      rat._portalCnpj  = resultado.cnpj;
-      rat._portalSenha = resultado.senha || null;
+      // Salva cnpj no objeto rat para uso em _urlPortalV2
+      rat._portalCnpj = resultado.cnpj;
+      rat._portalSenha = resultado.senha || null; // [FIX-v64]
       // Mantém portalToken preenchido para não quebrar código que o verifica
       rat.portalToken = 'cnpj:' + resultado.cnpj;
-      if(resultado.credencial) rat.portalTokenCriado = resultado.credencial.criadaEm;
-      // [FIX-v64b] Retorna objeto {cnpj, senha} para que callers possam usar a senha
-      // diretamente sem depender da mutação do objeto rat.
-      return { cnpj: resultado.cnpj, senha: resultado.senha || null };
+      rat.portalTokenCriado = resultado.credencial.criadaEm;
+      return resultado.cnpj; // retorna cnpj como "token"
     }
     return null;
   }catch(e){
@@ -17497,10 +17453,9 @@ window._montarMensagemPortalV2 = function(rat, resultado, canal){
   var data   = rat.dataHoraBr || '';
   var tecnico= rat.tecnico || '';
   var cnpjFmt = rat.cnpjCliente || '';
-  // [FIX-v64] Sempre inclui senha na mensagem - resultado.senha sempre disponível
   var senhaInfo = resultado.senha
     ? '\n🔑 Sua senha de acesso: *' + resultado.senha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + cnpjFmt + ')'
-    : '\n🔑 Use seu CNPJ/CPF para entrar no portal.';
+    : '\n🔑 Use seu CNPJ/CPF para entrar no portal.'; // [FIX-v64]
 
   if(canal === 'whats'){
     return 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
@@ -17519,9 +17474,9 @@ window._montarMensagemPortalV2 = function(rat, resultado, canal){
       '',
       '📂 Acesse o Portal do Cliente para visualizar e baixar o PDF:',
       url,
-      resultado.senha
+      resultado.nova && resultado.senha
         ? '🔑 Usuário: ' + cnpjFmt + '\n🔑 Senha: ' + resultado.senha + ' (válida por 30 dias)'
-        : '🔑 Use seu CNPJ/CPF para entrar no portal.',
+        : '🔑 Use seu CNPJ/CPF e a senha já cadastrada.',
       '',
       'Atenciosamente,',
       'Online-ES – Eletroeletrônica',
@@ -18482,10 +18437,10 @@ function _injetarPainel(){
               var url = window._urlPortalV2(resultado.cnpj, resultado.senha || null);
               try{ await navigator.clipboard.writeText(url); }catch(_){}
               if(typeof showToast==='function'){
-                if(resultado.senha){
-                  showToast('🔗 Link copiado! Senha: ' + resultado.senha, 6000);
+                if(resultado.nova && resultado.senha){
+                  showToast('🔗 Link copiado! Senha do cliente: ' + resultado.senha, 6000);
                 } else {
-                  showToast('🔗 Link copiado!', 4000);
+                  showToast('🔗 Link copiado! (senha anterior ainda válida)', 4000);
                 }
               }
               r._portalCnpj = resultado.cnpj;
