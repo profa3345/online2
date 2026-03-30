@@ -1,6 +1,30 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v61
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v63
+  Correções v63:
+  - [FIX-v63-PORTAL-BF] Rate limiting brute force no portal do cliente: 5 tentativas
+    de senha errada bloqueiam o CNPJ por 15 minutos (localStorage). Funções
+    _portalCheckBF/_portalRegisterFail/_portalClearBF espelham o sistema do login interno.
+    Sem isso, senha de 6 dígitos tinha 10^6 combinações sem nenhum bloqueio local.
+  - [FIX-v63-CRED-VALIDA] _gerarCredencialPortal: quando senha ainda válida (>7 dias),
+    NÃO gera nova senha nem sobrescreve senhaHash. Apenas atualiza nome/emails se mudaram.
+    Retorna nova:false. O código anterior (v58-v62) dizia "NÃO sobrescreve" no comentário
+    mas gerava e sobrescrvia o hash mesmo assim — invalidando links enviados anteriormente.
+  - [FIX-v63-DELETED-FALLBACK] _buscarRatsDoCnpj: fallback sem índice agora usa
+    r._deleted !== true (em vez de !r._deleted) — filtra corretamente RATs antigas
+    que não possuem o campo _deleted (undefined !== true = true, passam corretamente).
+  Correções v62:
+  - [FIX-v62-CAM-INIT] iniciarCamera() recebe parâmetro isFlipping: quando true (chamada
+    via flipBtn), erros de câmera NÃO fecham o modal — tentam câmera sem constraints e,
+    se falhar, revertem facingMode e reabrem a câmera anterior. Resolve alternância travada.
+  - [FIX-v62-CAM-FLIP] _dispararFlip() passa isFlipping=true para iniciarCamera, evitando
+    que erro de câmera frontal indisponível feche o modal e descarte fotos já capturadas.
+  - [FIX-v62-CAM-READY] _aguardarVideoPreonto() substitui promise de loadedmetadata por
+    escuta de 'canplay' + fallback de 2s após loadedmetadata — garante que o vídeo tem
+    frames reais antes de liberar o botão de captura (correção para iOS/Android onde
+    loadedmetadata disparava com videoWidth=0, gerando foto em branco).
+  - [FIX-v62-CAM-CAPTURE] _dispararCaptura() verifica video.videoWidth/Height antes de
+    capturar — se ainda for 0 exibe toast "aguarde" em vez de salvar canvas vazio.
   Correções v61:
   - [FIX-v61-CAM-FLIPBTN] flipBtn agora tem touchend+preventDefault com flag _tocouFlip
     anti-duplo-disparo — resolve botão de virar câmera que não respondia no Android.
@@ -15857,56 +15881,98 @@ async function fazerLogin(){
     iniciarCamera();
   }
 
-  async function iniciarCamera() {
+  // [FIX-v62-CAM-INIT] isFlipping=true evita fechar o modal quando iniciarCamera é chamada
+  // pelo flip — em caso de erro no flip, reverte facingMode em vez de fechar o modal.
+  async function iniciarCamera(isFlipping) {
+    var _facingAnterior = isFlipping ? (facingMode === 'environment' ? 'user' : 'environment') : null;
     pararCamera();
     // Desabilita captura até a câmera estar pronta (evita tela preta)
     captureBtn.disabled = true;
     captureBtn.style.opacity = '0.45';
+
+    // [FIX-v62-CAM-READY] Helper: aguarda vídeo com frames reais (readyState>=3 ou canplay)
+    // loadedmetadata sozinho não garante frames no iOS/Android — usamos canplay com timeout.
+    function _aguardarVideoPreonto() {
+      return new Promise(function(resolve) {
+        if (video.readyState >= 3) { resolve(); return; }
+        var _t = setTimeout(resolve, 8000);
+        function _onReady() { clearTimeout(_t); resolve(); }
+        video.addEventListener('canplay',       _onReady, { once: true });
+        video.addEventListener('loadedmetadata', function() {
+          // fallback secundário: se canplay demorar demais, libera após mais 2s
+          setTimeout(function() { clearTimeout(_t); resolve(); }, 2000);
+        }, { once: true });
+      });
+    }
+
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
       video.srcObject = stream;
-      // Aguarda metadados do vídeo carregarem antes de liberar captura
-      // [FIX-v45b] Timeout de 8s — sem ele, em iOS/Android lentos o loadedmetadata
-      // pode nunca disparar, deixando o botão de captura bloqueado para sempre.
-      await new Promise(function(resolve) {
-        if (video.readyState >= 2) { resolve(); return; }
-        var _metaTimer = setTimeout(resolve, 8000); // fallback: libera após 8s
-        video.addEventListener('loadedmetadata', function() {
-          clearTimeout(_metaTimer);
-          resolve();
-        }, { once: true });
-      });
-      // Garante que o vídeo está de fato reproduzindo (evita frame preto no iOS/Android)
-      try { await video.play(); } catch(e) {}
+      // Garante reprodução antes de aguardar frames
+      try { await video.play(); } catch(ep) {}
+      await _aguardarVideoPreonto();
       captureBtn.disabled = false;
       captureBtn.style.opacity = '';
     } catch (err) {
       captureBtn.disabled = false;
       captureBtn.style.opacity = '';
-      modal.classList.add('hidden');
-      document.body.style.overflow = '';
       var errName = err && err.name ? err.name : '';
       var isDenied = (errName === 'NotAllowedError' || errName === 'PermissionDeniedError');
       var isNotReadable = (errName === 'NotReadableError' || errName === 'AbortError' || errName === 'TrackStartError');
       var isOverconstrained = (errName === 'OverconstrainedError' || errName === 'ConstraintNotSatisfiedError');
+
+      if (isFlipping) {
+        // [FIX-v62-CAM-FLIP-ERR] Ao alternar câmera: reverte facingMode se a câmera
+        // solicitada não existe, tenta com constraints mínimas antes de desistir.
+        // NÃO fecha o modal — o usuário ainda tem fotos capturadas.
+        try {
+          // Tenta sem constraints de facingMode (pode ser dispositivo com câmera única)
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+          try { await video.play(); } catch(ep2) {}
+          await _aguardarVideoPreonto();
+          captureBtn.disabled = false;
+          captureBtn.style.opacity = '';
+          if (typeof showToast === 'function') showToast('⚠️ Câmera alternativa indisponível. Usando câmera padrão.');
+        } catch(e2) {
+          // Reverte facingMode para o anterior e tenta reabrir
+          if (_facingAnterior) facingMode = _facingAnterior;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+              audio: false
+            });
+            video.srcObject = stream;
+            try { await video.play(); } catch(ep3) {}
+            await _aguardarVideoPreonto();
+            captureBtn.disabled = false;
+            captureBtn.style.opacity = '';
+            if (typeof showToast === 'function') showToast('⚠️ Não foi possível alternar a câmera.');
+          } catch(e3) {
+            if (typeof showToast === 'function') showToast('⚠️ Câmera indisponível. Use o botão "Arquivo".');
+          }
+        }
+        return; // nunca fecha o modal durante flip
+      }
+
+      // Não é flip — fecha modal e oferece fallback
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
       if (isDenied) {
-        // Permissão negada: fallback para input nativo dos botões existentes
         if (typeof showToast === 'function') showToast('⚠️ Permissão de câmera negada. Use o botão "Arquivo" para enviar fotos.');
-        // [FIX-CAM] Não usa .click() programático no Android — aciona o input nativo já presente no HTML
         setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1200);
       } else if (isNotReadable) {
-        // Câmera ocupada por outro app ou hardware indisponível
         if (typeof showToast === 'function') showToast('⚠️ Câmera em uso por outro aplicativo. Feche-o e tente novamente, ou use o botão "Arquivo".');
         setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1800);
       } else if (isOverconstrained) {
-        // Tenta com constraints mínimas antes de desistir
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
           video.srcObject = stream;
-          try { await video.play(); } catch(e2) {}
+          try { await video.play(); } catch(ep4) {}
+          await _aguardarVideoPreonto();
           captureBtn.disabled = false;
           captureBtn.style.opacity = '';
           modal.classList.remove('hidden');
@@ -15916,7 +15982,6 @@ async function fazerLogin(){
           setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1200);
         }
       } else {
-        // Erro genérico
         if (typeof showToast === 'function') showToast('⚠️ Não foi possível acessar a câmera. Use o botão "Arquivo" para enviar fotos.');
         setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1200);
       }
@@ -15939,6 +16004,12 @@ async function fazerLogin(){
 
   function _dispararCaptura() {
     if (!stream) return;
+    // [FIX-v62-CAM-CAPTURE] Garante que o vídeo tem frames reais antes de capturar.
+    // videoWidth===0 indica que o vídeo ainda não decodificou o primeiro frame (iOS/Android).
+    if (!video.videoWidth || !video.videoHeight) {
+      if (typeof showToast === 'function') showToast('⏳ Câmera ainda inicializando, aguarde...');
+      return;
+    }
     // [FIX-v59] Bloqueia nova captura se limite atingido
     if (capturedPhotos.length >= _MAX_FOTOS_CAM) {
       var hintEl = document.querySelector('#camSendBar .cam-hint');
@@ -16042,7 +16113,7 @@ async function fazerLogin(){
   var _tocouFlip = false;
   function _dispararFlip() {
     facingMode = facingMode === 'environment' ? 'user' : 'environment';
-    iniciarCamera();
+    iniciarCamera(true); // [FIX-v62-CAM-FLIP] passa isFlipping=true para não fechar modal em caso de erro
   }
   flipBtn.addEventListener('click', function() {
     if (_tocouFlip) { _tocouFlip = false; return; }
@@ -17279,28 +17350,21 @@ window._gerarCredencialPortal = async function(rat){
       // Renova apenas se expirada (ou faltam < 7 dias) OU se chamado com forçar renovação
       var faltaDias = (expira - agora) / 86400000;
       if(faltaDias > 7 && !rat._forcarRenovacaoSenha){
-        // [FIX-CRED-RENOVAR] Senha ainda válida — NÃO sobrescreve o hash.
-        // Antes, uma nova senha era gerada e o hash antigo era apagado, invalidando
-        // qualquer link enviado anteriormente. Agora retorna nova senha para o link
-        // atual mas preserva o hash no Firestore para que links antigos continuem válidos.
-        // Apenas atualiza e-mails e nome se necessário.
-        var _senhaNovoLink = _gerarSenha6();
-        var _hashNovoLink = await _sha256(_senhaNovoLink);
-        var _novaExpira = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
-        var emails = cred.emails || [];
-        if(rat.emailCliente && !emails.includes(rat.emailCliente.trim())){
-          emails = emails.concat([rat.emailCliente.trim()]).slice(-5);
+        // [FIX-v63-CRED-VALIDA] Senha ainda válida com >7 dias: NAO gera nova senha,
+        // NAO sobrescreve senhaHash. Apenas atualiza nome/emails se necessario.
+        // Retorna nova:false para que o link enviado ao cliente NAO inclua senha
+        // (o cliente ja a possui do envio anterior — incluir senha nova quebraria o acesso).
+        var _emailsV = cred.emails || [];
+        var _emailMudou = false;
+        if(rat.emailCliente && !_emailsV.includes(rat.emailCliente.trim())){
+          _emailsV = _emailsV.concat([rat.emailCliente.trim()]).slice(-5);
+          _emailMudou = true;
         }
-        await colRef.doc(docId).update({
-          senhaHash: _hashNovoLink,
-          criadaEm: agora.toISOString(),
-          expiradoEm: _novaExpira,
-          emails: emails,
-          nome: rat.cliente||cred.nome||''
-        });
-        cred.senhaHash = _hashNovoLink;
-        cred.expiradoEm = _novaExpira;
-        return { cnpj: cnpj, senha: _senhaNovoLink, credencial: cred, nova: true };
+        var _nomeMudou = (rat.cliente && rat.cliente !== cred.nome);
+        if(_emailMudou || _nomeMudou){
+          try{ await colRef.doc(docId).update({ emails: _emailsV, nome: rat.cliente||cred.nome||'' }); }catch(e){}
+        }
+        return { cnpj: cnpj, senha: null, credencial: cred, nova: false };
       }
     }
 
@@ -17554,9 +17618,56 @@ async function _garantirAuthPortal(){
   return false;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   RATE LIMITING DO PORTAL — proteção brute force client-side
+   [FIX-v63-PORTAL-BF] _loginPortal não tinha proteção de tentativas.
+   Com senha de 6 dígitos (10^6 combinações), sem rate limit um atacante
+   poderia tentar todas as combinações sem bloqueio local.
+──────────────────────────────────────────────────────────── */
+var _PORTAL_BF_KEY    = 'online-es-portal-bf';
+var _PORTAL_MAX_TENT  = 5;
+var _PORTAL_LOCKOUT   = 15 * 60 * 1000; // 15 minutos
+
+function _portalCheckBF(cnpj){
+  try{
+    var d = JSON.parse(localStorage.getItem(_PORTAL_BF_KEY) || '{}');
+    var e = d[cnpj];
+    if(!e) return { blocked: false };
+    if(e.lockedUntil > Date.now()){
+      var mins = Math.ceil((e.lockedUntil - Date.now()) / 60000);
+      return { blocked: true, msg: 'Muitas tentativas. Tente novamente em ' + mins + ' minuto(s).' };
+    }
+  }catch(e){}
+  return { blocked: false };
+}
+function _portalRegisterFail(cnpj){
+  try{
+    var d = JSON.parse(localStorage.getItem(_PORTAL_BF_KEY) || '{}');
+    if(!d[cnpj]) d[cnpj] = { count: 0, lockedUntil: 0 };
+    d[cnpj].count++;
+    d[cnpj].lastAttempt = Date.now();
+    if(d[cnpj].count >= _PORTAL_MAX_TENT){
+      d[cnpj].lockedUntil = Date.now() + _PORTAL_LOCKOUT;
+      d[cnpj].count = 0;
+    }
+    localStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
+  }catch(e){}
+}
+function _portalClearBF(cnpj){
+  try{
+    var d = JSON.parse(localStorage.getItem(_PORTAL_BF_KEY) || '{}');
+    delete d[cnpj];
+    localStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
+  }catch(e){}
+}
+
 async function _loginPortal(cnpjInput, senhaInput){
   var cnpj = _normCnpj(cnpjInput);
   if(cnpj.length < 8) return { ok: false, msg: 'CNPJ ou CPF inválido.' };
+
+  // [FIX-v63-PORTAL-BF] Verifica bloqueio de brute force antes de qualquer acesso ao Firestore
+  var _bfCheck = _portalCheckBF(cnpj);
+  if(_bfCheck.blocked) return { ok: false, msg: _bfCheck.msg };
 
   // [FIX-PORTAL-TELA-AZUL] Garante auth anônimo ANTES de acessar o Firestore.
   // Sem isso a regra "if request.auth != null" bloqueia silenciosamente e o
@@ -17613,9 +17724,11 @@ async function _loginPortal(cnpjInput, senhaInput){
   // Verifica hash
   var hash = await _sha256(String(senhaInput||'').trim());
   if(hash !== cred.senhaHash){
+    _portalRegisterFail(cnpj); // [FIX-v63-PORTAL-BF]
     return { ok: false, msg: 'Senha incorreta. Verifique a senha recebida pelo WhatsApp ou e-mail.' };
   }
 
+  _portalClearBF(cnpj); // [FIX-v63-PORTAL-BF] limpa contador de tentativas no login bem-sucedido
   _portalSessao = { cnpj: cnpj, nome: cred.nome||'', cred: cred, loginEm: new Date() };
   // Marca visualização no doc
   try{ await db.collection('onlineEsPortalClientes').doc(cnpj).update({ ultimoAcesso: agora.toISOString() }); }catch(e){}
@@ -17660,7 +17773,7 @@ async function _buscarRatsDoCnpj(cnpj){
         15000
       );
       var arr2 = [];
-      snap2.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(!r._deleted) arr2.push(r); });
+      snap2.forEach(function(d){ var r=d.data(); r._fsId=d.id; if(r._deleted !== true) arr2.push(r); }); // [FIX-v63] usa !== true para filtrar RATs sem campo _deleted
       arr2.sort(function(a,b){ return (b.dataHoraIso||'').localeCompare(a.dataHoraIso||''); });
       return arr2.slice(0,50);
     }
