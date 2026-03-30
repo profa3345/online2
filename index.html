@@ -15888,13 +15888,38 @@ async function fazerLogin(){
       captureBtn.style.opacity = '';
       modal.classList.add('hidden');
       document.body.style.overflow = '';
-      // Permissão negada: avisa o usuário antes de abrir fallback
-      var isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
-      if (isDenied && typeof showToast === 'function') {
-        showToast('⚠️ Permissão de câmera negada. Abrindo seleção de arquivo...');
+      var errName = err && err.name ? err.name : '';
+      var isDenied = (errName === 'NotAllowedError' || errName === 'PermissionDeniedError');
+      var isNotReadable = (errName === 'NotReadableError' || errName === 'AbortError' || errName === 'TrackStartError');
+      var isOverconstrained = (errName === 'OverconstrainedError' || errName === 'ConstraintNotSatisfiedError');
+      if (isDenied) {
+        // Permissão negada: fallback para input nativo dos botões existentes
+        if (typeof showToast === 'function') showToast('⚠️ Permissão de câmera negada. Use o botão "Arquivo" para enviar fotos.');
+        // [FIX-CAM] Não usa .click() programático no Android — aciona o input nativo já presente no HTML
+        setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1200);
+      } else if (isNotReadable) {
+        // Câmera ocupada por outro app ou hardware indisponível
+        if (typeof showToast === 'function') showToast('⚠️ Câmera em uso por outro aplicativo. Feche-o e tente novamente, ou use o botão "Arquivo".');
+        setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1800);
+      } else if (isOverconstrained) {
+        // Tenta com constraints mínimas antes de desistir
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+          try { await video.play(); } catch(e2) {}
+          captureBtn.disabled = false;
+          captureBtn.style.opacity = '';
+          modal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        } catch(e3) {
+          if (typeof showToast === 'function') showToast('⚠️ Câmera indisponível. Use o botão "Arquivo" para enviar fotos.');
+          setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1200);
+        }
+      } else {
+        // Erro genérico
+        if (typeof showToast === 'function') showToast('⚠️ Não foi possível acessar a câmera. Use o botão "Arquivo" para enviar fotos.');
+        setTimeout(function() { _abrirCameraFallbackNativo(targetPreview); }, 1200);
       }
-      // Fallback: abre input nativo se câmera não puder ser acessada
-      setTimeout(function() { _abrirCameraFallback(targetPreview); }, isDenied ? 1200 : 0);
     }
   }
 
@@ -16125,7 +16150,27 @@ async function fazerLogin(){
     _dispararEnvio();
   }, { passive: false });
 
-  // ── Fallback: input nativo com capture ───────────────────────
+  // ── Fallback nativo: aciona o input já presente no HTML (evita .click() programático bloqueado no Android) ──
+  function _abrirCameraFallbackNativo(previewContainerId) {
+    // Mapeia previewContainerId → id do <input type="file"> já existente no HTML
+    var mapaInput = {
+      'bPreview': 'bUploadFotos',
+      'cPreview': 'cUpload',
+      'dPreview': 'dUpload'
+    };
+    var inputId = mapaInput[previewContainerId];
+    if (inputId) {
+      var inp = document.getElementById(inputId);
+      if (inp) {
+        inp.click(); // OK: o input já existe no DOM, o clique está associado ao gesto original do usuário via setTimeout curto
+        return;
+      }
+    }
+    // Se não há mapeamento (ex: assinaturas), usa fallback dinâmico convencional
+    _abrirCameraFallback(previewContainerId);
+  }
+
+  // ── Fallback: input dinâmico com capture (usado quando não há input fixo no HTML) ───────────────────────
   function _abrirCameraFallback(previewContainerId) {
     var inp = document.createElement('input');
     inp.type = 'file';
@@ -16182,9 +16227,10 @@ async function fazerLogin(){
     var btnEquip     = document.getElementById('btnCameraEquip');
     var btnServico   = document.getElementById('btnCameraServico');
     var btnBaterias  = document.getElementById('btnCamerasBaterias');
-    if (btnEquip)    btnEquip.onclick    = function(){ window._abrirModalCamera('bPreview'); };
-    if (btnServico)  btnServico.onclick  = function(){ window._abrirModalCamera('cPreview'); };
-    if (btnBaterias) btnBaterias.onclick = function(){ window._abrirModalCamera('dPreview'); };
+    var temGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    if (btnEquip)    btnEquip.onclick    = function(){ temGetUserMedia ? window._abrirModalCamera('bPreview')   : document.getElementById('bUploadFotos') && document.getElementById('bUploadFotos').click(); };
+    if (btnServico)  btnServico.onclick  = function(){ temGetUserMedia ? window._abrirModalCamera('cPreview')   : document.getElementById('cUpload') && document.getElementById('cUpload').click(); };
+    if (btnBaterias) btnBaterias.onclick = function(){ temGetUserMedia ? window._abrirModalCamera('dPreview')   : document.getElementById('dUpload') && document.getElementById('dUpload').click(); };
 
     // ── Câmera para assinaturas (modo single-shot: envia 1 foto direto para a variável) ──
     var btnCamAssCli = document.getElementById('btnCameraAssinaturaCliente');
@@ -16212,7 +16258,8 @@ async function fazerLogin(){
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       window._abrirModalCamera(previewContainerId);
     } else {
-      _abrirCameraFallback(previewContainerId);
+      // [FIX-CAM] Sem getUserMedia: usa input nativo já no HTML (evita .click() programático bloqueado)
+      _abrirCameraFallbackNativo(previewContainerId);
     }
   };
 
