@@ -8702,7 +8702,7 @@ if (logoBase64) {
       cidade: (document.getElementById('aCidade') ? document.getElementById('aCidade').value : ''),
       cepCliente: (aCep && aCep.value) ? aCep.value.trim() : '',
       uf: (document.getElementById('aUF') ? document.getElementById('aUF').value : ''),
-      cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim() : '',
+      cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim().replace(/\D/g,'') : '', // [FIX-v63b-CNPJ] salva apenas dígitos — portal busca com normCnpj() que também remove máscara
       docClienteTipo: (typeof tipoDocCliente !== 'undefined' ? tipoDocCliente : 'CNPJ'),
       emailCliente: (aEmailCliente && aEmailCliente.value) ? aEmailCliente.value.trim() : '',
       localizacao: (document.getElementById('aLocalizacao') ? document.getElementById('aLocalizacao').value : ''),
@@ -8741,7 +8741,11 @@ if (logoBase64) {
       criadoEm: '',
       editadoPor: '',
       editadoEm: '',
-      historicoEdicoes: []
+      historicoEdicoes: [],
+      // [FIX-v63b-DELETED] Campo _deleted sempre definido como false em RATs novas.
+      // Sem este campo, a query Firestore .where('_deleted','==',false) no portal
+      // não encontra o documento (campo ausente != false no Firestore).
+      _deleted: false
     };
   }
   // montarRelatorioAtual definida acima

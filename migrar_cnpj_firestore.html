@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Migração CNPJ — ONLINE-ES</title>
+<style>
+  body { font-family: monospace; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h2 { color: #f97316; }
+  #log { background: #1e293b; border-radius: 8px; padding: 16px; min-height: 200px; white-space: pre-wrap; font-size: .85rem; line-height: 1.6; }
+  button { background: #f97316; color: #fff; border: none; border-radius: 6px; padding: 10px 22px; font-size: 1rem; cursor: pointer; margin: 8px 4px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .ok { color: #4ade80; }
+  .warn { color: #fbbf24; }
+  .err { color: #f87171; }
+</style>
+</head>
+<body>
+<h2>🔧 Migração CNPJ — ONLINE-ES</h2>
+<p>Normaliza o campo <code>cnpjCliente</code> de todas as RATs (remove máscara: <code>12.345.678/0001-90</code> → <code>12345678000190</code>).<br>
+   Também garante o campo <code>_deleted: false</code> em RATs sem esse campo.<br>
+   <strong>Execute apenas uma vez. Faça backup antes.</strong></p>
+<button id="btnScan" onclick="scan()">1. Escanear (sem alterar)</button>
+<button id="btnMigrar" onclick="migrar()" disabled>2. Migrar (aplicar correções)</button>
+<div id="log">Aguardando...</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script>
+// ── CONFIGURE AQUI ──────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "COLE_AQUI",
+  authDomain:        "COLE_AQUI",
+  projectId:         "COLE_AQUI",
+  storageBucket:     "COLE_AQUI",
+  messagingSenderId: "COLE_AQUI",
+  appId:             "COLE_AQUI"
+};
+// ────────────────────────────────────────────────────────────────
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const log = document.getElementById('log');
+const btnScan = document.getElementById('btnScan');
+const btnMigrar = document.getElementById('btnMigrar');
+let docsParaMigrar = [];
+
+function print(msg, cls) {
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = msg + '\n';
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+function normCnpj(v) { return String(v||'').replace(/\D/g,''); }
+
+async function scan() {
+  btnScan.disabled = true;
+  log.innerHTML = '';
+  docsParaMigrar = [];
+  print('🔍 Escaneando onlineEsRelatorios...', 'warn');
+
+  try {
+    const snap = await db.collection('onlineEsRelatorios').get();
+    let total = 0, precisaMigrar = 0, precisaDeleted = 0;
+
+    snap.forEach(doc => {
+      total++;
+      const r = doc.data();
+      const cnpjAtual = r.cnpjCliente || '';
+      const cnpjNorm = normCnpj(cnpjAtual);
+      const temMascara = cnpjAtual !== cnpjNorm && cnpjAtual !== '';
+      const semDeleted = r._deleted === undefined || r._deleted === null;
+
+      if (temMascara || semDeleted) {
+        precisaMigrar++;
+        if (temMascara) precisaDeleted++;
+        docsParaMigrar.push({ id: doc.id, cnpjAtual, cnpjNorm, temMascara, semDeleted });
+      }
+    });
+
+    print(`\n📊 Total de RATs: ${total}`, 'ok');
+    print(`⚠️  RATs que precisam de migração: ${precisaMigrar}`, 'warn');
+    print(`   • CNPJ com máscara: ${docsParaMigrar.filter(d=>d.temMascara).length}`);
+    print(`   • Sem campo _deleted: ${docsParaMigrar.filter(d=>d.semDeleted).length}`);
+
+    if (docsParaMigrar.length > 0) {
+      print('\nExemplos (máx 5):');
+      docsParaMigrar.slice(0, 5).forEach(d => {
+        print(`  doc ${d.id}: cnpj "${d.cnpjAtual}" → "${d.cnpjNorm}"${d.semDeleted ? ' + _deleted:false' : ''}`);
+      });
+      btnMigrar.disabled = false;
+      print('\n✅ Clique em "Migrar" para aplicar as correções.', 'ok');
+    } else {
+      print('\n✅ Nenhuma migração necessária!', 'ok');
+    }
+  } catch(e) {
+    print('❌ Erro: ' + (e.message||e), 'err');
+    btnScan.disabled = false;
+  }
+}
+
+async function migrar() {
+  if (!docsParaMigrar.length) { print('Nada para migrar.', 'warn'); return; }
+  btnMigrar.disabled = true;
+  btnScan.disabled = true;
+
+  print('\n🚀 Iniciando migração...', 'warn');
+  let ok = 0, erros = 0;
+  const BATCH_SIZE = 400;
+
+  for (let i = 0; i < docsParaMigrar.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const chunk = docsParaMigrar.slice(i, i + BATCH_SIZE);
+
+    chunk.forEach(d => {
+      const ref = db.collection('onlineEsRelatorios').doc(d.id);
+      const upd = {};
+      if (d.temMascara) upd.cnpjCliente = d.cnpjNorm;
+      if (d.semDeleted) upd._deleted = false;
+      batch.update(ref, upd);
+    });
+
+    try {
+      await batch.commit();
+      ok += chunk.length;
+      print(`  ✅ Batch ${Math.floor(i/BATCH_SIZE)+1}: ${chunk.length} docs atualizados (total: ${ok})`, 'ok');
+    } catch(e) {
+      erros += chunk.length;
+      print(`  ❌ Batch ${Math.floor(i/BATCH_SIZE)+1} falhou: ${e.message||e}`, 'err');
+    }
+  }
+
+  print(`\n🏁 Migração concluída: ${ok} OK, ${erros} erros.`, ok > 0 ? 'ok' : 'err');
+  btnScan.disabled = false;
+}
+</script>
+</body>
+</html>

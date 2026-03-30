@@ -940,9 +940,9 @@ async function buscarRats(cnpj){
   const TO=ms=>new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms));
   try{
     let snap;
-    try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).where('_deleted','==',false).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);}
+    try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);} // [FIX-v63b] _deleted removido da query; filtro aplicado no cliente (r._deleted!==true) para incluir RATs antigas sem o campo
     catch(e){if(e.message==='timeout')throw e;snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).limit(80).get(),TO(15000)]);}
-    const arr=[];snap.forEach(d=>{const r=d.data();r._id=d.id;if(!r._deleted)arr.push(r);});
+    const arr=[];snap.forEach(d=>{const r=d.data();r._id=d.id;if(r._deleted!==true)arr.push(r);}); // [FIX-v63b] !== true inclui RATs sem campo _deleted
     arr.sort((a,b)=>(b.dataHoraIso||'').localeCompare(a.dataHoraIso||''));return arr.slice(0,50);
   }catch(e){console.warn('[Portal]',e.message);return null;}
 }
