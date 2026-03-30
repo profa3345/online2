@@ -421,7 +421,7 @@
     .preview-remove{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:18px;height:18px;border-radius:999px;cursor:pointer;font-size:.55rem;display:flex;align-items:center;justify-content:center}
 
     /* ── Modal Câmera ── */
-    #modalCamera{position:fixed;inset:0;width:100%;height:100%;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden}
+    #modalCamera{position:fixed;inset:0;width:100%;height:100%;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden;pointer-events:none}
     #modalCamera.hidden{display:none}
     /* Vídeo ocupa toda a tela — sem tela preta, sem corte */
     #modalCamera video{
@@ -6657,9 +6657,14 @@ function autoFillCamposAtendimento(){
     var _camModal = document.getElementById('modalCamera');
     if (_camModal && !_camModal.classList.contains('hidden')) {
       var _camClose = document.getElementById('camCloseBtn');
-      if (_camClose) _camClose.click();
-      // Repõe o estado no histórico para que o próximo voltar funcione
-      history.pushState({ tela: telaAlvo || 'meus' }, '', '');
+      // [FIX-CAM-POPSTATE] fechar() já chama history.back() internamente quando state===camera,
+      // então NÃO fazemos pushState aqui para evitar loop duplo.
+      if (_camClose) {
+        // Evita recursão: marca que o fechar veio do popstate (history.back já ocorreu)
+        window._camFecharPorPopstate = true;
+        _camClose.click();
+        window._camFecharPorPopstate = false;
+      }
       return;
     }
 
@@ -10659,6 +10664,10 @@ if (logoBase64) {
       const dataTexto    = r.dataHoraBr || r.dataHoraBR || r.dataHora || '';
       const nomeTec      = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
 
+      // [FIX-POPUP] Abre janela em branco ANTES dos awaits — browsers bloqueiam window.open
+      // após operações assíncronas por não estarem vinculados ao gesto do usuário.
+      try { window._emailWin = window.open('', '_blank', 'noopener,noreferrer'); } catch(e) { window._emailWin = null; }
+
       showLoader('Salvando e gerando link...');
       // [FIX-LOADER] try/finally garante que o loader sempre fecha, mesmo em exceção inesperada.
       try {
@@ -10727,12 +10736,14 @@ if (logoBase64) {
       _linhasEmail.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
       const corpo = _linhasEmail.join('\n');
 
-      window.open(
-        'mailto:' + encodeURIComponent(email) +
-        '?subject=' + encodeURIComponent(assunto) +
-        '&body=' + encodeURIComponent(corpo),
-        '_blank', 'noopener,noreferrer'
-      );
+      // [FIX-POPUP] Usa janela pré-aberta (antes dos awaits) para evitar bloqueio de popup
+      var _mailUrl = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+      if (window._emailWin && !window._emailWin.closed) {
+        window._emailWin.location.href = _mailUrl;
+        window._emailWin = null;
+      } else {
+        window.open(_mailUrl, '_blank', 'noopener,noreferrer');
+      }
       showToast(portalUrl
         ? '✅ E-mail aberto! O cliente receberá o link para baixar o PDF no portal.'
         : '✅ E-mail aberto! (sem link — gere novamente quando houver conexão)', 5000);
@@ -10756,6 +10767,10 @@ if (logoBase64) {
     ensureNumeroRat();
     var r; try { r = montarRelatorioAtual(); } catch(e) { showToast('Erro ao montar relatório: ' + e.message); return; }
     window._ratPreSalvoId = r.id;
+
+    // [FIX-POPUP] Abre janela em branco ANTES dos awaits — browsers bloqueiam window.open
+    // chamado após operações assíncronas por não estarem mais vinculados ao gesto do usuário.
+    try { window._waWin = window.open('', '_blank', 'noopener,noreferrer'); } catch(e) { window._waWin = null; }
 
     showLoader('Salvando e gerando link...');
     // [FIX] try/finally global garante hideLoader mesmo se qualquer etapa lançar exceção
@@ -10823,7 +10838,14 @@ if (logoBase64) {
         'Qualquer dúvida estamos à disposição!';
     }
 
-    window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal), '_blank', 'noopener,noreferrer');
+    // [FIX-POPUP] Abre a janela aqui (após awaits, mas dentro do try/finally original).
+    // Como o browser bloqueia window.open após awaits, usamos a janela pré-aberta _waWin.
+    if (window._waWin && !window._waWin.closed) {
+      window._waWin.location.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal);
+      window._waWin = null;
+    } else {
+      window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgFinal), '_blank', 'noopener,noreferrer');
+    }
     showToast(portalUrlWa
       ? '✅ WhatsApp aberto! Link e senha do portal incluídos na mensagem.'
       : '✅ WhatsApp aberto! (sem link — gere novamente quando houver conexão)', 5000);
@@ -15880,6 +15902,9 @@ async function fazerLogin(){
     sendBtn.disabled = true;
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    // [FIX-CAM-POPSTATE] Empurra estado no histórico para que o handler popstate
+    // feche o modal via botão voltar em vez de fechar por qualquer evento inesperado.
+    try { history.pushState({ tela: 'camera' }, '', ''); } catch(e) {}
     iniciarCamera();
   }
 
@@ -16152,6 +16177,12 @@ async function fazerLogin(){
     sendBtn.disabled = true;
     captureBtn.disabled = false;
     captureBtn.style.opacity = '';
+    // [FIX-CAM-POPSTATE] Remove o estado 'camera' que foi empurrado ao abrir o modal.
+    // Sem isso o estado fica orphan e o próximo "voltar" do usuário não vai à tela esperada.
+    // Não chama history.back() se o fechar já foi acionado pelo próprio popstate.
+    try {
+      if (!window._camFecharPorPopstate && history.state && history.state.tela === 'camera') history.back();
+    } catch(e) {}
     // [FIX-v59] Reseta hint para estado inicial
     var hintEl = document.querySelector('#camSendBar .cam-hint');
     if (hintEl) {
