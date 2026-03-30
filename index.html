@@ -421,7 +421,7 @@
     .preview-remove{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:18px;height:18px;border-radius:999px;cursor:pointer;font-size:.55rem;display:flex;align-items:center;justify-content:center}
 
     /* ── Modal Câmera ── */
-    #modalCamera{position:fixed;inset:0;width:100%;height:100%;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden;pointer-events:none}
+    #modalCamera{position:fixed;inset:0;width:100%;height:100%;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden}
     #modalCamera.hidden{display:none}
     /* Vídeo ocupa toda a tela — sem tela preta, sem corte */
     #modalCamera video{
@@ -432,7 +432,7 @@
       object-fit:cover;
       background:#000;
       z-index:0;
-      pointer-events:none; /* [FIX-CAM-v41] Evita que o video element bloqueie toque nos botões no Android */
+      pointer-events:none !important; /* vídeo nunca intercepta toque/clique */
     }
     /* Controles flutuantes sobre o vídeo */
     #modalCamera .cam-controls,
@@ -442,34 +442,42 @@
       position:relative;
       z-index:1;
     }
-    /* Overlay escuro no fundo dos controles para legibilidade */
+    /* [FIX-CAM-BTN] Garante que todos os botões do modal câmera recebem eventos */
+    #modalCamera button {
+      pointer-events:auto !important;
+      position:relative;
+      z-index:10202;
+    }
+    /* [FIX-CAM-STACKING] Controles usam position:absolute (não fixed) pois o pai
+       #modalCamera já é fixed e ocupa 100vw/100vh — o efeito visual é idêntico mas
+       evita o bug de stacking context onde position:fixed dentro de fixed ignora z-index */
     #modalCamera .cam-controls{
-      position:fixed;
+      position:absolute;
       bottom:calc(16px + env(safe-area-inset-bottom));
       left:0;right:0;
       display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
       padding:12px 16px;
       background:linear-gradient(transparent, rgba(0,0,0,.6));
-      z-index:10201;
+      z-index:10;
       pointer-events:auto;
     }
     #camSendBar {
-      position:fixed;
+      position:absolute;
       bottom:calc(88px + env(safe-area-inset-bottom));
       left:0;right:0;
       display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
       padding:6px 16px;
-      z-index:10201;
+      z-index:10;
       pointer-events:auto;
     }
     /* Strip de miniaturas — topo da tela */
     #camPreviewStrip{
-      position:fixed;
+      position:absolute;
       top:calc(12px + env(safe-area-inset-top));
       left:0;right:0;
       display:flex;gap:8px;padding:0 12px;
       overflow-x:auto;
-      z-index:10201;
+      z-index:10;
       pointer-events:auto;
     }
     #modalCamera canvas{display:none}
