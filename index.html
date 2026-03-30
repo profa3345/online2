@@ -421,56 +421,33 @@
     .preview-remove{position:absolute;top:2px;right:2px;background:rgba(248,113,113,.9);border:none;color:#fff;width:18px;height:18px;border-radius:999px;cursor:pointer;font-size:.55rem;display:flex;align-items:center;justify-content:center}
 
     /* ── Modal Câmera ── */
-    #modalCamera{position:fixed;inset:0;width:100%;height:100%;background:#000;z-index:10200;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;gap:0;overflow:hidden}
-    #modalCamera.hidden{display:none}
-    /* Vídeo ocupa toda a tela — sem tela preta, sem corte */
+    /* ── MODAL CÂMERA — stacking context isolado ───────────────────
+       z-index 20000 garante que fica acima de TUDO (cameraFlash=19999,
+       sidebar=50, reportOverlay=5000, outros modais<10000).
+       isolation:isolate cria contexto próprio — filhos não competem com
+       elementos externos. Botões usam position:absolute (não fixed) para
+       evitar o bug onde position:fixed dentro de fixed ignora z-index.
+    ─────────────────────────────────────────────────────────────── */
+    #modalCamera{
+      position:fixed;inset:0;
+      width:100%;height:100%;
+      background:#000;
+      z-index:20000;
+      isolation:isolate;
+      display:block;
+      overflow:hidden;
+    }
+    #modalCamera.hidden{display:none !important}
     #modalCamera video{
-      width:100%;
-      height:100%;
       position:absolute;
-      top:0;left:0;
+      inset:0;
+      width:100%;height:100%;
       object-fit:cover;
       background:#000;
-      z-index:0;
-      pointer-events:none !important; /* vídeo nunca intercepta toque/clique */
-    }
-    /* Controles flutuantes sobre o vídeo */
-    #modalCamera .cam-controls,
-    #modalCamera .cam-hint,
-    #modalCamera #camPreviewStrip,
-    #modalCamera > div:not(#camPreviewStrip) {
-      position:relative;
       z-index:1;
+      pointer-events:none !important;
     }
-    /* [FIX-CAM-BTN] Garante que todos os botões do modal câmera recebem eventos */
-    #modalCamera button {
-      pointer-events:auto !important;
-      position:relative;
-      z-index:10202;
-    }
-    /* [FIX-CAM-STACKING] Controles usam position:absolute (não fixed) pois o pai
-       #modalCamera já é fixed e ocupa 100vw/100vh — o efeito visual é idêntico mas
-       evita o bug de stacking context onde position:fixed dentro de fixed ignora z-index */
-    #modalCamera .cam-controls{
-      position:absolute;
-      bottom:calc(16px + env(safe-area-inset-bottom));
-      left:0;right:0;
-      display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
-      padding:12px 16px;
-      background:linear-gradient(transparent, rgba(0,0,0,.6));
-      z-index:10;
-      pointer-events:auto;
-    }
-    #camSendBar {
-      position:absolute;
-      bottom:calc(88px + env(safe-area-inset-bottom));
-      left:0;right:0;
-      display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
-      padding:6px 16px;
-      z-index:10;
-      pointer-events:auto;
-    }
-    /* Strip de miniaturas — topo da tela */
+    #modalCamera canvas{display:none}
     #camPreviewStrip{
       position:absolute;
       top:calc(12px + env(safe-area-inset-top));
@@ -480,7 +457,30 @@
       z-index:10;
       pointer-events:auto;
     }
-    #modalCamera canvas{display:none}
+    #camSendBar{
+      position:absolute;
+      bottom:calc(88px + env(safe-area-inset-bottom));
+      left:0;right:0;
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
+      padding:6px 16px;
+      z-index:10;
+      pointer-events:auto;
+    }
+    #modalCamera .cam-controls{
+      position:absolute;
+      bottom:calc(16px + env(safe-area-inset-bottom));
+      left:0;right:0;
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
+      padding:12px 16px;
+      background:linear-gradient(transparent,rgba(0,0,0,.6));
+      z-index:10;
+      pointer-events:auto;
+    }
+    #modalCamera button{
+      pointer-events:auto !important;
+      position:relative;
+      z-index:11;
+    }
     /* .cam-controls legacy removed — replaced by fullscreen overlay version */
     .cam-capture-btn{width:68px;height:68px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);border:3px solid #fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 6px 28px rgba(249,115,22,.6),0 0 0 6px rgba(249,115,22,.2);transition:transform .12s,box-shadow .12s;color:#fff;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;pointer-events:auto;position:relative;z-index:10;}
     .cam-capture-btn:hover{transform:scale(1.08);box-shadow:0 10px 32px rgba(249,115,22,.65)}
@@ -1649,7 +1649,7 @@ html[data-role="technician"] nav button {
     position: fixed;
     inset: 0;
     background: #fff;
-    z-index: 19999;
+    z-index: 10199; /* abaixo do #modalCamera (20000) */
     opacity: 0;
     pointer-events: none;
   }
@@ -6661,18 +6661,23 @@ function autoFillCamposAtendimento(){
       return;
     }
 
-    // 1. Se o modal câmera estiver aberto, fechar ele
+    // 1. Se o modal câmera estiver aberto, fechar APENAS se o popstate veio do botão
+    //    voltar real (telaAlvo==='camera' ou sem state) — NÃO fechar se for navegação
+    //    interna do app (step change, mostrarTela etc.) que empurra outros estados.
     var _camModal = document.getElementById('modalCamera');
     if (_camModal && !_camModal.classList.contains('hidden')) {
-      var _camClose = document.getElementById('camCloseBtn');
-      // [FIX-CAM-POPSTATE] fechar() já chama history.back() internamente quando state===camera,
-      // então NÃO fazemos pushState aqui para evitar loop duplo.
-      if (_camClose) {
-        // Evita recursão: marca que o fechar veio do popstate (history.back já ocorreu)
-        window._camFecharPorPopstate = true;
-        _camClose.click();
-        window._camFecharPorPopstate = false;
+      // Só fecha se o estado consumido era 'camera' ou se não há state (botão voltar nativo)
+      var _eraCamera = (!telaAlvo || telaAlvo === 'camera');
+      if (_eraCamera) {
+        var _camClose = document.getElementById('camCloseBtn');
+        if (_camClose) {
+          window._camFecharPorPopstate = true;
+          _camClose.click();
+          setTimeout(function(){ window._camFecharPorPopstate = false; }, 100);
+        }
+        return;
       }
+      // Se o popstate veio de outra navegação interna, ignora — modal continua aberto
       return;
     }
 
@@ -16185,11 +16190,17 @@ async function fazerLogin(){
     sendBtn.disabled = true;
     captureBtn.disabled = false;
     captureBtn.style.opacity = '';
-    // [FIX-CAM-POPSTATE] Remove o estado 'camera' que foi empurrado ao abrir o modal.
-    // Sem isso o estado fica orphan e o próximo "voltar" do usuário não vai à tela esperada.
-    // Não chama history.back() se o fechar já foi acionado pelo próprio popstate.
+    // [FIX-CAM-POPSTATE] O pushState feito ao abrir o modal é consumido pelo handler
+    // popstate (botão voltar). Quando fechar() é chamado diretamente (botão X, confirmação),
+    // precisamos remover esse estado do histórico — usamos history.go(-1) apenas se
+    // o estado atual ainda for 'camera' e não estivermos dentro de um popstate já em curso.
     try {
-      if (!window._camFecharPorPopstate && history.state && history.state.tela === 'camera') history.back();
+      if (!window._camFecharPorPopstate && history.state && history.state.tela === 'camera') {
+        window._camFecharPorPopstate = true;
+        history.go(-1);
+        // reset após o evento processar
+        setTimeout(function(){ window._camFecharPorPopstate = false; }, 100);
+      }
     } catch(e) {}
     // [FIX-v59] Reseta hint para estado inicial
     var hintEl = document.querySelector('#camSendBar .cam-hint');
