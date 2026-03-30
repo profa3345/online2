@@ -1039,17 +1039,35 @@ async function renderExpirada(cnpj,cred){
   const acoesEl=document.getElementById('expAcoes');
   if(!emails.length&&!whatsapps.length){acoesEl.innerHTML='<p style="font-size:.82rem;color:var(--text2);">Nenhum contato cadastrado. Entre em contato com a ONLINE-ES.</p>';return;}
   const portalUrl=window.location.origin+window.location.pathname+'?cnpj='+cnpj;
-  async function renovarSenha(){const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();await db.collection('onlineEsPortalClientes').doc(cnpj).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});return s;}
+  // [FIX-v63c] Rate limiting: máx 3 renovações por CNPJ por hora (localStorage)
+  function _podeRenovar(){
+    try{
+      var k='onlinees_renov_'+cnpj;
+      var d=JSON.parse(localStorage.getItem(k)||'{"c":0,"t":0}');
+      var agora=Date.now();
+      if(agora-d.t>3600000){d={c:0,t:agora};}
+      if(d.c>=3)return false;
+      d.c++;d.t=d.t||agora;
+      localStorage.setItem(k,JSON.stringify(d));
+      return true;
+    }catch{return true;}
+  }
+  async function renovarSenha(){
+    if(!_podeRenovar()){throw new Error('Limite de renovações atingido. Tente novamente em 1 hora.');}
+    const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();
+    await db.collection('onlineEsPortalClientes').doc(cnpj).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});
+    return s;
+  }
   emails.forEach(email=>{
     const btn=document.createElement('button');btn.className='btn-primary';btn.style.cssText='background:linear-gradient(135deg,#0ea5e9,#0284c7);box-shadow:0 4px 20px rgba(14,165,233,.3);margin-bottom:8px;';
     btn.innerHTML=`<i class="ri-mail-send-line"></i> Enviar senha para ${esc(email)}`;
-    btn.addEventListener('click',async()=>{btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';try{const s=await renovarSenha();window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Portal ONLINE-ES — Nova senha')}&body=${encodeURIComponent(`Sua nova senha:\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 Senha: ${s} (30 dias)\n\nGuarde esta mensagem.`)}`, '_blank');toast('✅ E-mail aberto com nova senha!',4000);setTimeout(()=>renderLogin({cnpj,info:`✅ Nova senha: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong>`}),1500);}catch{btn.disabled=false;btn.innerHTML=`<i class="ri-mail-send-line"></i> Tentar novamente`;}});
+    btn.addEventListener('click',async()=>{btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';try{const s=await renovarSenha();window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Portal ONLINE-ES — Nova senha')}&body=${encodeURIComponent(`Sua nova senha:\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 Senha: ${s} (30 dias)\n\nGuarde esta mensagem.`)}`, '_blank');toast('✅ E-mail aberto com nova senha!',4000);setTimeout(()=>renderLogin({cnpj,info:`✅ Nova senha: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong>`}),1500);}catch(eRenov){btn.disabled=false;btn.innerHTML=`<i class="ri-mail-send-line"></i> Tentar novamente`;const errEl=document.getElementById('expErr');if(errEl)errEl.textContent=eRenov&&eRenov.message?eRenov.message:'Erro ao gerar senha.';}});
     acoesEl.appendChild(btn);
   });
   whatsapps.forEach(num=>{
     const btn=document.createElement('button');btn.className='btn-primary';btn.style.cssText='background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.3);margin-bottom:8px;';
     btn.innerHTML=`<i class="ri-whatsapp-line"></i> Receber senha via WhatsApp (+${esc(num)})`;
-    btn.addEventListener('click',async()=>{btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';try{const s=await renovarSenha();const n=num.length<=11?'55'+num:num;window.open(`https://wa.me/${n}?text=${encodeURIComponent(`🔐 *Portal ONLINE-ES — Nova senha*\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 *${s}* (30 dias)`)}`, '_blank');toast('✅ WhatsApp aberto com nova senha!',4000);setTimeout(()=>renderLogin({cnpj,info:`✅ Nova senha: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong>`}),1500);}catch{btn.disabled=false;btn.innerHTML=`<i class="ri-whatsapp-line"></i> Tentar novamente`;}});
+    btn.addEventListener('click',async()=>{btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';try{const s=await renovarSenha();const n=num.length<=11?'55'+num:num;window.open(`https://wa.me/${n}?text=${encodeURIComponent(`🔐 *Portal ONLINE-ES — Nova senha*\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 *${s}* (30 dias)`)}`, '_blank');toast('✅ WhatsApp aberto com nova senha!',4000);setTimeout(()=>renderLogin({cnpj,info:`✅ Nova senha: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong>`}),1500);}catch(eRenov){btn.disabled=false;btn.innerHTML=`<i class="ri-whatsapp-line"></i> Tentar novamente`;const errEl=document.getElementById('expErr');if(errEl)errEl.textContent=eRenov&&eRenov.message?eRenov.message:'Erro ao gerar senha.';}});
     acoesEl.appendChild(btn);
   });
 }

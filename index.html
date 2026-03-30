@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v63
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v64
+  Correções v64:
+  - [FIX-v64-SEMPRE-SENHA] _gerarCredencialPortal: removido bloco que retornava nova:false
+    e senha:null quando faltaDias>7. Agora sempre gera nova senha e atualiza senhaHash.
+    Isso garante que o link SEMPRE chega com a senha — elimina o bug "Use a senha já
+    recebida anteriormente" que aparecia quando o cliente já tinha acesso válido.
+  - [FIX-v64-CRED-EMAIL] r._portalSenha = _credEmail.senha (em vez de nova?senha:null).
+  - [FIX-v64-CRED-WA]    r._portalSenha = _credWa.senha    (em vez de nova?senha:null).
+  - [FIX-v64-TOKEN]      rat._portalSenha = resultado.senha (em vez de nova?senha:null)
+    em _gerarTokenPortal — garante que fluxos secundários (meus, cache, supervisor)
+    também sempre incluam a senha na mensagem.
   Correções v63:
   - [FIX-v63-PORTAL-BF] Rate limiting brute force no portal do cliente: 5 tentativas
     de senha errada bloqueiam o CNPJ por 15 minutos (localStorage). Funções
@@ -10687,7 +10697,7 @@ if (logoBase64) {
           var _credEmail = await window._gerarCredencialPortal(r);
           if (_credEmail && _credEmail.cnpj) {
             r._portalCnpj  = _credEmail.cnpj;
-            r._portalSenha = _credEmail.nova ? _credEmail.senha : null;
+            r._portalSenha = _credEmail.senha || null; // [FIX-v64] sempre inclui senha na mensagem
             portalUrl      = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj, _credEmail.senha || null) : null;
             if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
               salvarRelatorioNoFirestore(r).catch(function(){});
@@ -10783,7 +10793,7 @@ if (logoBase64) {
         var _credWa = await window._gerarCredencialPortal(r);
         if (_credWa && _credWa.cnpj) {
           r._portalCnpj  = _credWa.cnpj;
-          r._portalSenha = _credWa.nova ? _credWa.senha : null;
+          r._portalSenha = _credWa.senha || null; // [FIX-v64] sempre inclui senha na mensagem
           portalUrlWa    = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj, _credWa.senha || null) : null;
           // Atualiza também no Firestore e localmente
           if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
@@ -17353,23 +17363,10 @@ window._gerarCredencialPortal = async function(rat){
       var expira = cred.expiradoEm ? new Date(cred.expiradoEm) : new Date(0);
       // Renova apenas se expirada (ou faltam < 7 dias) OU se chamado com forçar renovação
       var faltaDias = (expira - agora) / 86400000;
-      if(faltaDias > 7 && !rat._forcarRenovacaoSenha){
-        // [FIX-v63-CRED-VALIDA] Senha ainda válida com >7 dias: NAO gera nova senha,
-        // NAO sobrescreve senhaHash. Apenas atualiza nome/emails se necessario.
-        // Retorna nova:false para que o link enviado ao cliente NAO inclua senha
-        // (o cliente ja a possui do envio anterior — incluir senha nova quebraria o acesso).
-        var _emailsV = cred.emails || [];
-        var _emailMudou = false;
-        if(rat.emailCliente && !_emailsV.includes(rat.emailCliente.trim())){
-          _emailsV = _emailsV.concat([rat.emailCliente.trim()]).slice(-5);
-          _emailMudou = true;
-        }
-        var _nomeMudou = (rat.cliente && rat.cliente !== cred.nome);
-        if(_emailMudou || _nomeMudou){
-          try{ await colRef.doc(docId).update({ emails: _emailsV, nome: rat.cliente||cred.nome||'' }); }catch(e){}
-        }
-        return { cnpj: cnpj, senha: null, credencial: cred, nova: false };
-      }
+      // [FIX-v64-SEMPRE-SENHA] Sempre gera nova senha independente de faltaDias.
+      // O cliente recebe a senha nova junto com o link na mesma mensagem —
+      // não há cenário onde o link chega sem senha. Remover o bloco nova:false
+      // que causava "Use a senha já recebida anteriormente" no WhatsApp/e-mail.
     }
 
     // Gera nova senha
@@ -17448,7 +17445,7 @@ window._gerarTokenPortal = async function(rat){
     if(resultado && resultado.cnpj){
       // Salva cnpj no objeto rat para uso em _urlPortalV2
       rat._portalCnpj = resultado.cnpj;
-      rat._portalSenha = resultado.nova ? resultado.senha : null;
+      rat._portalSenha = resultado.senha || null; // [FIX-v64-TOKEN] sempre inclui senha
       // Mantém portalToken preenchido para não quebrar código que o verifica
       rat.portalToken = 'cnpj:' + resultado.cnpj;
       rat.portalTokenCriado = resultado.credencial.criadaEm;
@@ -17471,9 +17468,10 @@ window._montarMensagemPortalV2 = function(rat, resultado, canal){
   var data   = rat.dataHoraBr || '';
   var tecnico= rat.tecnico || '';
   var cnpjFmt = rat.cnpjCliente || '';
-  var senhaInfo = resultado.nova && resultado.senha
+  // [FIX-v64] Sempre inclui senha na mensagem - resultado.senha sempre disponível
+  var senhaInfo = resultado.senha
     ? '\n🔑 Sua senha de acesso: *' + resultado.senha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + cnpjFmt + ')'
-    : '\n🔑 Use seu CNPJ/CPF e a senha já cadastrada para entrar.';
+    : '\n🔑 Use seu CNPJ/CPF para entrar no portal.';
 
   if(canal === 'whats'){
     return 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
@@ -17492,9 +17490,9 @@ window._montarMensagemPortalV2 = function(rat, resultado, canal){
       '',
       '📂 Acesse o Portal do Cliente para visualizar e baixar o PDF:',
       url,
-      resultado.nova && resultado.senha
+      resultado.senha
         ? '🔑 Usuário: ' + cnpjFmt + '\n🔑 Senha: ' + resultado.senha + ' (válida por 30 dias)'
-        : '🔑 Use seu CNPJ/CPF e a senha já cadastrada.',
+        : '🔑 Use seu CNPJ/CPF para entrar no portal.',
       '',
       'Atenciosamente,',
       'Online-ES – Eletroeletrônica',
@@ -18455,10 +18453,10 @@ function _injetarPainel(){
               var url = window._urlPortalV2(resultado.cnpj, resultado.senha || null);
               try{ await navigator.clipboard.writeText(url); }catch(_){}
               if(typeof showToast==='function'){
-                if(resultado.nova && resultado.senha){
-                  showToast('🔗 Link copiado! Senha do cliente: ' + resultado.senha, 6000);
+                if(resultado.senha){
+                  showToast('🔗 Link copiado! Senha: ' + resultado.senha, 6000);
                 } else {
-                  showToast('🔗 Link copiado! (senha anterior ainda válida)', 4000);
+                  showToast('🔗 Link copiado!', 4000);
                 }
               }
               r._portalCnpj = resultado.cnpj;
