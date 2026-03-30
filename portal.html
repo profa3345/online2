@@ -1297,39 +1297,62 @@ function renderDetalhe(r){
 var _jspdfPromise=null;
 function _ensureJsPDF(){
   if(_jspdfPromise)return _jspdfPromise;
-  _jspdfPromise=new Promise(function(resolve,reject){
-    if(window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.prototype.autoTable){resolve();return;}
-    // Carrega sequencialmente: primeiro jsPDF, depois o plugin autoTable
-    function loadScript(src,fallbackSrc,cb){
-      var s=document.createElement('script');
-      s.src=src;
-      s.onload=cb;
-      s.onerror=function(){
-        var fb=document.createElement('script');
-        fb.src=fallbackSrc;
-        fb.onload=cb;
-        fb.onerror=function(){_jspdfPromise=null;reject(new Error('jsPDF não carregou: '+src));};
-        document.head.appendChild(fb);
-      };
+  return _jspdfPromise=new Promise(function(resolve,reject){
+    if(window.jspdf&&window.jspdf.jsPDF){resolve();return;}
+    var scripts=['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'];
+    var loaded=0;
+    scripts.forEach(function(src){
+      var s=document.createElement('script');s.src=src;
+      s.onload=function(){if(++loaded===scripts.length)resolve();};
+      s.onerror=function(){var fb=document.createElement('script');fb.src=src.includes('autotable')?'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js':'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';fb.onload=function(){if(++loaded===scripts.length)resolve();};fb.onerror=function(){_jspdfPromise=null;reject(new Error('jsPDF não carregou'));};document.head.appendChild(fb);};
       document.head.appendChild(s);
-    }
-    loadScript(
-      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-      'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-      function(){
-        loadScript(
-          'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
-          'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js',
-          function(){resolve();}
-        );
-      }
-    );
+    });
   });
-  return _jspdfPromise;
 }
 
-async function normalizarAssinaturaPNG(dataUrl,w,h){
-  try{return await new Promise(function(res,rej){var img=new Image();img.onload=function(){var cv=document.createElement('canvas');cv.width=w;cv.height=h;var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);var scale=Math.min(w/img.width,h/img.height);var sw=img.width*scale,sh=img.height*scale;ctx.drawImage(img,(w-sw)/2,(h-sh)/2,sw,sh);res(cv.toDataURL('image/png'));};img.onerror=rej;img.src=dataUrl;});}catch{return null;}
+async function normalizarAssinaturaPNG(dataUrl,targetW,targetH){
+  return new Promise(function(resolve){
+    if(!dataUrl){resolve(null);return;}
+    var img=new Image();
+    var _done=false;
+    var _timer=setTimeout(function(){if(!_done){_done=true;resolve(dataUrl);}},5000);
+    img.onerror=function(){if(!_done){_done=true;clearTimeout(_timer);resolve(dataUrl);}};
+    img.onload=function(){
+      if(_done)return;_done=true;clearTimeout(_timer);
+      var tmp=document.createElement('canvas');
+      tmp.width=img.width;tmp.height=img.height;
+      var ctx=tmp.getContext('2d');
+      ctx.drawImage(img,0,0);
+      var data=ctx.getImageData(0,0,img.width,img.height).data;
+      var minX=img.width,minY=img.height,maxX=0,maxY=0,encontrou=false;
+      for(var py=0;py<img.height;py++){
+        for(var px=0;px<img.width;px++){
+          var idx=(py*img.width+px)*4;
+          if(data[idx]<200||data[idx+1]<200||data[idx+2]<200){
+            if(px<minX)minX=px;if(px>maxX)maxX=px;
+            if(py<minY)minY=py;if(py>maxY)maxY=py;
+            encontrou=true;
+          }
+        }
+      }
+      if(!encontrou){resolve(dataUrl);return;}
+      var p=8;
+      minX=Math.max(0,minX-p);minY=Math.max(0,minY-p);
+      maxX=Math.min(img.width-1,maxX+p);maxY=Math.min(img.height-1,maxY+p);
+      var bW=maxX-minX,bH=maxY-minY;
+      if(bW<1||bH<1){resolve(dataUrl);return;}
+      var scale=Math.min(targetW/bW,targetH/bH);
+      var outW=Math.round(bW*scale),outH=Math.round(bH*scale);
+      var out=document.createElement('canvas');
+      out.width=targetW;out.height=targetH;
+      var octx=out.getContext('2d');
+      octx.fillStyle='#ffffff';
+      octx.fillRect(0,0,targetW,targetH);
+      octx.drawImage(tmp,minX,minY,bW,bH,Math.round((targetW-outW)/2),Math.round((targetH-outH)/2),outW,outH);
+      resolve(out.toDataURL('image/png'));
+    };
+    img.src=dataUrl;
+  });
 }
 async function addImagemReduzidaAoPdf(doc,src,x,y,maxW,maxH){
   try{return await new Promise(function(res){var img=new Image();img.onload=function(){try{var scale=Math.min(maxW/img.width,maxH/img.height,1);var w=img.width*scale,h=img.height*scale;doc.addImage(src,'JPEG',x,y,w,h);res(h);}catch{res(0);}};img.onerror=function(){res(0);};img.src=src;});}catch{return 0;}
