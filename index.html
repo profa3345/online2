@@ -2350,8 +2350,8 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinatura">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
-            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
-              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar canvas</span>
+            <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar assinatura</span>
             </button>
             <button type="button" class="btn small" id="btnModoTouchpad">
               <i class="ri-mouse-line"></i> Modo Touchpad: OFF
@@ -2422,8 +2422,8 @@ html[data-role="technician"] nav button {
             <button type="button" class="btn small" id="btnUsarAssinaturaTec">
               <i class="ri-check-line"></i> Usar esta assinatura
             </button>
-            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava o canvas para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
-              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar canvas</span>
+            <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
+              <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar assinatura</span>
             </button>
             <small id="sigStatusTec" style="font-size:.68rem;color:#0f172a;"></small>
           </div>
@@ -11390,16 +11390,11 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
   function getPosCanvas(e){
     const rect = sigCanvas.getBoundingClientRect();
-    if (e.touches && e.touches[0]) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top
-      };
-    }
-    return {
-      x: (e.clientX || e.pageX) - rect.left,
-      y: (e.clientY || e.pageY) - rect.top
-    };
+    // Pointer Events e Mouse Events usam clientX/clientY diretamente
+    // Touch Events legado usam e.touches[0]
+    var cx = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+    var cy = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+    return { x: cx - rect.left, y: cy - rect.top };
   }
 
   function startDraw(e){
@@ -11434,15 +11429,24 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     sigCanvas.style.touchAction = 'pan-y';
   }
 
-  // Eventos mouse
-  sigCanvas.addEventListener('mousedown', startDraw);
-  sigCanvas.addEventListener('mousemove', moveDraw, {passive:false});
-  window.addEventListener('mouseup', endDraw);
-
-  // Eventos touch
-  sigCanvas.addEventListener('touchstart', startDraw, {passive:false});
-  sigCanvas.addEventListener('touchmove', moveDraw, {passive:false});
-  sigCanvas.addEventListener('touchend', endDraw);
+  // [FIX-SCROLL-FINAL] Usa Pointer Events em vez de touch/mouse separados.
+  // pointerdown/pointermove/pointerup funcionam para mouse E touch sem conflito
+  // com o scroll da página — o browser não interpreta como gesto de navegação.
+  // [FIX-POINTER] Pointer Events unifica mouse + touch sem conflitar com scroll.
+  // Não registrar mousedown/mousemove separado — pointerdown/pointermove
+  // já cobrem mouse no desktop E toque no mobile.
+  sigCanvas.addEventListener('pointerdown', function(e) {
+    try { sigCanvas.setPointerCapture(e.pointerId); } catch(ex) {}
+    sigCanvas.style.touchAction = 'none';
+    startDraw(e);
+  });
+  sigCanvas.addEventListener('pointermove', function(e) {
+    if (!desenhando) return;
+    e.preventDefault();
+    moveDraw(e);
+  }, {passive: false});
+  sigCanvas.addEventListener('pointerup', endDraw);
+  sigCanvas.addEventListener('pointercancel', endDraw);
 
   // [FIX-SIG] Debounce de 300ms no resize — evita apagar canvas quando teclado virtual
   // abre/fecha no mobile (o que também dispara o evento resize do window).
@@ -11524,7 +11528,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _btnTravarSigCli.style.borderColor = 'rgba(220,38,38,.4)';
       _btnTravarSigCli.style.color = '#dc2626';
       if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-line';
-      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Canvas travado';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Assinatura travada';
       if (sigCanvas) {
         sigCanvas.style.opacity = '0.7';
         sigCanvas.style.cursor = 'not-allowed';
@@ -11536,7 +11540,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _btnTravarSigCli.style.borderColor = 'rgba(148,163,184,.35)';
       _btnTravarSigCli.style.color = '#475569';
       if (_iconTravarSigCli) _iconTravarSigCli.className = 'ri-lock-unlock-line';
-      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar canvas';
+      if (_lblTravarSigCli)  _lblTravarSigCli.textContent = 'Travar assinatura';
       if (sigCanvas) {
         sigCanvas.style.opacity = '';
         sigCanvas.style.cursor = '';
@@ -11551,7 +11555,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       _sigClienteTravado = !_sigClienteTravado;
       _atualizarBotaoTravaCli();
       showToast(_sigClienteTravado
-        ? '🔒 Canvas travado — role a tela livremente.'
+        ? '🔒 Assinatura travada — role a tela livremente.'
         : '🔓 Canvas desbloqueado — pode assinar agora.');
       try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
     });
@@ -11571,15 +11575,10 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     _origMoveDraw(e);
   };
 
-  // Re-registra os eventos com as funções atualizadas
-  sigCanvas.removeEventListener('mousedown',  _origStartDraw);
-  sigCanvas.removeEventListener('touchstart', _origStartDraw);
-  sigCanvas.removeEventListener('mousemove',  _origMoveDraw);
-  sigCanvas.removeEventListener('touchmove',  _origMoveDraw);
-  sigCanvas.addEventListener('mousedown',  startDraw);
-  sigCanvas.addEventListener('touchstart', startDraw,  {passive:false});
-  sigCanvas.addEventListener('mousemove',  moveDraw, {passive:false});
-  sigCanvas.addEventListener('touchmove',  moveDraw, {passive:false});
+  // [FIX-POINTER] Pointer events já registrados — não precisa re-registrar mouse.
+  // Apenas remove os listeners antigos das funções originais (sem trava).
+  sigCanvas.removeEventListener('mousedown', _origStartDraw);
+  sigCanvas.removeEventListener('mousemove', _origMoveDraw);
 
   // Upload de assinatura do cliente (imagem)
   if (typeof sigClienteUpload !== 'undefined' && sigClienteUpload){
@@ -11663,16 +11662,9 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
 
     function getPosTec(e){
       const rect = sigTecnicoCanvas.getBoundingClientRect();
-      if (e.touches && e.touches[0]){
-        return {
-          x: e.touches[0].clientX - rect.left,
-          y: e.touches[0].clientY - rect.top
-        };
-      }
-      return {
-        x: (e.clientX || e.pageX) - rect.left,
-        y: (e.clientY || e.pageY) - rect.top
-      };
+      var cx = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      var cy = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+      return { x: cx - rect.left, y: cy - rect.top };
     }
 
     function startDrawTec(e){
@@ -11703,14 +11695,19 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       sigTecnicoCanvas.style.touchAction = 'pan-y';
     }
 
-    // Eventos mouse/touch
-    sigTecnicoCanvas.addEventListener('mousedown', startDrawTec);
-    sigTecnicoCanvas.addEventListener('mousemove', moveDrawTec, {passive:false});
-    window.addEventListener('mouseup', endDrawTec);
-
-    sigTecnicoCanvas.addEventListener('touchstart', startDrawTec, {passive:false});
-    sigTecnicoCanvas.addEventListener('touchmove', moveDrawTec, {passive:false});
-    sigTecnicoCanvas.addEventListener('touchend', endDrawTec);
+    // [FIX-POINTER] Pointer Events cobre mouse + touch sem conflito com scroll.
+    sigTecnicoCanvas.addEventListener('pointerdown', function(e) {
+      try { sigTecnicoCanvas.setPointerCapture(e.pointerId); } catch(ex) {}
+      sigTecnicoCanvas.style.touchAction = 'none';
+      startDrawTec(e);
+    });
+    sigTecnicoCanvas.addEventListener('pointermove', function(e) {
+      if (!desenhandoTec) return;
+      e.preventDefault();
+      moveDrawTec(e);
+    }, {passive: false});
+    sigTecnicoCanvas.addEventListener('pointerup', endDrawTec);
+    sigTecnicoCanvas.addEventListener('pointercancel', endDrawTec);
 
     // [TRAVA-SIG] Botão de trava do canvas de assinatura do TÉCNICO
     var _sigTecTravado = false;
@@ -11725,7 +11722,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _btnTravarSigTec.style.borderColor = 'rgba(220,38,38,.4)';
         _btnTravarSigTec.style.color = '#dc2626';
         if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-line';
-        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Canvas travado';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Assinatura travada';
         sigTecnicoCanvas.style.opacity = '0.7';
         sigTecnicoCanvas.style.cursor  = 'not-allowed';
         // [FIX-SCROLL] Travado: libera scroll vertical sobre o canvas
@@ -11735,7 +11732,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _btnTravarSigTec.style.borderColor = 'rgba(148,163,184,.35)';
         _btnTravarSigTec.style.color = '#475569';
         if (_iconTravarSigTec) _iconTravarSigTec.className = 'ri-lock-unlock-line';
-        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar canvas';
+        if (_lblTravarSigTec)  _lblTravarSigTec.textContent = 'Travar assinatura';
         sigTecnicoCanvas.style.opacity = '';
         sigTecnicoCanvas.style.cursor  = '';
         // [FIX-SCROLL] Desbloqueado: captura todos os toques para desenho
@@ -11748,7 +11745,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
         _sigTecTravado = !_sigTecTravado;
         _atualizarBotaoTravaTec();
         showToast(_sigTecTravado
-          ? '🔒 Canvas travado — role a tela livremente.'
+          ? '🔒 Assinatura travada — role a tela livremente.'
           : '🔓 Canvas desbloqueado — pode assinar agora.');
         try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
       });
@@ -11760,15 +11757,9 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     startDrawTec = function(e) { if (_sigTecTravado) return; _origStartDrawTec(e); };
     moveDrawTec  = function(e) { if (_sigTecTravado) return; _origMoveDrawTec(e); };
 
-    // Re-registra eventos com funções atualizadas
-    sigTecnicoCanvas.removeEventListener('mousedown',  _origStartDrawTec);
-    sigTecnicoCanvas.removeEventListener('touchstart', _origStartDrawTec);
-    sigTecnicoCanvas.removeEventListener('mousemove',  _origMoveDrawTec);
-    sigTecnicoCanvas.removeEventListener('touchmove',  _origMoveDrawTec);
-    sigTecnicoCanvas.addEventListener('mousedown',  startDrawTec);
-    sigTecnicoCanvas.addEventListener('touchstart', startDrawTec, {passive:false});
-    sigTecnicoCanvas.addEventListener('mousemove',  moveDrawTec, {passive:false});
-    sigTecnicoCanvas.addEventListener('touchmove',  moveDrawTec, {passive:false});
+    // [FIX-POINTER] Pointer events já registrados — apenas remove listeners antigos.
+    sigTecnicoCanvas.removeEventListener('mousedown', _origStartDrawTec);
+    sigTecnicoCanvas.removeEventListener('mousemove', _origMoveDrawTec);
 
     // [FIX-SIG] Debounce no resize do técnico — mesmo motivo do cliente
     var _sigTecResizeTimer = null;
