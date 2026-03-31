@@ -9881,11 +9881,14 @@ if (logoBase64) {
       if (!_panel) return;
       var _sx = null, _sy = null, _t0 = 0;
       var LIMIAR_X   = 52;  // px mínimos na horizontal para reconhecer swipe
-      var LIMIAR_Y   = 28;  // px máximos na vertical (acima disso = scroll, não swipe)
+      var LIMIAR_Y   = 60;  // px máximos na vertical (acima disso = scroll, não swipe)
       var MAX_MS     = 420; // ms máximo do gesto (swipes lentos ignorados)
 
       _panel.addEventListener('touchstart', function(e) {
-        // Não inicia swipe se toque está dentro de um canvas de assinatura
+        // [FIX-SWIPE] Não inicia swipe se toque está dentro de um canvas de assinatura
+        // ou se estamos no step 4 (assinaturas) — scroll vertical não deve virar swipe
+        var _stepAgora = window._getStepAtual ? window._getStepAtual() : 1;
+        if (_stepAgora === 4) return;
         var _target = e.target;
         while (_target && _target !== _panel) {
           if (_target.tagName === 'CANVAS') return;
@@ -9907,6 +9910,7 @@ if (logoBase64) {
         // Rejeita se: muito lento, muito curto, ou dominantemente vertical (scroll)
         if (dt > MAX_MS) return;
         if (Math.abs(dx) < LIMIAR_X) return;
+        // [FIX-SWIPE] Aumenta limiar vertical: scroll com até 60px vertical não é swipe
         if (Math.abs(dy) > LIMIAR_Y) return;
 
         var stepAtual = typeof _stepAtual !== 'undefined' ? _stepAtual : (window._getStepAtual ? window._getStepAtual() : 1);
