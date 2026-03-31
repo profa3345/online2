@@ -8976,6 +8976,7 @@ if (logoBase64) {
     if (navigator.onLine){
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
@@ -9015,6 +9016,7 @@ if (logoBase64) {
       // [UX] Atualiza badge de pendentes
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
       // [UX-VIB] Vibração de confirmação ao salvar offline
@@ -9193,20 +9195,32 @@ if (logoBase64) {
       const r = JSON.parse(raw);
       if (!r || !r._rascunho) return;
 
-      // [FIX-v43] Só restaura se o rascunho pertence ao usuário atual
-      // O rascunho armazena r.tecnicoLogin (username) — compara com o usuário logado
+      // [FIX-RASCUNHO-UNICO] Rascunho do auto-save do atendimento em andamento:
+      // se já foi perguntado nesta sessão (sessionStorage), não pergunta de novo.
       var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
+      var _sessionKey = 'rascunho-perguntado-' + _loginAtual;
+      var _rascunhoId = r._rascunhoData || r.id || '';
+      var _jaPerguintado = sessionStorage.getItem(_sessionKey);
+      if (_jaPerguintado === _rascunhoId) {
+        // Já foi perguntado para este rascunho específico nesta sessão — não pergunta de novo
+        return;
+      }
+
+      // [FIX-v43] Só restaura se o rascunho pertence ao usuário atual
       var _loginRasc  = (r.tecnicoLogin || r.tecnico || '').toLowerCase();
-      // Se o rascunho tem tecnicoLogin definido e não bate com o usuário atual, ignora silenciosamente
       if (r.tecnicoLogin && _loginRasc && _loginAtual && _loginRasc !== _loginAtual) {
         console.log('[Rascunho] Pertence a outro usuário (' + _loginRasc + ') — ignorado para ' + _loginAtual);
         return;
       }
 
+      // Marca que já perguntou sobre este rascunho nesta sessão (antes de mostrar o diálogo)
+      try { sessionStorage.setItem(_sessionKey, _rascunhoId); } catch(e) {}
+
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
       const clienteRasc = r.cliente || r.clienteManual || 'sem cliente';
       if (!await showConfirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + ' (' + clienteRasc + '). Deseja restaurar?')) {
         localStorage.removeItem(STORAGE_RASCUNHO);
+        try { sessionStorage.removeItem(_sessionKey); } catch(e) {}
         return;
       }
 
@@ -10923,6 +10937,7 @@ if (logoBase64) {
       window._editandoRelatorioId = null;
       // Apaga rascunho salvo
       try { localStorage.removeItem(typeof STORAGE_RASCUNHO !== 'undefined' ? STORAGE_RASCUNHO : 'online-es-rascunho-v1'); } catch(e){}
+    try { var _luL = window.usuarioLogado; var _lkL = _luL ? 'rascunho-perguntado-' + (_luL.username||_luL.usuario||'').toLowerCase() : null; if (_lkL) sessionStorage.removeItem(_lkL); } catch(e) {}
       // Gera novo número RAT e reinicia relógio
       window._ratNumeroBloqueado = false;
       try { ensureNumeroRat(); } catch(e){}
@@ -13640,6 +13655,30 @@ async function renderMeus(){
       lista.innerHTML = '<p style="font-size:.78rem;color:#475569;">Você ainda não enviou relatórios neste dispositivo.</p>';
       return;
     }
+
+    // [FIX-PENDENTE-AVISO] Mostra banner quando há RATs aguardando sincronização offline
+    try {
+      var _pendAviso = typeof loadPendentes === 'function' ? loadPendentes() : [];
+      var _qtdPend = (_pendAviso || []).filter(function(p){ return !p._deleted; }).length;
+      var _bannerPend = document.getElementById('_meusAvisoPendente');
+      if (_qtdPend > 0) {
+        if (!_bannerPend) {
+          _bannerPend = document.createElement('div');
+          _bannerPend.id = '_meusAvisoPendente';
+          lista.parentNode.insertBefore(_bannerPend, lista);
+        }
+        _bannerPend.innerHTML =
+          '<div style="display:flex;align-items:center;gap:8px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.4);border-radius:12px;padding:10px 14px;margin-bottom:10px;">' +
+          '<i class="ri-wifi-off-line" style="font-size:1.1rem;color:#ea580c;flex-shrink:0;"></i>' +
+          '<span style="font-size:.78rem;color:#c2410c;font-weight:600;">' +
+          _qtdPend + ' RAT' + (_qtdPend > 1 ? 's' : '') + ' salva' + (_qtdPend > 1 ? 's' : '') + ' offline — aguardando envio ao servidor. ' +
+          'Conecte-se à internet para sincronizar automaticamente.' +
+          '</span></div>';
+        _bannerPend.style.display = 'block';
+      } else if (_bannerPend) {
+        _bannerPend.style.display = 'none';
+      }
+    } catch(e) {}
     var user = window.usuarioLogado || {};
     var nome = (user.fullName || user.nome || '').toLowerCase();
     var login = (user.username || user.usuario || '').toLowerCase();
@@ -13813,7 +13852,7 @@ async function renderMeus(){
           var db2 = r.dataHoraBr || r.dataHoraBR || r.dataBr || '';
           card2.innerHTML =
             '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'+
-              '<div><strong>'+_e2(r.numero||'')+'</strong> · <span style="font-size:.78rem;">'+_e2(r.cliente||'')+'</span></div>'+
+              '<div><strong>'+_e2(r.numero||'')+'</strong>'+(r._pendente?' <span style="font-size:.6rem;font-weight:700;background:rgba(249,115,22,.15);color:#c2410c;border:1px solid rgba(249,115,22,.4);border-radius:999px;padding:2px 8px;"><i class="ri-wifi-off-line"></i> Aguardando envio</span>':'')+' · <span style="font-size:.78rem;">'+_e2(r.cliente||'')+'</span></div>'+
               '<span class="badge-status '+sc2+'">'+_e2(st)+'</span>'+
             '</div>'+
             '<div class="rat-data" style="font-size:.72rem;margin-top:3px;">'+_e2(db2)+'</div>'+
