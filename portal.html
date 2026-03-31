@@ -519,22 +519,22 @@
     .anim-4 { animation: fadeUp .5s .24s ease both; }
 
     /* ── Botão WhatsApp ── */
-    .btn-whatsapp {
+    .btn-compartilhar {
       width: 100%; padding: 13px 20px;
-      background: rgba(22,163,74,.1);
-      border: 1px solid rgba(22,163,74,.3);
+      background: rgba(99,102,241,.12);
+      border: 1px solid rgba(99,102,241,.35);
       border-radius: var(--r2);
-      color: #4ade80; font-size: .9rem; font-weight: 700;
+      color: #a5b4fc; font-size: .9rem; font-weight: 700;
       font-family: var(--font-display);
       cursor: pointer; display: flex;
       align-items: center; justify-content: center; gap: 8px;
       transition: all .2s; margin-top: 10px; min-height: 48px;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-whatsapp:hover {
-      background: rgba(22,163,74,.2);
-      border-color: rgba(34,197,94,.5);
-      box-shadow: 0 4px 16px rgba(22,163,74,.2);
+    .btn-compartilhar:hover {
+      background: rgba(99,102,241,.22);
+      border-color: rgba(129,140,248,.55);
+      box-shadow: 0 4px 16px rgba(99,102,241,.25);
     }
 
     /* ── Trust card ── */
@@ -1177,6 +1177,12 @@ async function renderLista(){
 /* ── render detalhe ── */
 function renderDetalhe(r){
   document.title=`${r.numero||'RAT'} — Portal ONLINE-ES`;
+  // [FIX-IOS-SHARE] Pré-carrega jsPDF em background ao abrir o detalhe.
+  // navigator.share no iOS Safari só funciona dentro de um user gesture SÍNCRONO.
+  // Se jsPDF ainda não está em cache, o await _ensureJsPDF() dentro do clique
+  // faz fetch da CDN (~300ms) e o iOS considera o gesture expirado, rejeitando o share.
+  // Pré-carregando aqui, o await no clique resolve instantaneamente do cache.
+  try { _ensureJsPDF(); } catch(e) {}
   const campo=(label,val)=>{if(val===null||val===undefined||val==='')return'';return`<div class="campo"><div class="campo-label">${label}</div><div class="campo-valor">${esc(String(val))}</div></div>`;};
   const sigHtml=(r.assinaturaCliente&&/^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(r.assinaturaCliente))?`<hr class="divider"><div class="campo-label">Assinatura do cliente</div><div class="sig-box"><img src="${r.assinaturaCliente}" style="max-width:180px;display:block;" alt="Assinatura"></div>`:'';
   const endFull=[r.endereco,r.bairro,r.cidade,r.uf].filter(Boolean).join(', ');
@@ -1243,7 +1249,7 @@ function renderDetalhe(r){
       ${sigHtml}
       <hr class="divider">
       <button class="btn-pdf" id="btnPdf"><i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF</button>
-      <button class="btn-whatsapp" id="btnWhatsApp"><i class="ri-whatsapp-line"></i> Compartilhar via WhatsApp</button>
+      <button class="btn-compartilhar" id="btnCompartilhar"><i class="ri-share-forward-line"></i> Compartilhar PDF</button>
     </div>
     <div class="trust-card anim-3">
       <span><i class="ri-shield-check-line" style="color:#4ade80;"></i> Seus dados estão seguros</span>
@@ -1280,15 +1286,49 @@ function renderDetalhe(r){
       if(b){b.disabled=false;b.innerHTML='<i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF';}
     }
   });
-  // WhatsApp share button
-  const btnWa=document.getElementById('btnWhatsApp');
-  if(btnWa){
-    btnWa.addEventListener('click',()=>{
-      const tel=String(r.whatsapp||r.telefone||'').replace(/\D/g,'');
-      const num=tel?(tel.length<=11?'55'+tel:tel):'';
-      const msg=`Olá! Segue o resumo do seu atendimento técnico ONLINE-ES:\n\n📄 *${esc(r.numero||'RAT')}*\n📅 ${esc(dataBR(r.dataHoraIso||r.dataHora))}\n🔧 ${esc(r.equipamento||'-')}\n✅ ${esc(r.status||'-')}\n\nAcesse o portal para baixar o PDF completo:\n${window.location.href}`;
-      const url=num?`https://wa.me/${num}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`;
-      window.open(url,'_blank');
+  // ── Botão Compartilhar PDF ──────────────────────────────────────────────
+  // Usa navigator.share com File (Web Share API Level 2) quando disponível —
+  // abre o seletor nativo do celular (WhatsApp, Drive, e-mail, etc.).
+  // Fallback: baixa o PDF normalmente se o browser não suportar.
+  const btnCompartilhar=document.getElementById('btnCompartilhar');
+  if(btnCompartilhar){
+    btnCompartilhar.addEventListener('click', async ()=>{
+      btnCompartilhar.disabled=true;
+      btnCompartilhar.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando PDF...';
+      try{
+        // Gera o PDF como File (sem baixar)
+        const pdfFile = await gerarPDF(r, false, true);
+
+        // Tenta compartilhar via Web Share API (nativo do celular)
+        const podCompartilhar = navigator.share && navigator.canShare &&
+                                navigator.canShare({files:[pdfFile]});
+        if(podCompartilhar){
+          await navigator.share({
+            title: 'RAT ' + (r.numero||'') + ' — ONLINE-ES',
+            text: 'Relatório Técnico de Atendimento — ' + (r.cliente||'') + '.',
+            files: [pdfFile]
+          });
+          toast('✅ PDF compartilhado!', 3000);
+        } else {
+          // Fallback: baixa o arquivo (desktop ou browser sem suporte)
+          const url=URL.createObjectURL(pdfFile);
+          const a=document.createElement('a');
+          a.href=url; a.download=pdfFile.name; a.style.display='none';
+          document.body.appendChild(a); a.click();
+          setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},3000);
+          toast('✅ PDF baixado! (compartilhamento não disponível neste browser)',4000);
+        }
+      }catch(e){
+        if(e && e.name==='AbortError'){
+          // Usuário fechou o seletor — não é erro
+        } else {
+          console.warn('[Portal] Compartilhar falhou:',e);
+          toast('❌ Não foi possível compartilhar. Tente baixar o PDF.',4000);
+        }
+      }finally{
+        btnCompartilhar.disabled=false;
+        btnCompartilhar.innerHTML='<i class="ri-share-forward-line"></i> Compartilhar PDF';
+      }
     });
   }
 }
@@ -1393,7 +1433,7 @@ async function addImagemReduzidaAoPdf(doc,src,x,y,maxW,maxH){
 }
 
 /* ── gerar PDF (modelo idêntico ao sistema) ── */
-async function gerarPDF(r, abrirAba=false){
+async function gerarPDF(r, abrirAba=false, retornarBlob=false){
   await _ensureJsPDF();
   if(!window.jspdf?.jsPDF)throw new Error('jsPDF não carregado');
   const{jsPDF}=window.jspdf;
@@ -1461,9 +1501,15 @@ async function gerarPDF(r, abrirAba=false){
   const pc=doc.internal.getNumberOfPages();
   for(let i=1;i<=pc;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(15,23,42);doc.setDrawColor(148,163,184);doc.setLineWidth(0.3);doc.line(20,283,190,283);doc.text('ONLINE-ES Eletroeletrônica - www.onlinees.com.br - CNPJ 34.740.527/0001-74',105,287,{align:'center'});doc.text('Rua Maria Lourdes Garcia 176, Ilha de Santa Maria, Vitória - Cep 29.051-250',105,292,{align:'center'});doc.text('Página '+i+'/'+pc,105,296,{align:'center'});}
   const nomeArq='relatorio-'+(r.numero||r._id||'online').replace(/[^a-zA-Z0-9\-_]/g,'_')+'.pdf';
-  // Blob approach — works on iOS Safari, Android, desktop
+  const blob=doc.output('blob');
+
+  // Modo retornarBlob: usado pelo botão Compartilhar — não baixa, só devolve o File
+  if(retornarBlob){
+    return new File([blob], nomeArq, {type:'application/pdf'});
+  }
+
+  // Baixar normalmente
   try{
-    const blob=doc.output('blob');
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;a.download=nomeArq;a.style.display='none';
@@ -1471,7 +1517,7 @@ async function gerarPDF(r, abrirAba=false){
     setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},3000);
     toast('✅ PDF baixado com sucesso!',3000);
   }catch(blobErr){
-    // Fallback: open as data URI in new tab (iOS workaround)
+    // Fallback: abrir como data URI em nova aba (iOS)
     try{
       const dataUri=doc.output('datauristring');
       const w=window.open('','_blank');
@@ -1480,7 +1526,6 @@ async function gerarPDF(r, abrirAba=false){
         w.document.close();
         toast('✅ PDF aberto em nova aba!',3000);
       }else{
-        // Popup blocked — try direct data URI
         const link=document.createElement('a');
         link.href='data:application/pdf;base64,'+btoa(doc.output());
         link.download=nomeArq;link.click();
