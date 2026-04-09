@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v63
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v65
+  Correções v65:
+  - [FIX-v65-CRED-VALIDA] _gerarCredencialPortal: reescreve lógica de renovação que havia
+    sido quebrada pelo comentário "[FIX-v64] Sempre gera nova senha". O bloco if(snap.exists)
+    calculava faltaDias mas não fazia nada com o valor — caía direto na geração de nova senha,
+    invalidando o acesso do cliente a cada envio de RAT.
+    Agora: se senha ainda válida (>7 dias) E sem _forcarRenovacaoSenha → retorna nova:false,
+    apenas atualiza nome e e-mails no Firestore se mudaram. Senha expirada ou ≤7 dias → renova.
+    Corrige o bug "pede senha toda vez que o usuário loga".
   Correções v63:
   - [FIX-v63-PORTAL-BF] Rate limiting brute force no portal do cliente: 5 tentativas
     de senha errada bloqueiam o CNPJ por 15 minutos (localStorage). Funções
@@ -10846,8 +10854,9 @@ if (logoBase64) {
         '📂 *Acesse o Portal do Cliente:*\n' + (_urlWa||'') + '\n\n' +
         '🔑 *Seus dados de acesso:*\n' +
         '   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') + '\n' +
-        '   🔑 Senha: *' + (_senhaWa||'(use a senha anterior)') + '*' +
-        (_senhaWa ? ' (válida por 30 dias)' : '') + '\n\n' +
+        (_senhaWa
+          ? '   🔑 Senha: *' + _senhaWa + '* (válida por 30 dias)'
+          : '   🔑 Use a senha já recebida anteriormente.') + '\n\n' +
         'Qualquer dúvida estamos à disposição!';
     } else if (portalUrlWa) {
       msgFinal =
@@ -17519,15 +17528,38 @@ window._gerarCredencialPortal = async function(rat){
     var agora = new Date();
     var senhaPlain, cred;
 
-    if(snap.exists){
+    // [FIX-v65-CRED-VALIDA] Se senha ainda válida (>7 dias) E não houve pedido explícito
+    // de renovação, NÃO gera nova senha nem sobrescreve senhaHash.
+    // Apenas atualiza nome e e-mails se mudaram. Retorna nova:false.
+    // Isso resolve o bug onde cada envio de RAT invalidava o link já enviado ao cliente.
+    if(snap.exists && !rat._forcarRenovacaoSenha){
       cred = snap.data();
       var expira = cred.expiradoEm ? new Date(cred.expiradoEm) : new Date(0);
-      // Renova apenas se expirada (ou faltam < 7 dias) OU se chamado com forçar renovação
       var faltaDias = (expira - agora) / 86400000;
-      // [FIX-v64] Sempre gera nova senha — cliente recebe no mesmo envio
+
+      if(faltaDias > 7){
+        // Senha ainda válida — só atualiza metadados que possam ter mudado
+        var updates = {};
+        if(rat.cliente && rat.cliente !== cred.nome) updates.nome = rat.cliente;
+
+        // Atualiza lista de e-mails sem sobrescrever os existentes
+        var emailsExist = Array.isArray(cred.emails) ? cred.emails.slice() : [];
+        if(rat.emailCliente && rat.emailCliente.trim() && !emailsExist.includes(rat.emailCliente.trim())){
+          emailsExist.unshift(rat.emailCliente.trim());
+          updates.emails = emailsExist.slice(0, 5);
+        }
+
+        if(Object.keys(updates).length){
+          await colRef.doc(docId).update(updates);
+          cred = Object.assign({}, cred, updates);
+        }
+
+        console.log('[Portal v2] Senha ainda válida (' + Math.floor(faltaDias) + ' dias restantes) — não renovada.');
+        return { cnpj: cnpj, senha: null, credencial: cred, nova: false };
+      }
     }
 
-    // Gera nova senha
+    // Senha expirada, faltam ≤7 dias, ou renovação forçada → gera nova senha
     senhaPlain = _gerarSenha6();
     var hash = await _sha256(senhaPlain);
     var expiraEm = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
