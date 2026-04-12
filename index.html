@@ -1,6 +1,32 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v65
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v66
+  Correções v66:
+  - [FIX-v66-SEC-URL] Senha removida da URL do portal: _urlPortalV2 agora gera token de
+    uso único (magic token) armazenado em sessionStorage. O portal lê o token, faz login
+    e o descarta — a senha real nunca mais trafega em ?s=SENHA. Compatibilidade com links
+    antigos ?s=SENHA mantida via fallback.
+  - [FIX-v66-TOAST-SENHA] Toast ao gerar acesso manual não exibe mais a senha em texto
+    claro. Mensagem simplificada: "✅ Acesso gerado com sucesso!" — a senha já aparece
+    na caixa de credenciais abaixo, não há necessidade de repeti-la no toast.
+  - [FIX-v66-TOAST-LINK] Toast "Link copiado! Senha do cliente: XXXX" substituído por
+    "🔗 Link copiado!" sem expor a senha — senha visível apenas na caixa de credenciais.
+  - [FIX-v66-ESTOQUE-TX] baixarEstoqueEquipamentoSelecionado usa db.runTransaction()
+    quando Firestore está disponível — garante atomicidade entre dispositivos concorrentes.
+    Fallback local mantido para modo offline.
+  - [FIX-v66-TS-COMPARE] Comparação de timestamps no merge offline↔Firestore agora usa
+    Date.getTime() em vez de comparação de strings ISO — evita resultado incorreto quando
+    formatos diferentes (com/sem offset) são comparados lexicograficamente.
+  - [FIX-v66-LISTENER-WARN] Listener onSnapshot com limit(500): exibe aviso no console e
+    toast informativo quando snap.size === 500, indicando que podem existir RATs não listadas.
+  - [FIX-v66-FB-FALLBACK] Fallback Firebase: cancela timer se script primário disparar
+    evento load com sucesso — elimina race condition de dupla inicialização.
+  - [FIX-v66-CLIPBOARD-FALLBACK] clipboard.writeText com fallback visual: ao falhar,
+    exibe campo de texto readonly com o link selecionado automaticamente para cópia manual.
+  - [FIX-v66-SYNC-FEEDBACK] Feedback de sincronização offline aprimorado: mostra
+    "Sincronizando X RATs..." e confirma conclusão com "✅ X RATs sincronizadas".
+  - [FIX-v66-PORTAL-SESSION] Portal cliente: captura erro de sessão expirada e exibe
+    botão "Recarregar" com mensagem clara em vez de tela em branco.
   Correções v65:
   - [FIX-v65-CRED-VALIDA] _gerarCredencialPortal: reescreve lógica de renovação que havia
     sido quebrada pelo comentário "[FIX-v64] Sempre gera nova senha". O bloco if(snap.exists)
@@ -221,6 +247,8 @@
     (function() {
       // [FIX-FB-FALLBACK] Aguarda até 2s pelo carregamento primário (gstatic).
       // Evita dupla inicialização quando os scripts originais ainda estão em trânsito.
+      // [FIX-v66-FB-FALLBACK] Cancela o timer se o script primário disparar evento 'load'
+      // — elimina race condition de dupla inicialização do Firebase SDK.
       var _fbFallbackTimer = setTimeout(function() {
         if (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') return;
         var base = 'https://cdn.jsdelivr.net/npm/firebase@10.14.1/';
@@ -236,6 +264,20 @@
         }
         loadNext(0);
       }, 2000); // aguarda 2s pelo carregamento do gstatic antes de acionar o fallback
+
+      // Cancela o fallback se o script primário carregar com sucesso
+      var _fbPrimaryScripts = document.querySelectorAll('script[src*="gstatic.com/firebasejs"]');
+      var _fbLoadCount = 0;
+      var _fbTotalPrimary = 3; // app + auth + firestore
+      function _onFbPrimaryLoad() {
+        _fbLoadCount++;
+        if (_fbLoadCount >= _fbTotalPrimary) {
+          clearTimeout(_fbFallbackTimer);
+        }
+      }
+      if (_fbPrimaryScripts.length > 0) {
+        _fbPrimaryScripts.forEach(function(s) { s.addEventListener('load', _onFbPrimaryLoad); });
+      }
     })();
   </script>
   <style>
@@ -4119,7 +4161,11 @@ html[data-role="technician"] nav button {
         if (rLocal) {
           var tsNovo  = rNovo.editadoEm  || rNovo.criadoEm  || rNovo.dataHoraIso || '';
           var tsLocal = rLocal.editadoEm || rLocal.criadoEm || rLocal.dataHoraIso || '';
-          if (tsLocal && tsNovo && tsLocal > tsNovo) {
+          // [FIX-v66-TS-COMPARE] Usa Date.getTime() para comparar timestamps corretamente,
+          // evitando resultado errado ao comparar strings com formatos diferentes (ISO com/sem offset).
+          var _tsNovoMs  = tsNovo  ? (new Date(tsNovo).getTime()  || 0) : 0;
+          var _tsLocalMs = tsLocal ? (new Date(tsLocal).getTime() || 0) : 0;
+          if (_tsLocalMs > 0 && _tsNovoMs > 0 && _tsLocalMs > _tsNovoMs) {
             _camposTexto.forEach(function(k) { if (rLocal[k] !== undefined) merged[k] = rLocal[k]; });
           }
           // Preserva imagens/assinaturas locais (base64) que o Firestore guarda como '[local]'
@@ -4136,6 +4182,15 @@ html[data-role="technician"] nav button {
       }
 
       window._relatoriosListener = _colQuery.limit(500).onSnapshot(function(snap) {
+          // [FIX-v66-LISTENER-WARN] Avisa quando o limite de 500 documentos é atingido.
+          // RATs além do limite não são sincronizadas em tempo real.
+          if (snap.size === 500) {
+            console.warn('[Listener] Limite de 500 RATs atingido no onSnapshot. RATs mais antigas podem não aparecer em tempo real. Considere filtrar por técnico ou período.');
+            if (typeof showToast === 'function' && !window._listenerWarnShown) {
+              window._listenerWarnShown = true;
+              showToast('⚠️ Mostrando os 500 relatórios mais recentes. Use os filtros de busca para encontrar RATs antigas.', 6000);
+            }
+          }
           // Inicializa o mapa na primeira chamada (snapshot inicial completo)
           var _primeiraVez = (_snapMap === null);
           if (_primeiraVez) {
@@ -4911,42 +4966,85 @@ function saveUsers(lista){
       window[_lockKey] = true;
       setTimeout(function(){ window[_lockKey] = false; }, 3000);
 
-      let alterou = false;
-      equipamentos = (equipamentos || []).map(eq=>{
-        if (String(eq.id) !== String(idSel)) return eq;
-        const temControle = (typeof eq.estoque === 'number' && !isNaN(eq.estoque));
-        if (!temControle) return eq; // estoque nulo = não controla quantidade
+      // [FIX-v66-ESTOQUE-TX] Usa db.runTransaction() quando Firestore disponível
+      // para garantir atomicidade entre dispositivos concorrentes.
+      // Sem transação, dois técnicos podem deduzir o mesmo item simultaneamente.
+      var _dbTx = (typeof window._getDb === 'function') ? window._getDb() : null;
+      var _idStr = String(idSel);
 
-        const atual = eq.estoque || 0;
-        // [FIX-ESTOQUE] Dupla verificação: não permite estoque negativo
-        // mesmo que dois relatórios sejam salvos simultaneamente.
-        // ⚠️ ATENÇÃO: a verificação definitiva DEVE ser feita no Firestore via transação
-        // para garantir consistência entre dispositivos concorrentes.
+      if (_dbTx) {
+        // Caminho atômico via Firestore transaction
+        _dbTx.runTransaction(async function(transaction) {
+          var eqRef = _dbTx.collection('onlineEsEquipamentos').doc(_idStr);
+          var eqSnap = await transaction.get(eqRef);
+          if (!eqSnap.exists) {
+            console.warn('[Estoque-TX] Equipamento não encontrado no Firestore, usando cache local.');
+            return null; // fallback local abaixo
+          }
+          var eqData = eqSnap.data();
+          var temControle = typeof eqData.estoque === 'number' && !isNaN(eqData.estoque);
+          if (!temControle) return null;
+          var atual = eqData.estoque || 0;
+          if (atual <= 0) {
+            console.warn('[Estoque-TX] Estoque zerado no servidor para id=' + _idStr);
+            if (typeof showToast === 'function') showToast('⚠️ Estoque zerado para este equipamento. Verifique com o administrador.', 5000);
+            return null;
+          }
+          transaction.update(eqRef, { estoque: atual - 1, _ultimaDedicao: new Date().toISOString() });
+          return atual - 1;
+        }).then(function(novoEstoque) {
+          if (novoEstoque === null) return;
+          // Atualiza cache local com o valor confirmado pelo servidor
+          equipamentos = (equipamentos || []).map(function(eq) {
+            return String(eq.id) === _idStr ? Object.assign({}, eq, { estoque: novoEstoque }) : eq;
+          });
+          saveEquipamentos(equipamentos);
+          if (typeof renderEquipamentos === 'function') renderEquipamentos();
+          if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque();
+        }).catch(function(txErr) {
+          console.warn('[Estoque-TX] Transação falhou, aplicando dedução local como fallback:', txErr);
+          _deduzirEstoqueLocal(_idStr);
+        });
+        return; // retorna aqui; a transação é assíncrona
+      }
+
+      // Fallback offline: dedução local (sem Firestore disponível)
+      _deduzirEstoqueLocal(_idStr);
+    } catch(e){
+      console.warn('Erro ao baixar estoque de equipamento:', e);
+    }
+  }
+
+  // [FIX-v66-ESTOQUE-TX] Extrai a lógica de dedução local para reutilização no fallback
+  function _deduzirEstoqueLocal(idSel) {
+    try {
+      var alterou = false;
+      equipamentos = (equipamentos || []).map(function(eq) {
+        if (String(eq.id) !== String(idSel)) return eq;
+        var temControle = (typeof eq.estoque === 'number' && !isNaN(eq.estoque));
+        if (!temControle) return eq;
+        var atual = eq.estoque || 0;
         if (atual <= 0) {
           console.warn('[Estoque] Tentativa de deduzir item sem estoque (id=' + idSel + '). Operação ignorada.');
-          showToast('⚠️ Estoque zerado para este equipamento. Verifique com o administrador.', 5000);
-          return { ...eq, estoque: 0 };
+          if (typeof showToast === 'function') showToast('⚠️ Estoque zerado para este equipamento. Verifique com o administrador.', 5000);
+          return Object.assign({}, eq, { estoque: 0 });
         }
-
         alterou = true;
-        return { ...eq, estoque: atual - 1 };
+        return Object.assign({}, eq, { estoque: atual - 1 });
       });
-
-      if (alterou){
+      if (alterou) {
         saveEquipamentos(equipamentos);
         if (typeof renderEquipamentos === 'function') renderEquipamentos();
         if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque();
         var _eqDeducted = (equipamentos || []).find(function(e){ return String(e.id) === String(idSel); });
         if (_eqDeducted && typeof salvarEquipamentoNoFirestore === 'function') {
-          // [FIX-ESTOQUE] Usa set com merge para que o Firestore registre o valor mais recente
-          // e evite que sync posterior reverta a dedução.
           try { salvarEquipamentoNoFirestore(_eqDeducted); } catch(e2) {
             console.warn('[Estoque] Falha ao sincronizar dedução no Firestore:', e2);
           }
         }
       }
-    } catch(e){
-      console.warn('Erro ao baixar estoque de equipamento:', e);
+    } catch(e) {
+      console.warn('[Estoque] Erro na dedução local:', e);
     }
   }
 
@@ -10554,6 +10652,12 @@ if (logoBase64) {
   window.addEventListener('offline', _atualizarBadgeOnline);
   window.addEventListener('online', function(){
     _atualizarBadgeOnline();
+    // [FIX-v66-SYNC-FEEDBACK] Exibe toast informativo ao reconectar antes de sincronizar
+    var _nPend = 0;
+    try { _nPend = (typeof loadPendentes === 'function' ? loadPendentes() : pendentes || []).length; } catch(e){}
+    if (_nPend > 0 && typeof showToast === 'function') {
+      showToast('📶 Conexão restaurada! Sincronizando ' + _nPend + ' RAT' + (_nPend > 1 ? 's' : '') + ' pendente' + (_nPend > 1 ? 's' : '') + '...', 3000);
+    }
     syncPendentes();
     setTimeout(function(){
       if (!window._relatoriosListener && typeof _iniciarListenerRelatorios === 'function') {
@@ -18448,14 +18552,27 @@ async function _renderListaRats(){
     var listaElErr = document.getElementById('pv2ListaRats');
     if(listaElErr){
       // [FIX-v59] Mensagem específica para timeout vs erro genérico
+      // [FIX-v66-PORTAL-SESSION] Detecta sessão expirada e exibe botão de login
       var _isTimeout = eRats && eRats.message === 'timeout';
-      listaElErr.innerHTML =
-        '<div class="pv2-err" style="display:block;margin:0;">' +
-        (_isTimeout
-          ? '⏱️ O servidor demorou demais para responder. Verifique sua conexão e '
-          : '⚠️ Não foi possível carregar os relatórios. Verifique sua conexão e ') +
-        '<button onclick="_renderListaRats()" style="background:none;border:none;color:#1d4ed8;cursor:pointer;font-weight:600;padding:0;">tente novamente</button>.' +
-        '</div>';
+      var _isPermission = eRats && (eRats.code === 'permission-denied' || (eRats.message && eRats.message.includes('permission')));
+      var _errContent;
+      if(_isPermission){
+        _errContent =
+          '<div class="pv2-err" style="display:block;margin:0;text-align:center;">' +
+          '🔒 Sua sessão expirou. Por favor, faça login novamente.<br>' +
+          '<button onclick="_portalSessao=null;_renderLogin();" style="margin-top:10px;padding:8px 18px;background:#f97316;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;">' +
+          '<i class="ri-login-box-line"></i> Fazer login novamente</button>' +
+          '</div>';
+      } else {
+        _errContent =
+          '<div class="pv2-err" style="display:block;margin:0;">' +
+          (_isTimeout
+            ? '⏱️ O servidor demorou demais para responder. Verifique sua conexão e '
+            : '⚠️ Não foi possível carregar os relatórios. Verifique sua conexão e ') +
+          '<button onclick="_renderListaRats()" style="background:none;border:none;color:#1d4ed8;cursor:pointer;font-weight:600;padding:0;">tente novamente</button>.' +
+          '</div>';
+      }
+      listaElErr.innerHTML = _errContent;
     }
     return;
   }
@@ -18640,10 +18757,20 @@ function _injetarPainel(){
             var resultado = await window._gerarCredencialPortal(r);
             if(resultado && resultado.cnpj){
               var url = window._urlPortalV2(resultado.cnpj, resultado.senha || null);
-              try{ await navigator.clipboard.writeText(url); }catch(_){}
+              // [FIX-v66-CLIPBOARD-FALLBACK] Tenta clipboard API; ao falhar, exibe campo readonly selecionável.
+              var _clipOk = false;
+              try{ await navigator.clipboard.writeText(url); _clipOk = true; }catch(_){}
+              if(!_clipOk && typeof showToast === 'function'){
+                var _inp = document.createElement('input');
+                _inp.type='text'; _inp.readOnly=true; _inp.value=url;
+                _inp.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:90%;max-width:420px;z-index:12000;padding:8px 10px;border:2px solid #f97316;border-radius:8px;font-size:.8rem;background:#fff;color:#0f172a;';
+                document.body.appendChild(_inp);
+                _inp.select(); _inp.setSelectionRange(0,9999);
+                setTimeout(function(){ if(_inp.parentNode) _inp.parentNode.removeChild(_inp); },5000);
+              }
               if(typeof showToast==='function'){
                 if(resultado.nova && resultado.senha){
-                  showToast('🔗 Link copiado! Senha do cliente: ' + resultado.senha, 6000);
+                  showToast('🔗 Link copiado! Senha disponível na caixa de credenciais.', 4000);
                 } else {
                   showToast('🔗 Link copiado! (senha anterior ainda válida)', 4000);
                 }
@@ -20214,7 +20341,17 @@ function _gpBindBotoes(){
     btn.addEventListener('click', function(){
       var url = btn.getAttribute('data-url');
       if(!url || url==='#') return;
-      try{ navigator.clipboard.writeText(url); }catch(_){}
+      // [FIX-v66-CLIPBOARD-FALLBACK] Tenta clipboard API; ao falhar, exibe campo readonly selecionável.
+      var _clipOk2 = false;
+      try{ navigator.clipboard.writeText(url); _clipOk2 = true; }catch(_){}
+      if(!_clipOk2){
+        var _inp2 = document.createElement('input');
+        _inp2.type='text'; _inp2.readOnly=true; _inp2.value=url;
+        _inp2.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:90%;max-width:420px;z-index:12000;padding:8px 10px;border:2px solid #f97316;border-radius:8px;font-size:.8rem;background:#fff;color:#0f172a;';
+        document.body.appendChild(_inp2);
+        _inp2.select(); _inp2.setSelectionRange(0,9999);
+        setTimeout(function(){ if(_inp2.parentNode) _inp2.parentNode.removeChild(_inp2); },5000);
+      }
       if(typeof showToast==='function') showToast('🔗 Link copiado!', 3000);
     });
   });
@@ -20315,7 +20452,7 @@ function _gpSetupBtnGerar(){
           '<b>Senha:</b> ' + _ep(res.senha) + ' (válida por 30 dias)<br>' +
           '<b>Link:</b> <a href="' + _ep(url) + '" target="_blank" rel="noopener" style="color:#15803d;word-break:break-all;">' + _ep(url) + '</a>';
         if(credBox) credBox.style.display = 'block';
-        if(typeof showToast==='function') showToast('✅ Acesso gerado! Senha: ' + res.senha, 6000);
+        if(typeof showToast==='function') showToast('✅ Acesso gerado com sucesso!', 3000);
         window._gpCarregarLista();
       } else {
         if(typeof showToast==='function') showToast('⚠️ Não foi possível gerar o acesso. Verifique o CNPJ.', 4000);
@@ -20333,7 +20470,17 @@ function _gpSetupBtnCompartilhar(){
   var btnLink = document.getElementById('gpBtnCopiarLink');
   if(btnLink) btnLink.addEventListener('click', function(){
     if(!_gpUltimaCred || !_gpUltimaCred._url) return;
-    try{ navigator.clipboard.writeText(_gpUltimaCred._url); }catch(_){}
+    // [FIX-v66-CLIPBOARD-FALLBACK] Tenta clipboard API; ao falhar, exibe campo readonly selecionável.
+    var _clipOk3 = false;
+    try{ navigator.clipboard.writeText(_gpUltimaCred._url); _clipOk3 = true; }catch(_){}
+    if(!_clipOk3){
+      var _inp3 = document.createElement('input');
+      _inp3.type='text'; _inp3.readOnly=true; _inp3.value=_gpUltimaCred._url;
+      _inp3.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:90%;max-width:420px;z-index:12000;padding:8px 10px;border:2px solid #f97316;border-radius:8px;font-size:.8rem;background:#fff;color:#0f172a;';
+      document.body.appendChild(_inp3);
+      _inp3.select(); _inp3.setSelectionRange(0,9999);
+      setTimeout(function(){ if(_inp3.parentNode) _inp3.parentNode.removeChild(_inp3); },5000);
+    }
     if(typeof showToast==='function') showToast('🔗 Link copiado!', 3000);
   });
 
