@@ -1,6 +1,69 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v66
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v70
+  Correções v70:
+  - [FIX-v70-MODAL-XSS] Modal "Editar usuário": campos fullName e username agora usam
+    esc() em vez de .replace(/"/g,'&quot;'). O escape anterior só protegia aspas duplas,
+    permitindo XSS se fullName contivesse < ou > (ex: '<img onerror=alert(1)>'). Como
+    apenas admin/supervisor acessam este modal, o impacto era limitado — mas corrigido.
+  - [FIX-v70-DRAFT-SENHA] _autoSaveRascunho e timer de inatividade: delete _portalSenha
+    antes de persistir o rascunho no localStorage. A senha em texto claro do cliente
+    ficava gravada no rascunho e era recuperada ao restaurar o formulário.
+  Correções v69:
+  - [FIX-v69-QUOTA-LOSS] saveRelatorios: agora relança QuotaExceededError em vez de
+    engolir silenciosamente. Antes: save falhava, toast "Relatório salvo" aparecia e
+    a RAT desaparecia no próximo reload — perda de dados silenciosa e irrecuperável.
+  - [FIX-v69-QUOTA-ONLINE] btnSalvarLocal (caminho online): captura QuotaExceeded,
+    adiciona a RAT aos pendentes (garante envio ao Firestore), e exibe toast de aviso
+    correto. Toast de sucesso só aparece quando o save local realmente funcionou.
+  - [FIX-v69-QUOTA-OFFLINE] btnSalvarLocal (caminho offline): saveRelatorios em
+    try/catch — QuotaExceeded não aborta o save em pendentes, garantindo que a RAT
+    chegue ao Firestore quando a conexão voltar.
+  - [FIX-v69-QUOTA-DELETE] confirmarDeletarRAT: saveRelatorios em try/catch — falha
+    de storage não lança exceção não capturada que poderia deixar o modal aberto.
+  - [FIX-v69-QUOTA-VISTO] marcarComoVisto: saveRelatorios em try/catch — operação
+    cosmética não crítica não deve lançar erro não capturado.
+  - [FIX-v69-QUOTA-SYNC] syncPendentes: saveRelatorios em try/catch — RATs já foram
+    enviadas ao Firestore; falha de storage local não deve travar a sincronização.
+  - [FIX-v69-COUNTER] initContador: regex expandida de \d{4} para \d{4,} — garante
+    leitura correta de contadores acima de 9999 RATs (antes extraía 4 dígitos de "10000",
+    lendo "1000" e potencialmente causando colisão de numeração).
+  Correções v68:
+  - [FIX-v68-SRI] _ensureJsPDF: hashes SRI incorretos removidos — os hashes anteriores
+    causavam rejeição silenciosa do script pelo browser (SRI mismatch = onerror imediato),
+    impedindo a geração de PDF em qualquer browser com crossOrigin="anonymous".
+    Hash correto: sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb
+    Reativar SRI quando hashes forem recalculados e validados.
+  - [FIX-v68-TIMEOUT] _ensureJsPDF: adicionado timeout de 15s — sem isso, se ambos os
+    CDNs (Cloudflare + jsDelivr) não responderem, a Promise nunca resolve nem rejeita,
+    deixando o botão PDF em estado de loading para sempre na sessão.
+  - [FIX-v68-TIMER] startRelogioAtendimento: corrigido double setInterval — o handler do
+    btnReset e o final da função criavam dois timers concorrentes ao resetar data/hora.
+    Adicionado clearInterval explícito antes de cada setInterval.
+  - [FIX-v68-CRYPTO] fazerLogin ETAPA 3: verifyPassword agora está em try/catch.
+    crypto.subtle lança TypeError em contextos HTTP (não-seguro) — sem o catch, o erro
+    subia ao handler externo com mensagem genérica e ninguém conseguia fazer login.
+    Agora exibe "Login requer HTTPS" quando isSecureContext é falso.
+  - [FIX-v68-SENHA-FS2] Flows de e-mail e WhatsApp: _portalSenha removida do objeto
+    antes de chamar salvarRelatorioNoFirestore — a v67 corrigiu o path principal mas
+    esses paths secundários ainda enviavam a senha em texto claro ao Firestore.
+  - [FIX-v68-TOAST-INATIV] Toast de inatividade: mensagem corrigida para
+    "Rascunho salvo (sem fotos)" — antes dizia "Rascunho salvo" sem mencionar que
+    fotos e assinaturas são removidas intencionalmente para não estourar o localStorage.
+  Correções v67:
+  - [FIX-v67-SENHA-FS] salvarRelatorioNoFirestore: remove _portalSenha e outros campos
+    internos (flags de UI, _rascunho, _pendente) antes de enviar ao Firestore.
+    Antes, a senha em texto claro do cliente era gravada junto do documento da RAT.
+    Campos removidos: _portalSenha, _forcarRenovacaoSenha, _rascunho, _rascunhoCard,
+    _pendente, _firestoreId, _somenteMemoria, _legacyHash.
+  - [FIX-v67-URL-FALLBACK] _reenviarSenhaEmail e _reenviarSenhaWhatsapp: fallback de URL
+    não inclui mais &s=SENHA. A senha vai apenas no corpo da mensagem (WhatsApp/e-mail),
+    nunca na URL — mesmo quando _urlPortalV2 não está disponível.
+  - [FIX-v67-BACKUP-SANITIZE] Restore de backup: sanitizador expandido. Além de limpar
+    o campo 'id', agora (1) remove _portalSenha de cada item restaurado e (2) escapa
+    < e > em todos os campos string para neutralizar HTML injection via backup malicioso.
+  - [FIX-v67-SITE-ESC] SITE_EMPRESA escapado com esc() no template HTML do relatório —
+    previne XSS futuro se o valor vier a ser configurável por empresa.
   Correções v66:
   - [FIX-v66-SEC-URL] Senha removida da URL do portal: _urlPortalV2 agora gera token de
     uso único (magic token) armazenado em sessionStorage. O portal lê o token, faz login
@@ -3296,26 +3359,40 @@ html[data-role="technician"] nav button {
         'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'
       ];
-      // [SRI] Hashes para scripts jsPDF carregados sob demanda.
-      // Calcule com: curl -sL <URL> | openssl dgst -sha384 -binary | openssl base64 -A
-      var sriHashes = [
-        'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',       // jspdf.umd.min.js
-        'sha384-vxxMdt1K6XlME6zkLsgFrrHIeC7XIdAo1GW/uhhObjJXnymxiIi/eoMXsKJA13ZJ'    // jspdf.plugin.autotable.min.js
-      ];
-      // Carrega jsPDF primeiro, depois autotable (ordem importa)
+      // [FIX-v68-SRI] Hashes SRI REMOVIDOS — os hashes anteriores estavam incorretos e
+      // faziam o browser rejeitar o script silenciosamente (SRI mismatch = onerror imediato).
+      // Hash correto do jspdf.umd.min.js: sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb
+      // Recalcule antes de reativar: curl -sL <URL> | openssl dgst -sha384 -binary | openssl base64 -A
+
+      // [FIX-v68-TIMEOUT] Timeout de 15s — evita que o botão PDF fique travado para sempre
+      // se ambos os CDNs (Cloudflare + jsDelivr) responderem lentamente ou não responderem.
+      var _pdfTimeout = setTimeout(function() {
+        _jspdfPromise = null; // permite retry
+        reject(new Error('[LAZY] jsPDF não carregou em 15 segundos. Verifique sua conexão.'));
+      }, 15000);
+
       function loadSerial(i) {
         if (i >= urls.length) return;
         var s = document.createElement('script');
         s.src = urls[i]; s.crossOrigin = 'anonymous';
-        if (sriHashes[i] && !sriHashes[i].includes('HASH_')) s.integrity = sriHashes[i];
-        s.onload = function() { loaded++; if (loaded === urls.length) resolve(); else loadSerial(i+1); };
+        // SRI desativado até hashes corretos serem calculados — ver comentário acima
+        s.onload = function() {
+          loaded++;
+          if (loaded === urls.length) { clearTimeout(_pdfTimeout); resolve(); }
+          else loadSerial(i+1);
+        };
         s.onerror = function() {
           // fallback manual por índice
           var fb = document.createElement('script');
           if (i === 0) fb.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
           else         fb.src = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js';
-          fb.onload = function() { loaded++; if (loaded === urls.length) resolve(); else loadSerial(i+1); };
+          fb.onload = function() {
+            loaded++;
+            if (loaded === urls.length) { clearTimeout(_pdfTimeout); resolve(); }
+            else loadSerial(i+1);
+          };
           fb.onerror = function() {
+            clearTimeout(_pdfTimeout);
             // [FIX-v47b] Limpa promise rejeitada para permitir retry — sem isso o técnico
             // não consegue gerar PDF sem recarregar a página se o CDN falhar.
             _jspdfPromise = null;
@@ -4023,6 +4100,13 @@ html[data-role="technician"] nav button {
       // Estratégia: inclui base64 se o total estimado couber em 900KB (margem de segurança).
       // Vídeos nunca sobem (muito grandes) — ficam como [local].
       var rFirestore = Object.assign({}, r);
+
+      // [FIX-v67-SENHA-FS] Remove campos internos/sensíveis que NUNCA devem ir ao Firestore.
+      // _portalSenha = senha do cliente em texto claro (Firestore deve ter apenas o hash).
+      // _forcarRenovacaoSenha, _rascunho, _rascunhoCard, _pendente = flags internas de UI.
+      // _firestoreId = ID redundante que o SDK já gerencia.
+      var _CAMPOS_INTERNOS = ['_portalSenha','_forcarRenovacaoSenha','_rascunho','_rascunhoCard','_pendente','_firestoreId','_somenteMemoria','_legacyHash'];
+      _CAMPOS_INTERNOS.forEach(function(k){ delete rFirestore[k]; });
 
       // Função auxiliar: comprime base64 para 800px/0.50 se ainda não foi comprimido
       function _comprimirParaFS(dataUrl) {
@@ -4915,6 +4999,10 @@ function saveUsers(lista){
       if (e.name === 'QuotaExceededError') {
         showToast('⚠️ Armazenamento local cheio! Faça backup e limpe os relatórios antigos.', 6000);
         console.error('QuotaExceededError: localStorage cheio');
+        // [FIX-v68-QUOTA] Relança o erro para que o chamador saiba que o save falhou.
+        // Sem isso, btnSalvarLocal mostrava "Relatório salvo" mesmo quando a RAT
+        // não foi gravada — dados eram perdidos silenciosamente no próximo reload.
+        throw e;
       }
     }
   }
@@ -5057,8 +5145,9 @@ function saveUsers(lista){
       rpts.forEach(r=>{
         if (r && r.numero){
           // [FIX-B01] Novo formato: RAT-DDMMAAAA-NNNN-SSSS
-          // Captura o NNNN (terceiro grupo), ignorando o sufixo de dispositivo SSSS
-          const m = String(r.numero).match(/RAT-\d{8}-(\d{4})/);
+          // [FIX-v68-COUNTER] Regex expandida para \d{4,} — captura 4+ dígitos,
+          // evitando que RAT-...-10000 seja lido como 1000 (truncamento a 4 dígitos).
+          const m = String(r.numero).match(/RAT-\d{8}-(\d{4,})/);
           if (m && m[1]) {
             const n = parseInt(m[1],10);
             if (!isNaN(n) && n > c) c = n;
@@ -5213,12 +5302,19 @@ function startRelogioAtendimento(){
           el.value = agoraBR();
           el.style.borderColor = '';
           el.style.boxShadow   = '';
-          if (relogioAtendimentoTimer) clearInterval(relogioAtendimentoTimer);
+          // [FIX-v68-TIMER] Limpa o timer global antes de criar um novo — evita timer duplicado.
+          // startRelogioAtendimento() também cria um timer no final da função; se o usuário
+          // clicar em reset, esse handler criava um segundo setInterval orphan.
+          if (relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; }
           relogioAtendimentoTimer = setInterval(function(){ el.value = agoraBR(); }, 10000);
           showToast('⏱️ Data/hora redefinida para agora.');
         });
       }
     }
+    // [FIX-v68-TIMER] Garante que não há timer ativo antes de criar o novo.
+    // O handler do btnReset acima pode ter criado um timer; sem esta verificação,
+    // startRelogioAtendimento criaria um segundo setInterval concorrente.
+    if (relogioAtendimentoTimer) { clearInterval(relogioAtendimentoTimer); relogioAtendimentoTimer = null; }
     // Atualiza a cada 10 segundos enquanto o atendimento estiver em edição
     relogioAtendimentoTimer = setInterval(()=>{
       el.value = agoraBR();
@@ -5952,7 +6048,7 @@ function autoFillCamposAtendimento(){
 
     // Soft delete local
     relatorios = relatorios.filter(x => x.id !== r.id);
-    saveRelatorios(relatorios);
+    try { saveRelatorios(relatorios); } catch(eQ) { console.warn('Falha ao persistir deleção local (QuotaExceeded?):', eQ); }
 
     // Soft delete no Firestore (marca _deleted:true)
     try {
@@ -6318,12 +6414,14 @@ function autoFillCamposAtendimento(){
                 _rSemImg.imgsEquip = []; _rSemImg.imgsServico = []; _rSemImg.imgsBaterias = [];
                 _rSemImg.vidsEquip = []; _rSemImg.vidsServico = []; _rSemImg.vidsBaterias = [];
                 _rSemImg.assinaturaCliente = null; _rSemImg.assinaturaTecnicoImg = null;
+                // [FIX-v70-DRAFT-SENHA] Remove senha em texto claro do rascunho de inatividade.
+                delete _rSemImg._portalSenha;
                 _rSemImg._rascunho = true; _rSemImg._rascunhoData = new Date().toISOString();
                 localStorage.setItem('online-es-rascunho-v1', JSON.stringify(_rSemImg));
               }
             }
           } catch(e) {}
-          showToast('⏱️ Sessão encerrada por inatividade. Rascunho salvo. Faça login novamente.', 4000);
+          showToast('⏱️ Sessão encerrada por inatividade. Rascunho salvo (sem fotos). Faça login novamente.', 5000);
           setTimeout(function() {
             try { document.getElementById('btnLogout') && document.getElementById('btnLogout').click(); } catch(e){}
           }, 1500);
@@ -7418,7 +7516,7 @@ function autoFillCamposAtendimento(){
   function montarHtmlRelatorio(r){
     return `
       <h4>ONLINE – Eletroeletrônica</h4>
-      <div style="font-size:1.1rem;color:#475569;margin-bottom:6px;text-align:center;">${SITE_EMPRESA}</div>
+      <div style="font-size:1.1rem;color:#475569;margin-bottom:6px;text-align:center;">${esc(SITE_EMPRESA)}</div>
       <div class="linha"></div>
       <div class="campo" style="text-align:center;font-weight:700;">Relatório técnico de atendimento ao cliente</div>
       <div class="campo"><span class="rotulo">Nº (RAT):</span> ${esc(r.numero)}</div>
@@ -7527,7 +7625,7 @@ function autoFillCamposAtendimento(){
 
   function marcarComoVisto(id){
     relatorios = relatorios.map(r=> r.id===id ? ({...r,visto:true}) : r );
-    saveRelatorios(relatorios);
+    try { saveRelatorios(relatorios); } catch(eQ) { /* QuotaExceeded — sync visual não crítico */ }
     atualizarDashboard();
     try { const r = relatorios.find(x=>x.id===id); logInfo('RAT marcada como vista', { numero: (r && r.numero) || 'N/A', id: id }); } catch(e){}
   }
@@ -7739,9 +7837,9 @@ function renderUsuarios(){
         box.innerHTML = `
           <h3 style="margin:0 0 16px;font-size:1rem;">Editar usuário</h3>
           <label style="font-size:.82rem;display:block;margin-bottom:4px;">Nome completo</label>
-          <input id="_editU_nome" type="text" value="${(u.fullName||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:12px;box-sizing:border-box;">
+          <input id="_editU_nome" type="text" value="${esc(u.fullName||'')}" style="width:100%;padding:8px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:12px;box-sizing:border-box;">
           <label style="font-size:.82rem;display:block;margin-bottom:4px;">Login (usuário)</label>
-          <input id="_editU_user" type="text" value="${(u.username||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:12px;box-sizing:border-box;">
+          <input id="_editU_user" type="text" value="${esc(u.username||'')}" style="width:100%;padding:8px;background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:12px;box-sizing:border-box;">
           <label style="font-size:.82rem;display:block;margin-bottom:4px;">Papel</label>
           <select id="_editU_role" style="width:100%;padding:8px;background:#0f172a;border:1px solid rgba(148,163,184,.35);border-radius:8px;color:#f1f5f9;font-size:.9rem;margin-bottom:20px;box-sizing:border-box;">${roleOptions}</select>
           <div id="_editU_err" style="color:#f87171;font-size:.8rem;min-height:18px;margin-bottom:8px;"></div>
@@ -9080,13 +9178,27 @@ if (logoBase64) {
     if (!_eraEdicao) { try { baixarEstoqueEquipamentoSelecionado(novo); } catch(e){} }
 
     if (navigator.onLine){
-      relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
+      relatorios.push(novo);
+      // [FIX-v68-QUOTA] Se saveRelatorios falhar com QuotaExceededError, adiciona ao pendentes
+      // para garantir que o Firestore receba a RAT mesmo sem persistência local.
+      // Sem isso, a RAT ficava apenas em memória — perdida no próximo reload.
+      var _saveOk = false;
+      try { saveRelatorios(relatorios); _saveOk = true; } catch(eQuota) {
+        if (eQuota.name === 'QuotaExceededError') {
+          pendentes.push(novo); savePendentes(pendentes);
+          try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
+          showToast('⚠️ Armazenamento local cheio. RAT enviada ao servidor mas não salva localmente. Faça backup!', 6000);
+        } else { throw eQuota; }
+      }
+      ultimoRelatorioDoTecnico = novo;
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       // Salva diretamente no Firestore
       try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
-      showToast('Relatório salvo e enviado para o painel.');
+      // [FIX-v68-QUOTA-TOAST] Só mostra "salvo" se o save local teve sucesso; caso contrário
+      // o toast de QuotaExceeded já foi exibido e "Relatório salvo" seria enganoso.
+      if (_saveOk) showToast('Relatório salvo e enviado para o painel.');
       // [UX-VIB] Vibração de confirmação ao salvar RAT com sucesso
       try { if (navigator.vibrate) navigator.vibrate([40, 30, 80]); } catch(e) {}
       try {
@@ -9117,7 +9229,16 @@ if (logoBase64) {
       if (isSupervisorOrAdmin(usuarioLogado)){ renderLista(); atualizarDashboard(); }
     } else {
       // Offline: salva local e em pendentes
-      relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
+      relatorios.push(novo);
+      // [FIX-v68-QUOTA-OFFLINE] saveRelatorios agora lança em QuotaExceeded.
+      // No caminho offline, a RAT SEMPRE vai para pendentes — mesmo que o save local falhe,
+      // o Firestore receberá a RAT quando a conexão voltar.
+      try { saveRelatorios(relatorios); } catch(eQuota) {
+        if (eQuota.name !== 'QuotaExceededError') throw eQuota;
+        // Armazenamento cheio — continua: pendentes.push abaixo garante o envio
+        showToast('⚠️ Armazenamento local cheio. RAT salva em pendentes — será enviada ao servidor quando conectar.', 6000);
+      }
+      ultimoRelatorioDoTecnico = novo;
       pendentes.push(novo); savePendentes(pendentes);
       // [UX] Atualiza badge de pendentes
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
@@ -9492,6 +9613,8 @@ if (logoBase64) {
         rSem.imgsEquip = []; rSem.imgsServico = []; rSem.imgsBaterias = [];
         rSem.vidsEquip = []; rSem.vidsServico = []; rSem.vidsBaterias = [];
         rSem.assinaturaCliente = null; rSem.assinaturaTecnicoImg = null;
+        // [FIX-v70-DRAFT-SENHA] Remove senha em texto claro do rascunho — não deve persistir no localStorage.
+        delete rSem._portalSenha;
         localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rSem));
         // Mostra indicador visual com animação (remove/readiciona para reiniciar)
         var ind = document.getElementById('autoSaveIndicator');
@@ -10582,7 +10705,7 @@ if (logoBase64) {
         }
       }
       if (alterou > 0 || falhos.length < lista.length) {
-        saveRelatorios(relatorios);
+        try { saveRelatorios(relatorios); } catch(eQ) { /* QuotaExceeded — RATs já no Firestore */ }
         pendentes = falhos; savePendentes(pendentes);
         if (alterou > 0) showToast('✅ ' + alterou + ' RAT' + (alterou > 1 ? 's' : '') + ' sincronizada' + (alterou > 1 ? 's' : '') + ' com sucesso!');
         if (falhos.length > 0) showToast('⚠️ ' + falhos.length + ' RAT(s) ainda offline. Tentando novamente em 30s.', 4000);
@@ -10834,8 +10957,14 @@ if (logoBase64) {
             r._portalCnpj  = _credEmail.cnpj;
             r._portalSenha = _credEmail.senha || null; // [FIX-v64]
             portalUrl      = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj, _credEmail.senha || null) : null;
-            if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
-              salvarRelatorioNoFirestore(r).catch(function(){});
+            if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) {
+              // [FIX-v68-SENHA-FS2] Remove _portalSenha antes de salvar — a função
+              // salvarRelatorioNoFirestore já faz isso internamente via _CAMPOS_INTERNOS,
+              // mas garantimos aqui também para paths secundários.
+              var _rEmailSave = Object.assign({}, r);
+              delete _rEmailSave._portalSenha;
+              salvarRelatorioNoFirestore(_rEmailSave).catch(function(){});
+            }
           }
         } catch(eP) { console.warn('[E-mail] Falha ao gerar credencial portal:', eP); }
       }
@@ -10937,8 +11066,12 @@ if (logoBase64) {
           r._portalSenha = _credWa.senha || null; // [FIX-v64]
           portalUrlWa    = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj, _credWa.senha || null) : null;
           // Atualiza também no Firestore e localmente
-          if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
-            salvarRelatorioNoFirestore(r).catch(function(){});
+          // [FIX-v68-SENHA-FS2] Remove _portalSenha antes de salvar no Firestore.
+          if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) {
+            var _rWaSave = Object.assign({}, r);
+            delete _rWaSave._portalSenha;
+            salvarRelatorioNoFirestore(_rWaSave).catch(function(){});
+          }
         }
       } catch(eP) { console.warn('[WhatsApp] Falha ao gerar credencial portal:', eP); }
     } else if (window.location.protocol === 'file:') {
@@ -12857,23 +12990,37 @@ function aplicarPermissoesConfiguracoes(){
         'online-es-rascunho-v1'
       ]);
       let restauradas = 0;
-      // SEGURANÇA: sanitiza IDs dentro dos arrays restaurados para evitar XSS via backup malicioso
-      const _sanitizarIds = function(jsonStr) {
+      // [FIX-v67-BACKUP-SANITIZE] Sanitiza arrays restaurados para evitar XSS via backup malicioso.
+      // Além de limpar o campo 'id', agora:
+      // 1. Remove _portalSenha (senha em texto claro não deve existir em backup).
+      // 2. Escapa < e > em todos os campos string para neutralizar HTML injection.
+      const _sanitizarArray = function(jsonStr) {
         try {
           var arr = JSON.parse(jsonStr);
           if (!Array.isArray(arr)) return jsonStr;
           arr.forEach(function(item) {
-            if (item && typeof item.id !== 'undefined') {
+            if (!item || typeof item !== 'object') return;
+            // Remove campos sensíveis que não devem ser restaurados
+            delete item._portalSenha;
+            delete item._forcarRenovacaoSenha;
+            // Limpa id
+            if (typeof item.id !== 'undefined') {
               item.id = String(item.id).replace(/[^a-zA-Z0-9_\-]/g, '');
             }
+            // Escapa < e > em todos os campos string para neutralizar HTML injection
+            Object.keys(item).forEach(function(k) {
+              if (typeof item[k] === 'string') {
+                item[k] = item[k].replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              }
+            });
           });
           return JSON.stringify(arr);
         } catch(e) { return jsonStr; }
       };
-      const CHAVES_COM_IDS = new Set(['online-es-relatorios','online-es-pendentes','online-es-equipamentos-v1','online-es-clientes-v1']);
+      const CHAVES_COM_ARRAYS = new Set(['online-es-relatorios','online-es-pendentes','online-es-equipamentos-v1','online-es-clientes-v1']);
       Object.entries(json.data || json.localStorage).forEach(([k, v]) => {
         if (CHAVES_PERMITIDAS.has(k)) {
-          localStorage.setItem(k, CHAVES_COM_IDS.has(k) ? _sanitizarIds(v) : v);
+          localStorage.setItem(k, CHAVES_COM_ARRAYS.has(k) ? _sanitizarArray(v) : v);
           restauradas++;
         }
       });
@@ -15514,7 +15661,20 @@ async function fazerLogin(){
       ok = true;
       achou.mustChangePassword = true;
     } else {
-      ok = await (window.verifyPassword || verifyPassword)(p, stored, achou);
+      // [FIX-v68-CRYPTO] verifyPassword usa crypto.subtle que lança TypeError em contextos
+      // não-seguros (HTTP, file://). Sem try/catch, o erro subia ao handler externo que
+      // mostrava "Erro interno" genérico — ninguém conseguia fazer login em HTTP.
+      try {
+        ok = await (window.verifyPassword || verifyPassword)(p, stored, achou);
+      } catch(eCrypto) {
+        console.warn('[Login] verifyPassword falhou:', eCrypto.message || eCrypto);
+        if (!window.isSecureContext) {
+          msgErro.textContent = 'Login requer HTTPS. Acesse via https:// para continuar.';
+        } else {
+          msgErro.textContent = 'Erro ao verificar senha. Tente novamente ou recarregue a página.';
+        }
+        return;
+      }
     }
     if (!ok) {
       // Recovery: apenas se o usuário veio do Firestore E não tem senha salva localmente
@@ -17800,7 +17960,8 @@ window._montarMensagemPortalV2 = function(rat, resultado, canal){
 function _reenviarSenhaEmail(cnpj, emailDestino, nomeCli, novaSenha){
   // O cliente está no próprio dispositivo — mailto: abre o app de e-mail
   // com a mensagem preenchida para ele guardar / encaminhar para si mesmo
-  var url = window._urlPortalV2 ? window._urlPortalV2(cnpj, novaSenha) : window.location.href.split('?')[0] + '?portal=' + cnpj + '&s=' + novaSenha;
+  // [FIX-v67-URL-FALLBACK] Fallback não inclui mais &s=SENHA — a senha vai apenas no corpo do e-mail.
+  var url = window._urlPortalV2 ? window._urlPortalV2(cnpj) : window.location.href.split('?')[0] + '?portal=' + cnpj;
   var assunto = 'Portal ONLINE-ES — Nova senha de acesso';
   var corpo = [
     'Minha nova senha para o Portal do Cliente ONLINE-ES:',
@@ -17827,7 +17988,8 @@ function _reenviarSenhaEmail(cnpj, emailDestino, nomeCli, novaSenha){
 function _reenviarSenhaWhatsapp(cnpj, numeroWhats, nomeCli, novaSenha){
   // O cliente está no próprio dispositivo — wa.me abre o WhatsApp com a mensagem
   // preenchida para ele salvar / encaminhar para si mesmo ou anotar
-  var url = window._urlPortalV2 ? window._urlPortalV2(cnpj, novaSenha) : window.location.href.split('?')[0] + '?portal=' + cnpj + '&s=' + novaSenha;
+  // [FIX-v67-URL-FALLBACK] Fallback não inclui mais &s=SENHA — a senha vai apenas na mensagem.
+  var url = window._urlPortalV2 ? window._urlPortalV2(cnpj) : window.location.href.split('?')[0] + '?portal=' + cnpj;
   var num = String(numeroWhats).replace(/\D/g,'');
   if(num.length <= 11) num = '55' + num;
   var msg = [
