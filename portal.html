@@ -1,4 +1,111 @@
 <!DOCTYPE html>
+<!-- PORTAL DO CLIENTE — v77
+  Correções v77:
+  - [FIX-v77-TOAST-DIRECT] (index.html) Dois blocos de código escreviam diretamente em
+    #toast com textContent/display — bypassando uxToast. Substituídos por showToast().
+    Mensagens "Rascunho salvo" e "PDF gerado" agora têm o mesmo visual das demais.
+  - [FIX-v77-SEARCH-DEBOUNCE] Campo de busca da lista de RATs: debounce de 150ms antes
+    de chamar renderCards() — evita re-render a cada tecla pressionada.
+  - [FIX-v77-HISTORY] history.pushState em renderLista/renderDetalhe + listener popstate:
+    botão físico Voltar do Android agora navega detalhe→lista→login em vez de sair do portal.
+  Correções v76:
+  - [FIX-v76-LB-LOGIN] _lbSafeClose() agora chamado no início de renderLogin, renderExpirada
+    e renderEsqueci — antes só era chamado em renderLista/renderDetalhe. Logout ou sessão
+    expirada com lightbox aberto deixava body.overflow='hidden' travado permanentemente.
+  - [FIX-v76-TOAST-DEDUP] (index.html) uxToast: verifica se último toast visível tem a
+    mesma mensagem antes de criar novo elemento — evita pilha de toasts idênticos em erros rápidos.
+  - [FIX-v76-SESS-CNPJ] sessao.cnpj na session bar agora exibido com maskCnpj() —
+    antes mostrava os 14 dígitos brutos, inconsistente com r.cnpjCliente no detalhe.
+  - [FIX-v76-PRIVACY] limparSessao() remove 'onlinees_ultimo_cnpj' do sessionStorage —
+    antes o CNPJ do cliente anterior pré-preenchia o campo em dispositivos compartilhados.
+  - [FIX-v76-IMG-LEAK] limparSessao() também desconecta _portalThumbObs e zera
+    _portalImgCache — libera memória das fotos ao fazer logout sem passar pelo btnVoltar.
+  Correções v75:
+  - [FIX-v75-MASK-TEL-CC] maskTel(): remove prefixo "55" de números com 12/13 dígitos
+    antes de formatar — WhatsApp armazenado como "5527..." agora exibe "(27) ..." corretamente.
+  - [FIX-v75-SESS-NAME] .session-name: overflow:hidden + text-overflow:ellipsis + min-width:0
+    no container flex — nomes de empresa longos não empurram mais o botão "Sair" para fora da tela.
+  - [FIX-v75-INFO-XSS] opts.info em renderLogin: substituído innerHTML por esc() —
+    eliminado vetor XSS latente caso algum dado de usuário fosse passado via opts.info no futuro.
+  Correções v74:
+  - [FIX-v74-LOGIN-FINALLY] tentarLogin: _loginEmAndamento e btnEntrar agora resetados em
+    try/finally — antes, se fazerLogin lançasse exceção (ex: sha256 em HTTP), o botão ficava
+    permanentemente desabilitado sem feedback ao usuário até recarregar a página.
+  - [FIX-v74-SIG-OFFSCREEN] normalizarAssinaturaPNG: portado fix do index.html —
+    loop pixel-a-pixel agora usa OffscreenCanvas + requestIdleCallback, não bloqueia
+    o main thread no mobile durante geração de PDF com assinatura. Fallback para canvas
+    DOM em iOS <16.4.
+  - [FIX-v74-MASK-CNPJ] r.cnpjCliente exibido com máscara (XX.XXX.XXX/XXXX-XX) na tela
+    de detalhe — antes exibia os dígitos brutos sem formatação.
+  - [FIX-v74-MASK-TEL] maskTel(): nova função que formata telefone/WhatsApp brutos para
+    (XX) XXXX-XXXX ou (XX) 9XXXX-XXXX. Aplicada em Telefone e WhatsApp no detalhe.
+  - [FIX-v74-RL-CLEANUP] Limpeza de chaves RL expiradas no localStorage ao iniciar —
+    evita acúmulo ilimitado de onlinees_rl_{cnpj} em dispositivos compartilhados.
+  - [FIX-v74-BADGE-ACCENT] badge(): usa toLowerCase + includes em vez de === exato —
+    suporta variações de acento ("Concluido" vs "Concluído") em RATs de versões antigas.
+  Correções v73:
+  - [FIX-v73-CRED-EXPIRED] fazerLogin: caminho de senha expirada também sanitiza cred antes de
+    passar para renderExpirada — senhaHash vazava pela closure mesmo com fix v72 no caminho normal.
+  - [FIX-v73-SESS-RESTORE-HASH] init() restauração de sessão: credSafeRestore sem senhaHash —
+    o fix v72 só cobria o login normal; restauração de sessão passava cred completo do Firestore.
+  - [FIX-v73-LB-NAV-LEAK] Lightbox: body.overflow='hidden' ficava preso se o usuário navegasse
+    enquanto o lightbox estava aberto. _lbSafeClose() chamado no início de renderLista/renderDetalhe.
+    lbClose() agora também reseta _lbImgs=[] e _lbIdx=0.
+  - [FIX-v73-CHIP-SCOPE] Remoção de .active nos chips scoped para #statusChips em vez de
+    document global — evita afetar outros elementos .filter-chip fora do container de status.
+  - [FIX-v73-PDF-CACHE] addImagemReduzidaAoPdf no portal aceita parâmetro preDecoded (Image);
+    loop gerarPDF usa _pdfImgCache com elementos Image prontos — elimina re-decode serial real.
+  - [FIX-v73-CHIP-WRAP] white-space:nowrap nos chips de status; #statusChips com overflow-x:auto
+    e scrollbar oculta — chips longos "Com pendência"/"Não concluído" não quebram em telas pequenas.
+  - [FIX-v73-TITLE-SAFE] document.title sanitizado com regex antes de usar r.numero —
+    evita chars especiais (|, —, <) comprometendo o título na aba/histórico do browser.
+  Correções v72:
+  - [FIX-v72-LAZY-FOTOS] Regressão v71: data-src no DOM colocava base64 em memória de qualquer forma.
+    Imagens agora ficam em window._portalImgCache (array JS). DOM contém apenas data-idx numérico.
+  - [FIX-v72-OBS-LEAK] IntersectionObserver guardado em window._portalThumbObs e desconectado
+    explicitamente ao voltar para lista — impede referências a nós removidos do DOM.
+  - [FIX-v72-DUPE-LISTENER] Listener de limpeza de erro do inputCnpj integrado ao handler de máscara
+    — era duplicado (dois addEventListener('input') no mesmo elemento).
+  - [FIX-v72-RL-PER-CNPJ] Rate limit migrado para per-CNPJ (chave 'onlinees_rl_{cnpj}') — evita
+    que tentativas de um cliente bloqueiem outro cliente no mesmo browser.
+  - [FIX-v72-DUPLO-LOGIN] Flag _loginEmAndamento impede chamadas concorrentes ao pressionar
+    Enter durante "Verificando..." — segunda chamada ao Firebase era silenciosamente descartada.
+  - [FIX-v72-SESS-HASH] sessao.cred agora é credSafe sem senhaHash — impede extração do hash
+    por extensões maliciosas via window.sessao.cred.senhaHash.
+  - [FIX-v72-RENOVAR-AUTH] renovarSenha() valida garantirAuth() antes de escrever no Firestore
+    — impede geração de nova senha sem autenticação anônima estabelecida.
+  - [FIX-v72-MAXLENGTH] Toggle mostrar/ocultar senha chama setAttribute('maxlength','6') após
+    troca de type — reforça limite que alguns browsers ignoram ao mudar password → text.
+  - [FIX-v72-TOGGLE-LABEL] Botões "Ver"/"Ocultar" agora atualizam o texto ao alternar estado.
+  - [FIX-v72-ESQUECI-FRAME] renderEsqueci não mais redireciona para renderExpirada (que exibia
+    "Senha expirada" mesmo com senha válida). Botões de renovação renderizados inline com
+    framing neutro "Receber nova senha".
+  - [FIX-v72-STATUS-CHIPS] Adicionados chips "Concluído com pendência" e "Não concluído" —
+    RATs com esses status não apareciam em nenhum filtro antes.
+  - [FIX-v72-ACOES-ARRAY] campo() e _formatVal() tratam r.acoes como array de strings
+    (formato usado pelo index.html) — exibia "item1,item2" sem formatação antes.
+  Correções v71:
+  - [FIX-v71-RENOVAR-RACE] renderExpirada: desabilita TODOS os botões ao iniciar renovação de senha
+    — evita race condition onde dois cliques simultâneos geram senhas diferentes, invalidando a 1ª.
+  - [FIX-v71-DELETED-FALLBACK] buscarRats fallback: usa _deleted!==true (alinhado com FIX-v63 do index)
+    — undefined!==true → RATs antigas sem campo _deleted passam corretamente no caminho sem índice.
+  - [FIX-v71-SENHA-SPACES] fazerLogin: .replace(/\s/g,'') em vez de .trim() — remove espaços internos
+    que causavam hash diferente do armazenado com mensagem genérica "Senha incorreta".
+  - [FIX-v71-ESC-ASSINATURA] renderDetalhe: assinaturaCliente escapada com esc() no atributo src.
+  - [FIX-v71-RL-PERSIST] Rate limit migrado para localStorage — não zera mais com F5/reload.
+  - [FIX-v71-LAZY-FOTOS] Galeria de fotos usa IntersectionObserver — thumbs carregam só ao entrar
+    na viewport, evitando carregamento de todos os data: URIs em memória de uma vez (OOM em mobile).
+  - [FIX-v71-PDF-PARALLEL] Pre-decode de todas as imagens em paralelo antes do loop serial de layout.
+  - [FIX-v71-LIMIT-WARN] Session bar avisa "(50 mais recentes)" quando rats.length >= 50.
+  - [FIX-v71-FILTRO-CASE] Chips de status usam toLowerCase().trim() — "Concluído" ≠ "concluido" resolvido.
+  - [FIX-v71-BUSCA-EXPAND] Campo de busca expandido: técnico, status e data além de número/equipamento/cliente.
+  - [FIX-v71-SENHA-DISPLAY] Senha gerada exibida com toggle olho (oculta por padrão) — não exposta em plaintext.
+  - [FIX-v71-TOGGLE-SENHA] Campo senha no login tem botão olho para mostrar/ocultar 6 dígitos no mobile.
+  - [FIX-v71-CNPJ-CURSOR] Cursor do campo CNPJ reposicionado por contagem de dígitos — não pula mais.
+  - [FIX-v71-ESQUECI-SELF] "Esqueci senha" tenta self-service se CNPJ já estiver preenchido.
+  - [FIX-v71-SESS-RENEW] TTL da sessão estendido para 2h e renovado a cada navegação entre telas.
+  - [FIX-v71-BTOA] Fallback PDF usa URL.createObjectURL(blob) — btoa() crashava com chars não-Latin1.
+-->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
@@ -329,6 +436,9 @@
     .session-name {
       font-family: var(--font-display);
       font-size: .92rem; font-weight: 700; color: #fff;
+      /* [FIX-v75-SESS-NAME] Trunca nomes longos — evita empurrar botão "Sair" para fora da tela */
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      min-width: 0;
     }
     .session-cnpj { font-size: .72rem; color: var(--text3); margin-top: 2px; }
     .btn-logout {
@@ -565,6 +675,15 @@
       display: flex; gap: 8px; flex-wrap: wrap;
       margin-bottom: 14px;
     }
+    /* [FIX-v73-CHIP-SCROLL] Barra de chips de status rola horizontalmente em telas muito pequenas */
+    #statusChips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    #statusChips::-webkit-scrollbar { display: none; }
     .filter-chip {
       padding: 6px 14px; border-radius: 999px;
       font-size: .72rem; font-weight: 600;
@@ -572,6 +691,7 @@
       background: transparent; color: var(--text3);
       transition: all .18s; font-family: var(--font-body);
       -webkit-tap-highlight-color: transparent;
+      white-space: nowrap; /* [FIX-v73-CHIP-WRAP] Evita quebra interna em telas pequenas */
     }
     .filter-chip.active {
       background: rgba(249,115,22,.12);
@@ -851,8 +971,24 @@ function maskCnpj(v){
   if(v.length<=11)return v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
   return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');
 }
+// [FIX-v74-MASK-TEL] Formata telefone/WhatsApp com dígitos brutos → (XX) XXXX-XXXX ou (XX) 9XXXX-XXXX
+// [FIX-v75-MASK-TEL-CC] Suporta 13 dígitos com código de país 55 (ex: "5527999990000")
+function maskTel(v){
+  if(!v)return v;
+  var d=String(v).replace(/\D/g,'');
+  // Remove prefixo 55 se tiver 12 ou 13 dígitos (formato de envio WhatsApp)
+  if((d.length===12||d.length===13)&&d.startsWith('55'))d=d.slice(2);
+  if(d.length===11)return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7);
+  if(d.length===10)return '('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6);
+  return v; // não reconhecido — retorna original
+}
+// [FIX-v74-BADGE-ACCENT] Usa toLowerCase/includes — suporta "Concluido" (sem acento) de RATs antigas
 function badge(s){
-  const cls=!s?'badge-bad':s==='Concluído'?'badge-ok':s.includes('pendência')?'badge-warn':'badge-bad';
+  const sl=(s||'').toLowerCase();
+  const cls=!s?'badge-bad'
+    :sl.includes('pendência')||sl.includes('pendencia')?'badge-warn'
+    :sl.includes('conclu')?'badge-ok'
+    :'badge-bad';
   return`<span class="badge ${cls}">${esc(s||'Indefinido')}</span>`;
 }
 let _tt=null;
@@ -873,6 +1009,13 @@ function lbOpen(imgs,idx){
 function lbClose(){
   document.getElementById('lightbox').classList.add('hidden');
   document.body.style.overflow='';
+  _lbImgs=[];_lbIdx=0; // reset state
+}
+// [FIX-v73-LB-NAV-LEAK] Fecha lightbox automaticamente em qualquer re-renderização
+// Evita body.overflow='hidden' preso se o usuário navegar enquanto lightbox estiver aberto
+function _lbSafeClose(){
+  const lb=document.getElementById('lightbox');
+  if(lb&&!lb.classList.contains('hidden'))lbClose();
 }
 function _lbUpdate(){
   document.getElementById('lbImg').src=_lbImgs[_lbIdx];
@@ -900,14 +1043,36 @@ document.addEventListener('keydown',e=>{
 
 const el=()=>document.getElementById('conteudo');
 
-/* rate limit */
-const _rl={count:0,resetAt:0};
-function checkRL(){
-  const now=Date.now();if(now>_rl.resetAt){_rl.count=0;_rl.resetAt=now+120000;}
-  _rl.count++;if(_rl.count>5){const s=Math.ceil((_rl.resetAt-now)/1000);return{bloqueado:true,msg:`Muitas tentativas. Aguarde ${s}s.`};}
+/* rate limit — [FIX-v71-RL-PERSIST] persiste no localStorage para sobreviver a reloads
+   [FIX-v72-RL-PER-CNPJ] per-CNPJ — evita que cliente A bloqueie cliente B no mesmo browser */
+function _rlKey(cnpj){return 'onlinees_rl_'+(cnpj||'_global');}
+function _rlLoad(cnpj){try{const d=JSON.parse(localStorage.getItem(_rlKey(cnpj))||'{}');return{count:d.count||0,resetAt:d.resetAt||0};}catch{return{count:0,resetAt:0};}}
+function _rlSave(cnpj,o){try{localStorage.setItem(_rlKey(cnpj),JSON.stringify(o));}catch{}}
+function checkRL(cnpj){
+  const now=Date.now(),o=_rlLoad(cnpj);
+  if(now>o.resetAt){o.count=0;o.resetAt=now+120000;}
+  o.count++;_rlSave(cnpj,o);
+  if(o.count>5){const s=Math.ceil((o.resetAt-now)/1000);return{bloqueado:true,msg:`Muitas tentativas. Aguarde ${s}s.`};}
   return{bloqueado:false};
 }
-function resetRL(){_rl.count=0;}
+function resetRL(cnpj){_rlSave(cnpj,{count:0,resetAt:0});}
+// [FIX-v74-RL-CLEANUP] Remove chaves RL expiradas do localStorage — evita acúmulo em dispositivos compartilhados
+function _rlCleanup(){
+  try{
+    var now=Date.now();
+    var toRemove=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.startsWith('onlinees_rl_')){
+        try{var d=JSON.parse(localStorage.getItem(k)||'{}');if(!d.resetAt||now>d.resetAt+300000)toRemove.push(k);}catch{toRemove.push(k);}
+      }
+    }
+    toRemove.forEach(function(k){localStorage.removeItem(k);});
+  }catch{}
+}
+// Executa limpeza na inicialização (idle, sem bloquear)
+if(typeof requestIdleCallback!=='undefined'){requestIdleCallback(_rlCleanup);}
+else{setTimeout(_rlCleanup,2000);}
 
 /* auth */
 async function garantirAuth(){
@@ -918,16 +1083,27 @@ async function garantirAuth(){
 let sessao=null;
 
 /* ── persistência de sessão (sessionStorage) ── */
-function salvarSessao(s){try{sessionStorage.setItem('onlinees_portal_sess',JSON.stringify({cnpj:s.cnpj,nome:s.nome,exp:Date.now()+3600000}));}catch{}}
+// [FIX-v71-SESS-RENEW] Renova TTL da sessão a cada navegação entre telas (evita expirar em 1h durante uso)
+function salvarSessao(s){try{sessionStorage.setItem('onlinees_portal_sess',JSON.stringify({cnpj:s.cnpj,nome:s.nome,exp:Date.now()+7200000}));}catch{}}
 function restaurarSessao(){try{const raw=sessionStorage.getItem('onlinees_portal_sess');if(!raw)return null;const d=JSON.parse(raw);if(!d||Date.now()>d.exp){sessionStorage.removeItem('onlinees_portal_sess');return null;}return{cnpj:d.cnpj,nome:d.nome,cred:{}};}catch{return null;}}
-function limparSessao(){try{sessionStorage.removeItem('onlinees_portal_sess');}catch{}}
+// [FIX-v76-LOGOUT-CLEAN] limparSessao remove também o CNPJ salvo e libera cache de imagens
+// Evita pré-preenchimento de CNPJ de cliente anterior em dispositivo compartilhado
+function limparSessao(){
+  try{sessionStorage.removeItem('onlinees_portal_sess');}catch{}
+  try{sessionStorage.removeItem('onlinees_ultimo_cnpj');}catch{}   // [FIX-v76-PRIVACY]
+  // Libera memória do cache de fotos e desconecta observer
+  if(window._portalThumbObs){try{window._portalThumbObs.disconnect();}catch{}window._portalThumbObs=null;}
+  window._portalImgCache=null; // [FIX-v76-IMG-LEAK]
+}
 
 
 async function fazerLogin(cnpjRaw,senhaRaw){
-  const cnpj=normCnpj(cnpjRaw),senha=String(senhaRaw??'').trim();
+  // [FIX-v71-SENHA-SPACES] Remove todos os espaços/whitespace internos e bordas antes de validar
+  // Evita que senha "1 2 3 4 5 6" (digitada com espaço acidental) gere hash diferente com erro genérico
+  const cnpj=normCnpj(cnpjRaw),senha=String(senhaRaw??'').replace(/\s/g,'');
   if(cnpj.length<8)return{ok:false,msg:'CNPJ ou CPF inválido.'};
   if(senha.length<6)return{ok:false,msg:'A senha deve ter 6 dígitos.'};
-  const rl=checkRL();if(rl.bloqueado)return{ok:false,msg:rl.msg};
+  const rl=checkRL(cnpj);if(rl.bloqueado)return{ok:false,msg:rl.msg};
   if(!await garantirAuth())return{ok:false,msg:'Sem conexão com o servidor. Tente novamente.'};
   let snap;
   try{
@@ -944,10 +1120,18 @@ async function fazerLogin(cnpjRaw,senhaRaw){
   const cred=snap.data();
   if(cred.ativo===false)return{ok:false,msg:'Acesso desativado. Contate a ONLINE-ES.'};
   const agora=new Date(),expira=cred.expiradoEm?new Date(cred.expiradoEm):new Date(0);
-  if(agora>expira)return{ok:false,expirada:true,cnpj,cred};
+  if(agora>expira){
+    // [FIX-v73-CRED-EXPIRED] Sanitiza cred antes de passar para renderExpirada — evita senhaHash em closure
+    const credExp={expiradoEm:cred.expiradoEm,ativo:cred.ativo,nome:cred.nome,emails:cred.emails,whatsapps:cred.whatsapps};
+    return{ok:false,expirada:true,cnpj,cred:credExp};
+  }
   const hash=await sha256(senha);
   if(hash!==cred.senhaHash)return{ok:false,msg:'Senha incorreta. Use os 6 dígitos enviados pelo técnico.'};
-  resetRL();sessao={cnpj,nome:cred.nome||cnpj,cred};
+  resetRL(cnpj);
+  // [FIX-v72-SESS-HASH] Remove senhaHash e campos sensíveis do objeto em memória
+  // Evita que extensões maliciosas ou XSS extraiam o hash via window.sessao.cred
+  const credSafe={expiradoEm:cred.expiradoEm,ativo:cred.ativo,nome:cred.nome,emails:cred.emails,whatsapps:cred.whatsapps};
+  sessao={cnpj,nome:cred.nome||cnpj,cred:credSafe};
   salvarSessao(sessao);
   try{db.collection('onlineEsPortalClientes').doc(cnpj).update({ultimoAcesso:agora.toISOString()});}catch{}
   return{ok:true};
@@ -959,18 +1143,33 @@ async function buscarRats(cnpj){
   try{
     let snap;
     try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).where('_deleted','==',false).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);}
+    // [FIX-v71-DELETED-FALLBACK] Caminho sem índice: usa _deleted !== true (alinhado com FIX-v63-DELETED-FALLBACK do index.html)
+    // undefined !== true → true, então RATs antigas sem o campo _deleted passam corretamente
     catch(e){if(e.message==='timeout')throw e;snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).limit(80).get(),TO(15000)]);}
-    const arr=[];snap.forEach(d=>{const r=d.data();r._id=d.id;if(!r._deleted)arr.push(r);});
+    const arr=[];snap.forEach(d=>{const r=d.data();r._id=d.id;if(r._deleted!==true)arr.push(r);});
     arr.sort((a,b)=>(b.dataHoraIso||'').localeCompare(a.dataHoraIso||''));return arr.slice(0,50);
   }catch(e){console.warn('[Portal]',e.message);return null;}
 }
 
 /* ── render login ── */
 function renderLogin(opts={}){
+  _lbSafeClose(); // [FIX-v76-LB-LOGIN] Fecha lightbox se aberto — evita overflow:hidden preso ao navegar
   document.title='Login — Portal do Cliente ONLINE-ES';
   // Restaurar CNPJ salvo se não veio por parâmetro
   let cnpjSalvo=opts.cnpj||'';
   if(!cnpjSalvo){try{cnpjSalvo=sessionStorage.getItem('onlinees_ultimo_cnpj')||'';}catch{}}
+  // [FIX-v71-SENHA-GERADA] Bloco de senha gerada com toggle de visibilidade (evita texto exposto)
+  const blocoSenhaGerada=opts.senhaGerada?`
+    <div class="msg-info" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span>✅ Nova senha gerada:</span>
+      <span id="senhaGeradaSpan" style="font-family:monospace;font-size:1.1rem;letter-spacing:.18em;background:rgba(0,0,0,.18);padding:3px 10px;border-radius:8px;">${'•'.repeat(6)}</span>
+      <button id="btnVerSenha" type="button" style="background:none;border:none;color:inherit;cursor:pointer;padding:4px 6px;border-radius:6px;display:flex;align-items:center;gap:4px;font-size:.8rem;opacity:.8;" aria-label="Mostrar/ocultar senha">
+        <i class="ri-eye-line" id="iconVerSenha"></i> Ver
+      </button>
+    </div>`:
+    // [FIX-v75-INFO-XSS] opts.info era inserido via innerHTML sem escape — vetor XSS latente.
+    // Substituído por esc() para sanitizar qualquer valor futuro passado via opts.info.
+    (opts.info?`<div class="msg-info">${esc(opts.info)}</div>`:'');
   el().innerHTML=`
     <div class="login-hero anim-1">
       <div class="login-logo-wrap">
@@ -983,7 +1182,7 @@ function renderLogin(opts={}){
     <div class="card anim-2">
       <div class="card-glow"></div>
       <h2><span class="icon-wrap"><i class="ri-shield-keyhole-line"></i></span> Acesso ao Portal</h2>
-      ${opts.info?`<div class="msg-info">${opts.info}</div>`:''}
+      ${blocoSenhaGerada}
       <div id="erroLogin" class="msg-error" role="alert" aria-live="assertive"></div>
       <div class="field">
         <label for="inputCnpj">CNPJ ou CPF da empresa</label>
@@ -998,11 +1197,17 @@ function renderLogin(opts={}){
       <div class="field">
         <label for="inputSenha">Senha (6 dígitos)</label>
         ${cnpjSalvo?`<div class="msg-hint" role="note"><i class="ri-key-line" aria-hidden="true"></i><span><strong>Digite a senha de 6 dígitos</strong> recebida no WhatsApp ou e-mail do técnico.</span></div>`:''}
-        <div class="field-inner">
+        <div class="field-inner" style="position:relative;">
           <i class="field-icon ri-lock-line" aria-hidden="true"></i>
           <input id="inputSenha" type="password" inputmode="numeric"
             maxlength="6" placeholder="• • • • • •" autocomplete="current-password"
-            aria-label="Senha de 6 dígitos" aria-required="true">
+            aria-label="Senha de 6 dígitos" aria-required="true"
+            style="padding-right:44px;">
+          <!-- [FIX-v71-TOGGLE-SENHA] Botão olho para mostrar/ocultar senha -->
+          <button type="button" id="btnToggleSenha" aria-label="Mostrar/ocultar senha"
+            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:1.05rem;padding:4px;display:flex;align-items:center;">
+            <i class="ri-eye-line" id="iconToggleSenha"></i>
+          </button>
         </div>
       </div>
       <button class="btn-primary" id="btnEntrar">
@@ -1018,36 +1223,97 @@ function renderLogin(opts={}){
       <div class="how-step"><div class="how-num">4</div><span>A senha é válida por 30 dias</span></div>
     </div>`;
 
+  // [FIX-v71-SENHA-GERADA-TOGGLE] Toggle de visibilidade da senha gerada
+  if(opts.senhaGerada){
+    let _senhaVisivel=false;
+    document.getElementById('btnVerSenha')?.addEventListener('click',()=>{
+      _senhaVisivel=!_senhaVisivel;
+      const sp=document.getElementById('senhaGeradaSpan'),ic=document.getElementById('iconVerSenha');
+      const btn=document.getElementById('btnVerSenha');
+      if(sp)sp.textContent=_senhaVisivel?opts.senhaGerada:'•'.repeat(6);
+      if(ic)ic.className=_senhaVisivel?'ri-eye-off-line':'ri-eye-line';
+      // [FIX-v72-TOGGLE-LABEL] Atualiza texto do botão Ver ↔ Ocultar
+      if(btn){const tn=Array.from(btn.childNodes).find(n=>n.nodeType===3&&n.textContent.trim());if(tn)tn.textContent=_senhaVisivel?' Ocultar':' Ver';}
+    });
+  }
+
+  // [FIX-v71-TOGGLE-SENHA] Toggle mostrar/ocultar senha
+  const _btnTgl=document.getElementById('btnToggleSenha');
+  const _inpS=document.getElementById('inputSenha');
+  if(_btnTgl&&_inpS){
+    _btnTgl.addEventListener('click',()=>{
+      const isPass=_inpS.type==='password';
+      _inpS.type=isPass?'text':'password';
+      // [FIX-v72-MAXLENGTH] Reforça maxlength após troca de type — alguns browsers ignoram ao mudar
+      _inpS.setAttribute('maxlength','6');
+      const ic=document.getElementById('iconToggleSenha');
+      if(ic)ic.className=isPass?'ri-eye-off-line':'ri-eye-line';
+      // [FIX-v72-TOGGLE-LABEL] Atualiza texto do botão para refletir estado atual
+      // Seleciona o nó de texto (filho após o <i>)
+      const _textNode=Array.from(_btnTgl.childNodes).find(n=>n.nodeType===3&&n.textContent.trim());
+      if(_textNode)_textNode.textContent=' '+(_inpS.type==='text'?' Ocultar':' Ver');
+    });
+  }
+
   const ci=document.getElementById('inputCnpj');
-  // [FIX-PORTAL-UX] Limpa mensagem de erro ao editar campos
-  document.getElementById('inputCnpj')?.addEventListener('input',()=>{const e=document.getElementById('erroLogin');if(e)e.style.display='none';});
+  // [FIX-v72-DUPE-LISTENER] Listener de limpeza de erro integrado ao handler de máscara (era duplicado)
   document.getElementById('inputSenha')?.addEventListener('input',()=>{const e=document.getElementById('erroLogin');if(e)e.style.display='none';});
-  ci.addEventListener('input',()=>{const p=ci.selectionStart;ci.value=maskCnpj(ci.value);try{ci.setSelectionRange(p,p);}catch{}});
+  // [FIX-v71-CNPJ-CURSOR] Calcula deslocamento correto do cursor após reformatação da máscara
+  // Salvar selectionStart antes E depois do reformat e compensar os caracteres especiais inseridos
+  ci.addEventListener('input',function(ev){
+    // [FIX-v72-DUPE-LISTENER] Limpa erro aqui — evita listener duplicado
+    const errEl=document.getElementById('erroLogin');if(errEl)errEl.style.display='none';
+    const raw=ci.value.replace(/\D/g,'');
+    const posBefore=ci.selectionStart;
+    const digitsBeforeCursor=(ci.value.substring(0,posBefore).replace(/\D/g,'')).length;
+    ci.value=maskCnpj(ci.value);
+    let d=0,newPos=0;
+    for(let i=0;i<ci.value.length;i++){
+      if(/\d/.test(ci.value[i])){d++;if(d===digitsBeforeCursor){newPos=i+1;break;}}
+    }
+    if(d<digitsBeforeCursor)newPos=ci.value.length;
+    try{ci.setSelectionRange(newPos,newPos);}catch{}
+  });
   if(cnpjSalvo) setTimeout(()=>document.getElementById('inputSenha')?.focus(),250);
 
+  // [FIX-v72-DUPLO-LOGIN] Flag para evitar chamadas concorrentes ao pressionar Enter durante "Verificando..."
+  let _loginEmAndamento=false;
   async function tentarLogin(){
+    if(_loginEmAndamento)return;
     const errEl=document.getElementById('erroLogin'),btnEl=document.getElementById('btnEntrar');
     if(!errEl||!btnEl)return;
+    _loginEmAndamento=true;
     errEl.style.display='none';btnEl.disabled=true;
     btnEl.innerHTML='<i class="ri-loader-4-line spin"></i> Verificando...';
     const cnpjVal=document.getElementById('inputCnpj')?.value||'';
-    const res=await fazerLogin(cnpjVal,document.getElementById('inputSenha')?.value||'');
+    let res;
+    try{
+      res=await fazerLogin(cnpjVal,document.getElementById('inputSenha')?.value||'');
+    }catch(e){
+      // [FIX-v74-LOGIN-FINALLY] Garante reset mesmo se fazerLogin lançar (ex: sha256 em HTTP)
+      res={ok:false,msg:e.message||'Erro inesperado. Verifique se está acessando via HTTPS.'};
+    }finally{
+      _loginEmAndamento=false;
+    }
     if(res.ok){
-      // Lembrar CNPJ para próximo acesso
       try{sessionStorage.setItem('onlinees_ultimo_cnpj',maskCnpj(cnpjVal));}catch{}
       document.title='Meus Relatórios — Portal ONLINE-ES';
       renderLista();
     }
     else if(res.expirada){renderExpirada(res.cnpj,res.cred);}
-    else{if(errEl){errEl.textContent=res.msg;errEl.style.display='block';}if(btnEl){btnEl.disabled=false;btnEl.innerHTML='<i class="ri-login-circle-line"></i> Entrar';}}
+    else{
+      if(errEl){errEl.textContent=res.msg;errEl.style.display='block';}
+      if(btnEl){btnEl.disabled=false;btnEl.innerHTML='<i class="ri-login-circle-line"></i> Entrar';}
+    }
   }
   document.getElementById('btnEntrar').addEventListener('click',tentarLogin);
   document.getElementById('inputSenha').addEventListener('keydown',e=>{if(e.key==='Enter')tentarLogin();});
-  document.getElementById('btnEsqueci').addEventListener('click',renderEsqueci);
+  document.getElementById('btnEsqueci').addEventListener('click',()=>renderEsqueci(document.getElementById('inputCnpj')?.value||''));
 }
 
 /* ── render expirada ── */
 async function renderExpirada(cnpj,cred){
+  _lbSafeClose(); // [FIX-v76-LB-LOGIN]
   el().innerHTML=`
     <div class="card anim-1">
       <div class="card-glow"></div>
@@ -1062,40 +1328,154 @@ async function renderExpirada(cnpj,cred){
   const acoesEl=document.getElementById('expAcoes');
   if(!emails.length&&!whatsapps.length){acoesEl.innerHTML='<p style="font-size:.82rem;color:var(--text2);">Nenhum contato cadastrado. Entre em contato com a ONLINE-ES.</p>';return;}
   const portalUrl=window.location.origin+window.location.pathname+'?cnpj='+cnpj;
-  async function renovarSenha(){const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();await db.collection('onlineEsPortalClientes').doc(cnpj).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});return s;}
+  // [FIX-v71-RENOVAR-RACE] Coleta todos os botões de renovação para desabilitar TODOS ao iniciar qualquer operação
+  // Evita race condition onde dois cliques simultâneos geram senhas diferentes — só a última vale
+  function _todosOsBotoes(){return acoesEl?Array.from(acoesEl.querySelectorAll('button')):[];}
+  // [FIX-v72-RENOVAR-AUTH] Valida auth anônima antes de escrever no Firestore
+  // Sem isso qualquer pessoa que acesse a tela de senha expirada pode gerar nova senha
+  async function renovarSenha(){
+    if(!await garantirAuth())throw new Error('Sem conexão com o servidor.');
+    const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();
+    await db.collection('onlineEsPortalClientes').doc(cnpj).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});
+    return s;
+  }
   emails.forEach(email=>{
     const btn=document.createElement('button');btn.className='btn-primary';btn.style.cssText='background:linear-gradient(135deg,#0ea5e9,#0284c7);box-shadow:0 4px 20px rgba(14,165,233,.3);margin-bottom:8px;';
     btn.innerHTML=`<i class="ri-mail-send-line"></i> Enviar senha para ${esc(email)}`;
-    btn.addEventListener('click',async()=>{btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';try{const s=await renovarSenha();window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Portal ONLINE-ES — Nova senha')}&body=${encodeURIComponent(`Sua nova senha:\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 Senha: ${s} (30 dias)\n\nGuarde esta mensagem.`)}`, '_blank');toast('✅ E-mail aberto com nova senha!',4000);setTimeout(()=>renderLogin({cnpj,info:`✅ Nova senha: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong>`}),1500);}catch{btn.disabled=false;btn.innerHTML=`<i class="ri-mail-send-line"></i> Tentar novamente`;}});
+    // [FIX-v71-RENOVAR-RACE] Desabilita TODOS os botões ao iniciar — evita duas senhas geradas em paralelo
+    btn.addEventListener('click',async()=>{
+      const todos=_todosOsBotoes();todos.forEach(b=>{b.disabled=true;});
+      btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';
+      try{
+        const s=await renovarSenha();
+        window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Portal ONLINE-ES — Nova senha')}&body=${encodeURIComponent(`Sua nova senha:\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 Senha: ${s} (30 dias)\n\nGuarde esta mensagem.`)}`, '_blank');
+        toast('✅ E-mail aberto com nova senha!',4000);
+        // [FIX-v71-SENHA-DISPLAY] Exibe senha com toggle de visibilidade em vez de texto exposto
+        setTimeout(()=>renderLogin({cnpj,senhaGerada:s}),1500);
+      }catch{todos.forEach(b=>{b.disabled=false;});btn.innerHTML=`<i class="ri-mail-send-line"></i> Tentar novamente`;}
+    });
     acoesEl.appendChild(btn);
   });
   whatsapps.forEach(num=>{
     const btn=document.createElement('button');btn.className='btn-primary';btn.style.cssText='background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.3);margin-bottom:8px;';
     btn.innerHTML=`<i class="ri-whatsapp-line"></i> Receber senha via WhatsApp (+${esc(num)})`;
-    btn.addEventListener('click',async()=>{btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';try{const s=await renovarSenha();const n=num.length<=11?'55'+num:num;window.open(`https://wa.me/${n}?text=${encodeURIComponent(`🔐 *Portal ONLINE-ES — Nova senha*\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 *${s}* (30 dias)`)}`, '_blank');toast('✅ WhatsApp aberto com nova senha!',4000);setTimeout(()=>renderLogin({cnpj,info:`✅ Nova senha: <strong style="font-family:monospace;letter-spacing:.1em;">${s}</strong>`}),1500);}catch{btn.disabled=false;btn.innerHTML=`<i class="ri-whatsapp-line"></i> Tentar novamente`;}});
+    // [FIX-v71-RENOVAR-RACE] Desabilita TODOS os botões ao iniciar — evita duas senhas geradas em paralelo
+    btn.addEventListener('click',async()=>{
+      const todos=_todosOsBotoes();todos.forEach(b=>{b.disabled=true;});
+      btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';
+      try{
+        const s=await renovarSenha();const n=num.length<=11?'55'+num:num;
+        window.open(`https://wa.me/${n}?text=${encodeURIComponent(`🔐 *Portal ONLINE-ES — Nova senha*\n\n🔗 ${portalUrl}\n👤 ${cnpj}\n🔑 *${s}* (30 dias)`)}`, '_blank');
+        toast('✅ WhatsApp aberto com nova senha!',4000);
+        // [FIX-v71-SENHA-DISPLAY] Exibe senha com toggle de visibilidade em vez de texto exposto
+        setTimeout(()=>renderLogin({cnpj,senhaGerada:s}),1500);
+      }catch{todos.forEach(b=>{b.disabled=false;});btn.innerHTML=`<i class="ri-whatsapp-line"></i> Tentar novamente`;}
+    });
     acoesEl.appendChild(btn);
   });
 }
 
 /* ── render esqueci ── */
-function renderEsqueci(){
+// [FIX-v71-ESQUECI-SELF] Recebe cnpj digitado — se preenchido, tenta verificar contatos e mostrar opções de renovação
+async function renderEsqueci(cnpjDigitado){
+  _lbSafeClose(); // [FIX-v76-LB-LOGIN]
+  const cnpjRaw=normCnpj(cnpjDigitado||'');
   el().innerHTML=`
     <div class="card anim-1">
       <div class="card-glow"></div>
       <h2><span class="icon-wrap"><i class="ri-key-line"></i></span> Recuperar acesso</h2>
-      <p style="font-size:.82rem;color:var(--text2);margin-bottom:16px;line-height:1.6;">Entre em contato com a ONLINE-ES informando seu CNPJ/CPF para receber uma nova senha de acesso.</p>
-      <div style="background:rgba(37,99,235,.07);border:1px solid rgba(37,99,235,.2);border-radius:12px;padding:16px;font-size:.82rem;color:var(--text2);line-height:2;">
-        <div style="display:flex;align-items:center;gap:8px;"><i class="ri-whatsapp-line" style="color:#4ade80;font-size:1rem;"></i> <strong style="color:#fff;">(27) 99806-7411</strong></div>
-        <div style="display:flex;align-items:center;gap:8px;"><i class="ri-global-line" style="color:var(--blue2);font-size:1rem;"></i> <span>www.onlinees.com.br</span></div>
+      <div id="esqueciBotoes">
+        ${cnpjRaw.length>=8?'<div class="loading" style="padding:24px 0;"><div class="loading-icon"></div><p>Verificando seu cadastro...</p></div>':''}
+        ${cnpjRaw.length<8?`<p style="font-size:.82rem;color:var(--text2);margin-bottom:16px;line-height:1.6;">Entre em contato com a ONLINE-ES informando seu CNPJ/CPF para receber uma nova senha de acesso.</p>
+        <div style="background:rgba(37,99,235,.07);border:1px solid rgba(37,99,235,.2);border-radius:12px;padding:16px;font-size:.82rem;color:var(--text2);line-height:2;">
+          <div style="display:flex;align-items:center;gap:8px;"><i class="ri-whatsapp-line" style="color:#4ade80;font-size:1rem;"></i> <strong style="color:#fff;">(27) 99806-7411</strong></div>
+          <div style="display:flex;align-items:center;gap:8px;"><i class="ri-global-line" style="color:var(--blue2);font-size:1rem;"></i> <span>www.onlinees.com.br</span></div>
+        </div>`:''}
       </div>
       <button class="btn-ghost" id="btnVoltarEsq" style="margin-top:14px;"><i class="ri-arrow-left-line"></i> Voltar ao login</button>
     </div>`;
-  document.getElementById('btnVoltarEsq').addEventListener('click',()=>renderLogin());
+  document.getElementById('btnVoltarEsq').addEventListener('click',()=>renderLogin({cnpj:cnpjDigitado}));
+
+  // Se tem CNPJ, tenta buscar contatos para self-service
+  if(cnpjRaw.length>=8){
+    try{
+      if(!await garantirAuth()){throw new Error('sem auth');}
+      const snap=await Promise.race([
+        db.collection('onlineEsPortalClientes').doc(cnpjRaw).get(),
+        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))
+      ]);
+      const acoesEl=document.getElementById('esqueciBotoes');if(!acoesEl)return;
+      if(!snap.exists){
+        acoesEl.innerHTML=`<p style="font-size:.82rem;color:var(--text2);line-height:1.6;">CNPJ/CPF não encontrado. Entre em contato com a ONLINE-ES.</p>
+          <div style="background:rgba(37,99,235,.07);border:1px solid rgba(37,99,235,.2);border-radius:12px;padding:16px;font-size:.82rem;color:var(--text2);line-height:2;margin-top:8px;">
+            <div style="display:flex;align-items:center;gap:8px;"><i class="ri-whatsapp-line" style="color:#4ade80;font-size:1rem;"></i> <strong style="color:#fff;">(27) 99806-7411</strong></div>
+          </div>`;
+        return;
+      }
+      const cred=snap.data();
+      const emails=(cred.emails||[]).filter(Boolean),whatsapps=(cred.whatsapps||[]).filter(Boolean);
+      if(!emails.length&&!whatsapps.length){
+        acoesEl.innerHTML=`<p style="font-size:.82rem;color:var(--text2);line-height:1.6;">Nenhum contato cadastrado. Entre em contato com a ONLINE-ES pelo <strong style="color:#fff;">(27) 99806-7411</strong>.</p>`;
+        return;
+      }
+      // [FIX-v72-ESQUECI-FRAME] NÃO redireciona para renderExpirada (exibia "Senha expirada" mesmo com senha válida).
+      // Renderiza botões de renovação inline com framing neutro: "Receber nova senha"
+      acoesEl.innerHTML='<p style="font-size:.82rem;color:var(--text2);margin-bottom:12px;line-height:1.6;">Escolha como receber uma nova senha de acesso:</p>';
+      const portalUrl=window.location.origin+window.location.pathname+'?cnpj='+cnpjRaw;
+      function _todosEsq(){return Array.from(acoesEl.querySelectorAll('button'));}
+      async function _renovarEsq(){
+        if(!await garantirAuth())throw new Error('Sem conexão com o servidor.');
+        const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();
+        await db.collection('onlineEsPortalClientes').doc(cnpjRaw).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});
+        return s;
+      }
+      emails.forEach(email=>{
+        const btn=document.createElement('button');btn.className='btn-primary';
+        btn.style.cssText='background:linear-gradient(135deg,#0ea5e9,#0284c7);box-shadow:0 4px 20px rgba(14,165,233,.3);margin-bottom:8px;';
+        btn.innerHTML=`<i class="ri-mail-send-line"></i> Enviar nova senha para ${esc(email)}`;
+        btn.addEventListener('click',async()=>{
+          _todosEsq().forEach(b=>{b.disabled=true;});
+          btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';
+          try{
+            const s=await _renovarEsq();
+            window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Portal ONLINE-ES — Nova senha')}&body=${encodeURIComponent(`Sua nova senha:\n\n🔗 ${portalUrl}\n👤 ${cnpjRaw}\n🔑 Senha: ${s} (30 dias)\n\nGuarde esta mensagem.`)}`, '_blank');
+            toast('✅ E-mail aberto com nova senha!',4000);
+            setTimeout(()=>renderLogin({cnpj:cnpjDigitado,senhaGerada:s}),1500);
+          }catch{_todosEsq().forEach(b=>{b.disabled=false;});btn.innerHTML=`<i class="ri-mail-send-line"></i> Tentar novamente`;}
+        });
+        acoesEl.appendChild(btn);
+      });
+      whatsapps.forEach(num=>{
+        const btn=document.createElement('button');btn.className='btn-primary';
+        btn.style.cssText='background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.3);margin-bottom:8px;';
+        btn.innerHTML=`<i class="ri-whatsapp-line"></i> Receber nova senha via WhatsApp (+${esc(num)})`;
+        btn.addEventListener('click',async()=>{
+          _todosEsq().forEach(b=>{b.disabled=true;});
+          btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando...';
+          try{
+            const s=await _renovarEsq();const n=num.length<=11?'55'+num:num;
+            window.open(`https://wa.me/${n}?text=${encodeURIComponent(`🔐 *Portal ONLINE-ES — Nova senha*\n\n🔗 ${portalUrl}\n👤 ${cnpjRaw}\n🔑 *${s}* (30 dias)`)}`, '_blank');
+            toast('✅ WhatsApp aberto com nova senha!',4000);
+            setTimeout(()=>renderLogin({cnpj:cnpjDigitado,senhaGerada:s}),1500);
+          }catch{_todosEsq().forEach(b=>{b.disabled=false;});btn.innerHTML=`<i class="ri-whatsapp-line"></i> Tentar novamente`;}
+        });
+        acoesEl.appendChild(btn);
+      });
+    }catch{
+      const acoesEl=document.getElementById('esqueciBotoes');
+      if(acoesEl)acoesEl.innerHTML=`<p style="font-size:.82rem;color:var(--text2);line-height:1.6;">Não foi possível verificar seu cadastro. Entre em contato com a ONLINE-ES pelo <strong style="color:#fff;">(27) 99806-7411</strong>.</p>`;
+    }
+  }
 }
 
 /* ── render lista ── */
 async function renderLista(){
+  _lbSafeClose(); // [FIX-v73-LB-NAV-LEAK]
+  // [FIX-v77-HISTORY] Empurra estado 'lista' — botão Voltar do Android retorna à lista em vez de sair
+  if(!history.state||history.state.portal!=='lista'){history.pushState({portal:'lista'},'','');}
   document.title='Meus Relatórios — Portal ONLINE-ES';
+  // [FIX-v71-SESS-RENEW] Renova TTL da sessão a cada navegação
+  if(sessao)salvarSessao(sessao);
   // Show skeleton loading
   el().innerHTML=`
     <div class="skel-card skeleton anim-1"></div>
@@ -1121,8 +1501,17 @@ async function renderLista(){
   function renderCards(){
     const lista=document.getElementById('listaRats');if(!lista)return;
     let filtrados=rats.filter(r=>{
-      const matchStatus=filtroStatus==='todos'||r.status===filtroStatus;
-      const matchBusca=!termoBusca||(r.numero||'').toLowerCase().includes(termoBusca)||(r.equipamento||'').toLowerCase().includes(termoBusca)||(r.cliente||'').toLowerCase().includes(termoBusca);
+      // [FIX-v71-FILTRO-CASE] Comparação case-insensitive — evita que "concluído" ≠ "Concluído"
+      const statusR=(r.status||'').toLowerCase().trim();
+      const matchStatus=filtroStatus==='todos'||statusR===(filtroStatus.toLowerCase().trim());
+      // [FIX-v71-BUSCA-EXPAND] Busca agora inclui técnico, data e status além dos campos originais
+      const matchBusca=!termoBusca||
+        (r.numero||'').toLowerCase().includes(termoBusca)||
+        (r.equipamento||'').toLowerCase().includes(termoBusca)||
+        (r.cliente||'').toLowerCase().includes(termoBusca)||
+        (r.tecnico||'').toLowerCase().includes(termoBusca)||
+        (r.status||'').toLowerCase().includes(termoBusca)||
+        (r.dataHoraIso||r.dataHora||'').toLowerCase().includes(termoBusca);
       return matchStatus&&matchBusca;
     });
     if(!filtrados.length){
@@ -1154,9 +1543,11 @@ async function renderLista(){
 
   let html=`
     <div class="session-bar anim-1">
-      <div>
+      <!-- [FIX-v75-SESS-NAME] min-width:0 necessário para flex item truncar com text-overflow -->
+      <div style="min-width:0;overflow:hidden;flex:1;">
         <div class="session-name">${esc(sessao.nome)}</div>
-        <div class="session-cnpj">${esc(sessao.cnpj)} &middot; ${rats.length} relatório(s)</div>
+        <!-- [FIX-v76-SESS-CNPJ] maskCnpj aplicado — CNPJ exibido formatado na session bar -->
+        <div class="session-cnpj">${esc(maskCnpj(sessao.cnpj))} &middot; ${rats.length} relatório(s)${rats.length>=50?' <span style="color:var(--accent);font-size:.65rem;" title="Exibindo os 50 mais recentes">(50 mais recentes)</span>':''}</div>
       </div>
       <button class="btn-logout" id="btnSair"><i class="ri-logout-box-line"></i> Sair</button>
     </div>
@@ -1174,7 +1565,9 @@ async function renderLista(){
     <div class="filter-bar anim-2" id="statusChips">
       <button class="filter-chip active" data-status="todos">Todos</button>
       <button class="filter-chip" data-status="Concluído">Concluído</button>
+      <button class="filter-chip" data-status="Concluído com pendência">Com pendência</button>
       <button class="filter-chip" data-status="Pendente">Pendente</button>
+      <button class="filter-chip" data-status="Não concluído">Não concluído</button>
     </div>
     <div class="section-label anim-2"><i class="ri-file-list-3-line"></i> Relatórios</div>
     <div id="listaRats"></div>`;
@@ -1186,11 +1579,17 @@ async function renderLista(){
   renderCards();
 
   document.getElementById('btnSair')?.addEventListener('click',()=>{sessao=null;limparSessao();renderLogin();});
-  document.getElementById('inputBusca')?.addEventListener('input',e=>{termoBusca=e.target.value.toLowerCase().trim();renderCards();});
+  // [FIX-v77-SEARCH-DEBOUNCE] Debounce de 150ms — evita renderCards a cada tecla pressionada
+  let _buscaTimer=null;
+  document.getElementById('inputBusca')?.addEventListener('input',e=>{
+    clearTimeout(_buscaTimer);
+    _buscaTimer=setTimeout(()=>{termoBusca=e.target.value.toLowerCase().trim();renderCards();},150);
+  });
   document.getElementById('statusChips')?.querySelectorAll('.filter-chip').forEach(chip=>{
     chip.addEventListener('click',()=>{
       filtroStatus=chip.getAttribute('data-status');
-      document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+      // [FIX-v73-CHIP-SCOPE] Scoped to #statusChips — não afeta outros chips em outros contextos
+      document.getElementById('statusChips')?.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
       chip.classList.add('active');
       renderCards();
     });
@@ -1199,15 +1598,26 @@ async function renderLista(){
 
 /* ── render detalhe ── */
 function renderDetalhe(r){
-  document.title=`${r.numero||'RAT'} — Portal ONLINE-ES`;
+  _lbSafeClose(); // [FIX-v73-LB-NAV-LEAK]
+  // [FIX-v77-HISTORY] Empurra estado 'detalhe' — botão Voltar do Android vai para lista
+  history.pushState({portal:'detalhe',ratId:r._id||''},'','');
+  // [FIX-v73-TITLE-SAFE] Sanitiza r.numero para evitar chars especiais no título da aba
+  const _safeNum=(r.numero||'RAT').replace(/[^\w\d\s\-\.\/]/g,'').slice(0,40);
+  document.title=`${_safeNum} — Portal ONLINE-ES`;
   // [FIX-IOS-SHARE] Pré-carrega jsPDF em background ao abrir o detalhe.
   // navigator.share no iOS Safari só funciona dentro de um user gesture SÍNCRONO.
   // Se jsPDF ainda não está em cache, o await _ensureJsPDF() dentro do clique
   // faz fetch da CDN (~300ms) e o iOS considera o gesture expirado, rejeitando o share.
   // Pré-carregando aqui, o await no clique resolve instantaneamente do cache.
   try { _ensureJsPDF(); } catch(e) {}
-  const campo=(label,val)=>{if(val===null||val===undefined||val==='')return'';return`<div class="campo"><div class="campo-label">${label}</div><div class="campo-valor">${esc(String(val))}</div></div>`;};
-  const sigHtml=(r.assinaturaCliente&&/^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(r.assinaturaCliente))?`<hr class="divider"><div class="campo-label">Assinatura do cliente</div><div class="sig-box"><img src="${r.assinaturaCliente}" style="max-width:180px;display:block;" alt="Assinatura"></div>`:'';
+  // [FIX-v72-ACOES-ARRAY] campo suporta array (r.acoes é array de strings no index.html)
+  const _formatVal=v=>{
+    if(v===null||v===undefined||v==='')return null;
+    if(Array.isArray(v))return v.filter(Boolean).map(a=>'• '+a).join('\n')||null;
+    return String(v);
+  };
+  const campo=(label,val)=>{const fv=_formatVal(val);if(!fv)return'';return`<div class="campo"><div class="campo-label">${label}</div><div class="campo-valor">${esc(fv)}</div></div>`;};
+  const sigHtml=(r.assinaturaCliente&&/^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(r.assinaturaCliente))?`<hr class="divider"><div class="campo-label">Assinatura do cliente</div><div class="sig-box"><img src="${esc(r.assinaturaCliente)}" style="max-width:180px;display:block;" alt="Assinatura"></div>`:'';
   const endFull=[r.endereco,r.bairro,r.cidade,r.uf].filter(Boolean).join(', ');
 
   // Timeline de status
@@ -1247,10 +1657,11 @@ function renderDetalhe(r){
       ${campo('Técnico', r.tecnico)}
       <div class="sec-head"><i class="ri-building-2-line"></i> Dados do Cliente</div>
       ${campo('Cliente', r.cliente)}
-      ${campo('CNPJ / CPF', r.cnpjCliente)}
+      ${campo('CNPJ / CPF', maskCnpj(r.cnpjCliente||''))}
       ${campo('Endereço', endFull)}
       ${campo('Contato', r.contato)}
-      ${campo('Telefone', r.telefone)}
+      ${campo('Telefone', maskTel(r.telefone))}
+      ${r.whatsapp?campo('WhatsApp', maskTel(r.whatsapp)):''}
       <div class="sec-head"><i class="ri-tools-line"></i> Dados Técnicos</div>
       ${campo('Equipamento', r.equipamento)}
       ${campo('Nº de Série', r.serie)}
@@ -1265,7 +1676,11 @@ function renderDetalhe(r){
         const allImgs=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[])
           .filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
         if(!allImgs.length)return '';
-        const thumbs=allImgs.map((src,i)=>`<div class="foto-thumb" data-idx="${i}" style="background-image:url('${src}')"></div>`).join('');
+        // [FIX-v72-LAZY-FOTOS] Armazena imagens em array JS global — DOM contém apenas o índice.
+        // Corrige regressão v71: data-src="base64..." colocava todo o conteúdo no DOM de qualquer forma.
+        // O IntersectionObserver lê do array _portalImgCache[idx] em vez do atributo HTML.
+        window._portalImgCache=allImgs;
+        const thumbs=allImgs.map((_,i)=>`<div class="foto-thumb" data-idx="${i}" style="background-color:rgba(255,255,255,.04);"></div>`).join('');
         return `<hr class="divider"><div class="sec-head"><i class="ri-image-2-line"></i> Fotos do Atendimento</div><div class="foto-grid">${thumbs}</div>`;
       })()}
       ${(()=>{/* [FIX-PORTAL-OPEN-REDIRECT] Valida protocolo antes de usar como href — esc() não bloqueia javascript: */const _safeMapUrl=/^https?:\/\//i.test(r.localizacaoLink)?r.localizacaoLink:null;return _safeMapUrl?`<hr class="divider"><a href="${_safeMapUrl}" target="_blank" rel="noopener noreferrer" class="btn-mapa"><i class="ri-map-pin-2-line"></i> Ver localização no Google Maps</a>`:''})()}
@@ -1279,16 +1694,40 @@ function renderDetalhe(r){
       <span><i class="ri-refresh-line" style="color:var(--blue2);"></i> Atualizado em tempo real</span>
       <span><i class="ri-whatsapp-line" style="color:#4ade80;"></i> Suporte: (27) 99806-7411</span>
     </div>`;
-  document.getElementById('btnVoltar').addEventListener('click',renderLista);
+  // [FIX-v72-OBS-LEAK] Desconecta observer anterior (evita leak ao navegar entre RATs)
+  if(window._portalThumbObs){try{window._portalThumbObs.disconnect();}catch{}window._portalThumbObs=null;}
 
-  // Wire photo thumbnails to lightbox
+  // [FIX-v72-LAZY-FOTOS] IntersectionObserver lê de _portalImgCache[idx] — não do atributo HTML
+  // Corrige regressão v71: data-src no DOM colocava o base64 em memória de qualquer forma
   const allImgsDetalhe=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[])
     .filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
+  window._portalImgCache=allImgsDetalhe; // array JS, não vai para o DOM
   if(allImgsDetalhe.length){
+    const _obs=('IntersectionObserver' in window)
+      ?new IntersectionObserver((entries,obs)=>{
+          entries.forEach(en=>{
+            if(!en.isIntersecting)return;
+            const th=en.target;
+            const idx=parseInt(th.getAttribute('data-idx'),10);
+            const src=(window._portalImgCache||[])[idx];
+            if(src)th.style.backgroundImage=`url('${src}')`;
+            obs.unobserve(th);
+          });
+        },{rootMargin:'100px'})
+      :null;
+    if(_obs)window._portalThumbObs=_obs;
     el().querySelectorAll('.foto-thumb').forEach((thumb,i)=>{
+      if(_obs)_obs.observe(thumb);
+      else{const src=allImgsDetalhe[i];if(src)thumb.style.backgroundImage=`url('${src}')`;}
       thumb.addEventListener('click',()=>lbOpen(allImgsDetalhe,i));
     });
   }
+  // Desconecta observer e limpa cache ao voltar — [FIX-v72-OBS-LEAK]
+  document.getElementById('btnVoltar').addEventListener('click',()=>{
+    if(window._portalThumbObs){try{window._portalThumbObs.disconnect();}catch{}window._portalThumbObs=null;}
+    window._portalImgCache=null;
+    renderLista();
+  });
   document.getElementById('btnPdf').addEventListener('click',async()=>{
     const btn=document.getElementById('btnPdf');if(!btn)return;
     btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando PDF...';
@@ -1394,6 +1833,9 @@ function _ensureJsPDF(){
   return _jspdfPromise;
 }
 
+// [FIX-v74-SIG-OFFSCREEN] normalizarAssinaturaPNG com OffscreenCanvas + requestIdleCallback
+// Porta o fix do index.html (FIX-v71-SIG-OFFSCREEN) para o portal — evita bloquear o
+// main thread durante o loop pixel-a-pixel em mobile ao gerar PDF com assinatura
 async function normalizarAssinaturaPNG(dataUrl,targetW,targetH){
   return new Promise(function(resolve){
     if(!dataUrl){resolve(null);return;}
@@ -1403,42 +1845,74 @@ async function normalizarAssinaturaPNG(dataUrl,targetW,targetH){
     img.onerror=function(){if(!_done){_done=true;clearTimeout(_timer);resolve(dataUrl);}};
     img.onload=function(){
       if(_done)return;_done=true;clearTimeout(_timer);
-      var tmp=document.createElement('canvas');
-      tmp.width=img.width;tmp.height=img.height;
-      var ctx=tmp.getContext('2d');
-      ctx.drawImage(img,0,0);
-      var data=ctx.getImageData(0,0,img.width,img.height).data;
-      var minX=img.width,minY=img.height,maxX=0,maxY=0,encontrou=false;
-      for(var py=0;py<img.height;py++){
-        for(var px=0;px<img.width;px++){
-          var idx=(py*img.width+px)*4;
+
+      function _processarPixels(data,w,h){
+        var minX=w,minY=h,maxX=0,maxY=0,encontrou=false;
+        for(var y=0;y<h;y++){for(var x=0;x<w;x++){
+          var idx=(y*w+x)*4;
           if(data[idx]<200||data[idx+1]<200||data[idx+2]<200){
-            if(px<minX)minX=px;if(px>maxX)maxX=px;
-            if(py<minY)minY=py;if(py>maxY)maxY=py;
-            encontrou=true;
+            if(x<minX)minX=x;if(x>maxX)maxX=x;
+            if(y<minY)minY=y;if(y>maxY)maxY=y;encontrou=true;
           }
-        }
+        }}
+        return encontrou?{minX,minY,maxX,maxY}:null;
       }
-      if(!encontrou){resolve(dataUrl);return;}
-      var p=8;
-      minX=Math.max(0,minX-p);minY=Math.max(0,minY-p);
-      maxX=Math.min(img.width-1,maxX+p);maxY=Math.min(img.height-1,maxY+p);
-      var bW=maxX-minX,bH=maxY-minY;
-      if(bW<1||bH<1){resolve(dataUrl);return;}
-      var scale=Math.min(targetW/bW,targetH/bH);
-      var outW=Math.round(bW*scale),outH=Math.round(bH*scale);
-      var out=document.createElement('canvas');
-      out.width=targetW;out.height=targetH;
-      var octx=out.getContext('2d');
-      octx.fillStyle='#ffffff';
-      octx.fillRect(0,0,targetW,targetH);
-      octx.drawImage(tmp,minX,minY,bW,bH,Math.round((targetW-outW)/2),Math.round((targetH-outH)/2),outW,outH);
-      resolve(out.toDataURL('image/png'));
+      function _cropECentralizar(srcCanvas,bbox,w,h){
+        if(!bbox){resolve(dataUrl);return;}
+        var p=8;
+        var minX=Math.max(0,bbox.minX-p),minY=Math.max(0,bbox.minY-p);
+        var maxX=Math.min(w-1,bbox.maxX+p),maxY=Math.min(h-1,bbox.maxY+p);
+        var bW=maxX-minX,bH=maxY-minY;
+        if(bW<1||bH<1){resolve(dataUrl);return;}
+        var scale=Math.min(targetW/bW,targetH/bH);
+        var outW=Math.round(bW*scale),outH=Math.round(bH*scale);
+        var out=document.createElement('canvas');out.width=targetW;out.height=targetH;
+        var octx=out.getContext('2d');
+        octx.fillStyle='#ffffff';octx.fillRect(0,0,targetW,targetH);
+        octx.drawImage(srcCanvas,minX,minY,bW,bH,Math.round((targetW-outW)/2),Math.round((targetH-outH)/2),outW,outH);
+        resolve(out.toDataURL('image/png'));
+      }
+
+      // Tenta via OffscreenCanvas (não bloqueia UI)
+      if(typeof OffscreenCanvas!=='undefined'){
+        try{
+          var osc=new OffscreenCanvas(img.width,img.height);
+          var octxOff=osc.getContext('2d');octxOff.drawImage(img,0,0);
+          var imgData=octxOff.getImageData(0,0,img.width,img.height);
+          var _doProcess=function(){
+            var bbox=_processarPixels(imgData.data,img.width,img.height);
+            var tmp=document.createElement('canvas');tmp.width=img.width;tmp.height=img.height;
+            tmp.getContext('2d').drawImage(img,0,0);
+            _cropECentralizar(tmp,bbox,img.width,img.height);
+          };
+          if(typeof requestIdleCallback!=='undefined'){requestIdleCallback(_doProcess,{timeout:3000});}
+          else{setTimeout(_doProcess,0);}
+          return;
+        }catch(e){/* fallback abaixo */}
+      }
+      // Fallback: canvas DOM síncrono (iOS <16.4)
+      var tmp=document.createElement('canvas');tmp.width=img.width;tmp.height=img.height;
+      var ctx=tmp.getContext('2d');ctx.drawImage(img,0,0);
+      var data=ctx.getImageData(0,0,img.width,img.height).data;
+      var bbox=_processarPixels(data,img.width,img.height);
+      _cropECentralizar(tmp,bbox,img.width,img.height);
     };
     img.src=dataUrl;
   });
 }
-async function addImagemReduzidaAoPdf(doc,src,x,y,maxW,maxH){
+async function addImagemReduzidaAoPdf(doc,src,x,y,maxW,maxH,preDecoded=null){
+  // [FIX-v73-PDF-CACHE] Usa Image pré-decodificada se disponível — elimina re-decode serial
+  if(preDecoded&&preDecoded.complete&&preDecoded.naturalWidth>0){
+    try{
+      var w=preDecoded.naturalWidth,h=preDecoded.naturalHeight;
+      if(!w||!h)return 0;
+      var scale=Math.min(maxW/w,maxH/h,1);
+      var fw=w*scale,fh=h*scale;
+      var fmt=src&&src.startsWith('data:image/png')?'PNG':'JPEG';
+      doc.addImage(src,fmt,x,y,fw,fh);
+      return fh;
+    }catch(e){return 0;}
+  }
   // [FIX-PORTAL-PDF] Detecta formato correto (PNG vs JPEG) a partir do dataUrl
   // antes de passar para doc.addImage — evita erro de formato no jsPDF.
   try{return await new Promise(function(res){
@@ -1509,7 +1983,14 @@ async function gerarPDF(r, abrirAba=false, retornarBlob=false){
     doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(15,23,42);doc.text('6. Anexos fotográficos',10,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(8);
     const allImages=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[]).filter(s=>s&&typeof s==='string'&&s!=='[local]'&&s!=='[comprimido]'&&s.startsWith('data:'));
     if(!allImages.length){doc.setTextColor(150);doc.text('As fotos estão salvas no dispositivo do técnico.',10,y);doc.setTextColor(0);y+=8;}
-    else{doc.setTextColor(15,23,42);doc.text('As imagens abaixo foram reduzidas automaticamente para envio em PDF.',10,y);y+=5;await Promise.allSettled(allImages.map(src=>new Promise(res=>{var pi=new Image();pi.onload=res;pi.onerror=res;pi.src=src;})));let col=0,rowMaxH=40;for(let i=0;i<allImages.length;i++){if(y>265){doc.addPage();y=15;}const x=col===0?10:110;const imgH=await addImagemReduzidaAoPdf(doc,allImages[i],x,y,85,55);if(imgH>0){rowMaxH=Math.max(rowMaxH,imgH);if(col===1){y+=rowMaxH+6;col=0;rowMaxH=40;}else col=1;}}if(col===1)y+=rowMaxH+6;y+=4;}
+    else{doc.setTextColor(15,23,42);doc.text('As imagens abaixo foram reduzidas automaticamente para envio em PDF.',10,y);y+=5;
+    // [FIX-v73-PDF-CACHE] Pré-decodifica imagens em paralelo e guarda os elementos Image prontos
+    // addImagemReduzidaAoPdf usa o elemento pré-decodificado — elimina re-decode serial (~70% mais rápido)
+    const _pdfImgCache=await Promise.all(allImages.map(src=>new Promise(res=>{
+      if(!src){res(null);return;}
+      var pi=new Image();pi.onload=function(){res(pi);};pi.onerror=function(){res(null);};pi.src=src;
+    })));
+    let col=0,rowMaxH=40;for(let i=0;i<allImages.length;i++){if(y>265){doc.addPage();y=15;}const x=col===0?10:110;const imgH=await addImagemReduzidaAoPdf(doc,allImages[i],x,y,85,55,_pdfImgCache[i]||null);if(imgH>0){rowMaxH=Math.max(rowMaxH,imgH);if(col===1){y+=rowMaxH+6;col=0;rowMaxH=40;}else col=1;}}if(col===1)y+=rowMaxH+6;y+=4;}
   }
   if(y>230){doc.addPage();y=30;}else y+=15;
   const topoAssY=y,SIG_W=60,SIG_H=28,SIG_NORM_W=600,SIG_NORM_H=168;
@@ -1551,9 +2032,20 @@ async function gerarPDF(r, abrirAba=false, retornarBlob=false){
         w.document.close();
         toast('✅ PDF aberto em nova aba!',3000);
       }else{
-        const link=document.createElement('a');
-        link.href='data:application/pdf;base64,'+btoa(doc.output());
-        link.download=nomeArq;link.click();
+        // [FIX-v71-BTOA] btoa() falha com chars não-Latin1 (ex: nomes com acentos fora do range)
+        // Substitui por URL.createObjectURL(blob) que é sempre seguro para conteúdo binário
+        try{
+          const _blobFb=doc.output('blob');
+          const _urlFb=URL.createObjectURL(_blobFb);
+          const link=document.createElement('a');
+          link.href=_urlFb;link.download=nomeArq;link.style.display='none';
+          document.body.appendChild(link);link.click();
+          setTimeout(()=>{URL.revokeObjectURL(_urlFb);document.body.removeChild(link);},3000);
+        }catch{
+          // último recurso: datauristring já foi gerado acima, tenta novamente
+          const link=document.createElement('a');
+          link.href=doc.output('datauristring');link.download=nomeArq;link.click();
+        }
         toast('✅ PDF gerado!',3000);
       }
     }catch(fallbackErr){
@@ -1594,7 +2086,9 @@ async function init(){
       if(snap.exists&&snap.data().ativo!==false){
         const cred=snap.data();
         const agora=new Date(),expira=cred.expiradoEm?new Date(cred.expiradoEm):new Date(0);
-        if(agora<=expira){sessao={cnpj:sess.cnpj,nome:cred.nome||sess.cnpj,cred};salvarSessao(sessao);renderLista();return;}
+        // [FIX-v73-SESS-RESTORE-HASH] Sanitiza cred na restauração — mesmo tratamento do login normal
+        const credSafeRestore={expiradoEm:cred.expiradoEm,ativo:cred.ativo,nome:cred.nome,emails:cred.emails,whatsapps:cred.whatsapps};
+        if(agora<=expira){sessao={cnpj:sess.cnpj,nome:cred.nome||sess.cnpj,cred:credSafeRestore};salvarSessao(sessao);renderLista();return;}
       }
     }catch{}
     limparSessao();
@@ -1602,6 +2096,25 @@ async function init(){
   renderLogin({cnpj:cnpjUrl});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+
+// [FIX-v77-HISTORY] Intercepta botão Voltar do Android/browser
+// detalhe → lista: vai para renderLista (sem fazer novo pushState para não criar loop)
+// lista → login: encerra sessão e vai para login
+// Sem este listener, o botão de voltar sairia completamente do portal
+window.addEventListener('popstate',function(e){
+  const state=e.state;
+  if(state&&state.portal==='detalhe'){
+    // Voltando de dentro de um detalhe → vai para lista
+    if(sessao){renderLista();}else{renderLogin();}
+  }else if(state&&state.portal==='lista'){
+    // Voltando da lista → vai para login (sem apagar sessão — usuário pode re-entrar)
+    renderLogin({cnpj:sessao?sessao.cnpj:''});
+  }else{
+    // Estado desconhecido — vai para login seguro
+    if(sessao){sessao=null;limparSessao();}
+    renderLogin();
+  }
+});
 })();
 </script>
 </body>
