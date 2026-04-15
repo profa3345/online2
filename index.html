@@ -7,7 +7,15 @@
     → _mergeDoc retornava versão do Firestore com '[local]'/'[comprimido]' para todas as imagens
     → saveRelatorios sobrescrevia localStorage com os placeholders, apagando os data: URIs reais.
     Fix: quando rLocal=null, busca versão local diretamente do loadRelatorios() antes de _mergeDoc.
-  - [FIX-v79-SNAP-IMG] CORREÇÃO FUNCIONAL CRÍTICA (2ª parte): o onSnapshot do Firestore
+  - [FIX-v79-VAL-CLI] validarObrigatorios(): campo "Cliente / Empresa" robustecido.
+    Antes: aClienteSelect null causava TypeError silencioso que bypassava toda a validação.
+    Agora: try/catch com mensagem clara; guard contra elementos nulos; se usuário digitou
+    no campo de busca mas não selecionou um cliente da lista, instrui explicitamente a
+    selecionar ou usar "Digitar manualmente".
+  - [FIX-v79-VAL-CNPJ] CNPJ/CPF deixa de ser obrigatório para clientes JÁ cadastrados
+    (modo select) — clientes antigos sem CNPJ não bloqueavam mais o save.
+    CNPJ continua obrigatório apenas no modo manual (cadastro de novo cliente).
+  - [FIX-v79-VAL-CLI] cDiagnostico/cAcoes/aDataHoraBR também com guard contra null.
     sobrescrevia o localStorage com '[local]'/'[comprimido]' permanentemente, apagando
     os data:URIs reais das fotos e assinaturas a cada sync. Fix: antes de saveRelatorios()
     no handler do snapshot, para cada RAT compara com localStorage atual e preserva campos
@@ -9203,7 +9211,8 @@ if (logoBase64) {
     function _erroCampo(el, msg) {
       showToast(msg);
       var _elVisivel = el;
-      if (el && el.id === 'aClienteSelect') {
+      // [FIX-v79-VAL-CLI] Quando o elemento inválido é o select oculto, destaca o campo visível (busca)
+      if (!el || el.id === 'aClienteSelect') {
         _elVisivel = document.getElementById('aClienteBusca') || el;
       }
       // [UX] Navega para o step que contém o campo antes de destacar
@@ -9236,24 +9245,47 @@ if (logoBase64) {
       return false;
     }
 
-    const usandoManual = (aClienteManual && aClienteManual.style.display==='block');
-    const temCliente = usandoManual ? (aClienteManual.value||'').trim() : (aClienteSelect.value||'').trim();
-    if (!temCliente) return _erroCampo(usandoManual ? aClienteManual : aClienteSelect, 'O campo "Cliente / Empresa" é obrigatório.');
-
-    if (usandoManual){
-      const cnpjManual = (aCnpj && aCnpj.value ? aCnpj.value.trim() : '');
-      if (!cnpjManual) return _erroCampo(aCnpj, 'Informe o documento do cliente (CPF ou CNPJ) para cadastrá-lo.');
-    } else {
-      const nomeSel = (aClienteSelect && aClienteSelect.value) ? aClienteSelect.value.trim() : '';
-      if (nomeSel){
-        const cnpjSel = (aCnpj && aCnpj.value ? aCnpj.value.trim() : '');
-        if (!cnpjSel) return _erroCampo(aCnpj, 'Este cliente ainda está sem documento (CPF ou CNPJ). Informe no campo.');
+    // [FIX-v79-VAL-CLI] Validação de cliente robustecida:
+    // - Guard contra aClienteSelect/aClienteManual nulos (TypeError silencioso bypassava tudo)
+    // - aClienteBusca também é verificado como fallback visual quando select está vazio
+    // - CNPJ obrigatório apenas no modo manual (cadastro novo); seleção de cliente existente: opcional
+    try {
+      const usandoManual = (aClienteManual && aClienteManual.style.display === 'block');
+      let temCliente = '';
+      if (usandoManual) {
+        temCliente = (aClienteManual && aClienteManual.value || '').trim();
+      } else if (aClienteSelect) {
+        temCliente = (aClienteSelect.value || '').trim();
+        // Se select não tem valor mas busca tem texto, o usuário digitou mas não selecionou
+        if (!temCliente) {
+          const _busca = document.getElementById('aClienteBusca');
+          if (_busca && (_busca.value || '').trim()) {
+            // Há texto no campo de busca mas nenhum cliente selecionado — instrui o usuário
+            return _erroCampo(_busca, 'Selecione um cliente da lista ou clique em "Digitar manualmente".');
+          }
+        }
       }
+      if (!temCliente) {
+        return _erroCampo(usandoManual ? aClienteManual : aClienteSelect,
+          'O campo "Cliente / Empresa" é obrigatório.');
+      }
+
+      if (usandoManual) {
+        const cnpjManual = (aCnpj && aCnpj.value ? aCnpj.value.trim() : '');
+        if (!cnpjManual) return _erroCampo(aCnpj, 'Informe o CNPJ ou CPF do cliente para cadastrá-lo.');
+      }
+      // [FIX-v79-VAL-CNPJ] Removida exigência de CNPJ para clientes JÁ cadastrados (modo select):
+      // clientes antigos podem não ter CNPJ — bloquear o save era mais prejudicial que útil.
+      // O CNPJ é exigido apenas no modo manual (cadastro novo), onde é necessário para criar o registro.
+    } catch(e) {
+      console.error('[validarObrigatorios] Erro na validação de cliente:', e);
+      showToast('❌ Erro ao validar o campo "Cliente / Empresa". Verifique e tente novamente.');
+      return false;
     }
 
-    if (!cDiagnostico.value.trim()) return _erroCampo(cDiagnostico, 'O campo "Diagnóstico do técnico" é obrigatório.');
-    if (!cAcoes.value.trim())       return _erroCampo(cAcoes,       'O campo "Ações realizadas" é obrigatório.');
-    if (!/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.test((aDataHoraBR.value||'').trim()))
+    if (!cDiagnostico || !cDiagnostico.value.trim()) return _erroCampo(cDiagnostico, 'O campo "Diagnóstico do técnico" é obrigatório.');
+    if (!cAcoes || !cAcoes.value.trim())              return _erroCampo(cAcoes,       'O campo "Ações realizadas" é obrigatório.');
+    if (!/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.test((aDataHoraBR && aDataHoraBR.value || '').trim()))
       return _erroCampo(aDataHoraBR, 'Data/hora inválida. Use o formato: dd/mm/aaaa hh:mm');
     return true;
   }
