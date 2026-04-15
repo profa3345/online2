@@ -1,9 +1,19 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v77
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v79
+  Correções v79:
+  - [FIX-v79-SENHA-MENSAGEM] CORREÇÃO FUNCIONAL: senha não aparecia nas mensagens WhatsApp/e-mail
+    enviadas ao cliente quando a senha do portal ainda era válida (>7 dias).
+    Causa: _gerarCredencialPortal retornava nova:false/senha:null para não invalidar links existentes.
+    Fix: _forcarRenovacaoSenha=true adicionado em todos os 3 flows de envio de mensagem:
+    _gerarTokenPortal (Painel supervisor), flow de E-mail e flow de WhatsApp do Novo Atendimento.
+    O "Gerar link portal" (copiar URL) NÃO foi alterado — mantém senha existente corretamente.
+  Correções v78:
+  Correções v78:
   Correções v77:
-  - [FIX-v77-TOAST-DIRECT] Dois blocos escreviam diretamente em #toast (rascunho e PDF)
-    bypassando uxToast — visual inconsistente com os demais toasts. Substituídos por showToast().
+  - [FIX-v77-TOAST-DIRECT] 6 blocos escreviam diretamente em #toast bypassando uxToast:
+    "Rascunho salvo", "PDF gerado", "Relatório salvo", 3x "Acesso restrito".
+    Todos migrados para showToast() — visual consistente com os demais toasts do sistema.
   Correções v76:
   - [FIX-v76-TOAST-DEDUP] uxToast: deduplicação — ignora nova mensagem se o último toast
     visível já contém o mesmo texto. O sistema antigo (queue) tinha esta proteção mas o
@@ -6707,9 +6717,8 @@ function autoFillCamposAtendimento(){
     if ((_role === 'tecnico' && _telasRestritas.includes(nome)) ||
         (_role === 'supervisor' && _telasSoAdmin.includes(nome))) {
       try {
-        const toast = document.getElementById('toast');
         const _msg = _telasSoAdmin.includes(nome) ? 'Acesso restrito ao Administrador.' : 'Acesso restrito ao Supervisor/Admin.';
-        if (toast) { toast.textContent = _msg; toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 2500); }
+        try { if(typeof showToast==='function') showToast(_msg, 2500); } catch(e){}
       } catch(e){}
       nome = (_role === 'tecnico') ? 'meus' : 'painel'; // redireciona para tela permitida
     }
@@ -11034,6 +11043,7 @@ if (logoBase64) {
       if (window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
         try {
           showToast('🔗 Gerando credencial...', 2000);
+          r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
           var _credEmail = await window._gerarCredencialPortal(r);
           if (_credEmail && _credEmail.cnpj) {
             r._portalCnpj  = _credEmail.cnpj;
@@ -11142,6 +11152,7 @@ if (logoBase64) {
     if (window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
       try {
         showToast('🔗 Gerando credencial...', 2000);
+        r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
         var _credWa = await window._gerarCredencialPortal(r);
         if (_credWa && _credWa.cnpj) {
           r._portalCnpj  = _credWa.cnpj;
@@ -13727,11 +13738,8 @@ window.AppStorage = AppStorage;
       window.showScreen = function(sec){
         try {
           if (isTecnico() && sec && (sec.id === 'telaCadastros' || sec.id === 'telaSistema')) {
-            // Feedback sutil
-            try {
-              const toast = document.getElementById('toast') || null;
-              if (toast) { toast.textContent = 'Acesso restrito ao Supervisor/Admin.'; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2000); }
-            } catch(e){}
+            // [FIX-v77-TOAST-DIRECT] Feedback via showToast
+            try { if(typeof showToast==='function') showToast('Acesso restrito ao Supervisor/Admin.', 2000); } catch(e){}
             // Redireciona para uma tela permitida
             const fallback = document.getElementById('telaMeus') || document.getElementById('telaNovo');
             return __showScreen(fallback);
@@ -13795,11 +13803,8 @@ window.AppStorage = AppStorage;
         if(isTech && sec && (sec.id === 'telaCadastros' || sec.id === 'telaSistema')){
           const fallback = document.getElementById('telaMeus') || document.getElementById('telaNovo') || null;
           if(fallback){
-            // feedback breve, se houver toast
-            try{
-              const t = document.getElementById('toast');
-              if(t){ t.textContent = 'Acesso restrito ao Supervisor/Admin.'; t.style.display='block'; setTimeout(()=>t.style.display='none',2000); }
-            }catch(e){}
+            // [FIX-v77-TOAST-DIRECT] feedback via showToast
+            try{ if(typeof showToast==='function') showToast('Acesso restrito ao Supervisor/Admin.', 2000); }catch(e){}
             return (typeof orig === 'function') ? orig(fallback) : (fallback.style.display='block');
           }
           return;
@@ -16067,17 +16072,8 @@ async function fazerLogin(){
           // [FIX] .catch() evita unhandled rejection; para geração de token use os botões de envio
           window.salvarRelatorioNoFirestore(novo).catch(function(e){ console.warn('[Save] Firestore falhou:', e); });
         }
-        // Feedback visual
-        var toast = document.getElementById('toast');
-        if (toast){
-          toast.textContent = navigator.onLine
-            ? '✅ Relatório salvo com sucesso!'
-            : '📶 Sem internet — salvo localmente.';
-          toast.style.display = 'block';
-          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
-        } else {
-          showToast(navigator.onLine ? '✅ Relatório salvo com sucesso!' : '📶 Sem internet — salvo localmente.', 3000);
-        }
+        // [FIX-v77-TOAST-DIRECT] Usa showToast em vez de #toast direto
+        showToast(navigator.onLine ? '✅ Relatório salvo com sucesso!' : '📶 Sem internet — salvo localmente.', 3000);
         if (typeof window.renderLista === 'function') try { window.renderLista(); } catch(e){}
         if (typeof window.atualizarDashboard === 'function') try { window.atualizarDashboard(); } catch(e){}
       } catch(err){
@@ -17967,6 +17963,12 @@ window._urlPortal = function(token, rat){
 ──────────────────────────────────────────────────────────── */
 window._gerarTokenPortal = async function(rat){
   try{
+    // [FIX-v79-SENHA-MENSAGEM] Força renovação de senha ao enviar RAT via WhatsApp/e-mail.
+    // Sem isso: quando senha válida (>7 dias), _gerarCredencialPortal retornava nova:false e
+    // senha:null → mensagem dizia "senha já recebida anteriormente" em vez de mostrar a senha.
+    // O técnico que envia uma RAT AGORA precisa que a senha seja incluída na mensagem.
+    // Após 30 dias a senha expira — o cliente pode renovar pelo portal.
+    rat._forcarRenovacaoSenha = true;
     var resultado = await window._gerarCredencialPortal(rat);
     if(resultado && resultado.cnpj){
       // Salva cnpj no objeto rat para uso em _urlPortalV2

@@ -1,13 +1,28 @@
 <!DOCTYPE html>
-<!-- PORTAL DO CLIENTE — v77
+<!-- PORTAL DO CLIENTE — v79
+  Correções v79:
+  - [FIX-v79-MAP-ESC] _safeMapUrl inserida em href sem esc() — URL com aspas duplas (")
+    quebrava o atributo e permitia injeção de atributos HTML (ex: onmouseover).
+    O filtro /^https?:\/\// bloqueava javascript: mas não aspas. Corrigido com esc().
+  - [FIX-v79-SESS-GUARD] renderLista(): guard if(!sessao){renderLogin();return;} adicionado
+    no início — evita TypeError ao acessar sessao.cnpj quando chamada sem sessão ativa
+    (ex: btnRetentar após expiração, ou popstate em edge case).
+  Correções v78:
+  - [FIX-v78-HISTORY-BACK] btnVoltar agora usa history.back() em vez de renderLista().
+    renderLista() chamava pushState, empilhando entradas duplicadas na pilha de histórico
+    a cada vez que o usuário clicava Voltar. history.back() faz pop correto do estado 'detalhe',
+    popstate dispara → renderLista sem nova entrada. Limpeza de observer/cache movida para renderLista.
+  - [FIX-v78-CLEANUP] Observer (_portalThumbObs) e cache de fotos (_portalImgCache) limpos
+    no início de renderLista — cobre todos os caminhos (btnVoltar, Android back, logout, expiração).
   Correções v77:
-  - [FIX-v77-TOAST-DIRECT] (index.html) Dois blocos de código escreviam diretamente em
-    #toast com textContent/display — bypassando uxToast. Substituídos por showToast().
-    Mensagens "Rascunho salvo" e "PDF gerado" agora têm o mesmo visual das demais.
-  - [FIX-v77-SEARCH-DEBOUNCE] Campo de busca da lista de RATs: debounce de 150ms antes
-    de chamar renderCards() — evita re-render a cada tecla pressionada.
+  - [FIX-v77-HISTORY-BUG] popstate: lógica estava invertida — e.state é o estado de DESTINO,
+    não de origem. Back de detalhe→lista disparava renderLogin; back de lista→null disparava
+    renderLista. Condições corrigidas: state.portal==='lista' → renderLista; state===null → renderLogin.
+  - [FIX-v77-TOAST-DIRECT] (index.html) 6 blocos escreviam diretamente em #toast bypassando
+    uxToast: rascunho salvo, PDF gerado, relatório salvo, 3x acesso restrito. Todos migrados para showToast().
+  - [FIX-v77-SEARCH-DEBOUNCE] Campo de busca: debounce de 150ms antes de chamar renderCards().
   - [FIX-v77-HISTORY] history.pushState em renderLista/renderDetalhe + listener popstate:
-    botão físico Voltar do Android agora navega detalhe→lista→login em vez de sair do portal.
+    botão físico Voltar do Android navega detalhe→lista→login em vez de sair do portal.
   Correções v76:
   - [FIX-v76-LB-LOGIN] _lbSafeClose() agora chamado no início de renderLogin, renderExpirada
     e renderEsqueci — antes só era chamado em renderLista/renderDetalhe. Logout ou sessão
@@ -1470,7 +1485,14 @@ async function renderEsqueci(cnpjDigitado){
 
 /* ── render lista ── */
 async function renderLista(){
+  // [FIX-v79-SESS-GUARD] Redireciona para login se sessao for null — evita TypeError em sessao.cnpj
+  // Pode ocorrer via btnRetentar após expiração, ou popstate em edge case
+  if(!sessao){renderLogin();return;}
   _lbSafeClose(); // [FIX-v73-LB-NAV-LEAK]
+  // [FIX-v78-CLEANUP] Limpa observer e cache de fotos ao entrar na lista — cobre todos os caminhos
+  // (botão Voltar, botão Android, logout, expiração de sessão)
+  if(window._portalThumbObs){try{window._portalThumbObs.disconnect();}catch{}window._portalThumbObs=null;}
+  window._portalImgCache=null;
   // [FIX-v77-HISTORY] Empurra estado 'lista' — botão Voltar do Android retorna à lista em vez de sair
   if(!history.state||history.state.portal!=='lista'){history.pushState({portal:'lista'},'','');}
   document.title='Meus Relatórios — Portal ONLINE-ES';
@@ -1683,7 +1705,12 @@ function renderDetalhe(r){
         const thumbs=allImgs.map((_,i)=>`<div class="foto-thumb" data-idx="${i}" style="background-color:rgba(255,255,255,.04);"></div>`).join('');
         return `<hr class="divider"><div class="sec-head"><i class="ri-image-2-line"></i> Fotos do Atendimento</div><div class="foto-grid">${thumbs}</div>`;
       })()}
-      ${(()=>{/* [FIX-PORTAL-OPEN-REDIRECT] Valida protocolo antes de usar como href — esc() não bloqueia javascript: */const _safeMapUrl=/^https?:\/\//i.test(r.localizacaoLink)?r.localizacaoLink:null;return _safeMapUrl?`<hr class="divider"><a href="${_safeMapUrl}" target="_blank" rel="noopener noreferrer" class="btn-mapa"><i class="ri-map-pin-2-line"></i> Ver localização no Google Maps</a>`:''})()}
+      ${(()=>{
+        // [FIX-PORTAL-OPEN-REDIRECT] Valida protocolo — bloqueia javascript:
+        // [FIX-v79-MAP-ESC] esc() no href — URL com aspas quebraria o atributo sem escape
+        const _safeMapUrl=/^https?:\/\//i.test(r.localizacaoLink)?r.localizacaoLink:null;
+        return _safeMapUrl?`<hr class="divider"><a href="${esc(_safeMapUrl)}" target="_blank" rel="noopener noreferrer" class="btn-mapa"><i class="ri-map-pin-2-line"></i> Ver localização no Google Maps</a>`:'';
+      })()}
       ${sigHtml}
       <hr class="divider">
       <button class="btn-pdf" id="btnPdf"><i class="ri-file-pdf-2-line"></i> Baixar Relatório em PDF</button>
@@ -1723,11 +1750,11 @@ function renderDetalhe(r){
     });
   }
   // Desconecta observer e limpa cache ao voltar — [FIX-v72-OBS-LEAK]
-  document.getElementById('btnVoltar').addEventListener('click',()=>{
-    if(window._portalThumbObs){try{window._portalThumbObs.disconnect();}catch{}window._portalThumbObs=null;}
-    window._portalImgCache=null;
-    renderLista();
-  });
+  // [FIX-v78-HISTORY-BACK] Usa history.back() em vez de renderLista() diretamente.
+  // renderLista() chamava pushState, criando entradas duplicadas na pilha de histórico.
+  // history.back() faz pop do estado 'detalhe', popstate dispara com {portal:'lista'}
+  // que chama renderLista — sem adicionar nova entrada. Limpeza movida para renderLista().
+  document.getElementById('btnVoltar').addEventListener('click',()=>{ history.back(); });
   document.getElementById('btnPdf').addEventListener('click',async()=>{
     const btn=document.getElementById('btnPdf');if(!btn)return;
     btn.disabled=true;btn.innerHTML='<i class="ri-loader-4-line spin"></i> Gerando PDF...';
@@ -2098,21 +2125,21 @@ async function init(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 
 // [FIX-v77-HISTORY] Intercepta botão Voltar do Android/browser
-// detalhe → lista: vai para renderLista (sem fazer novo pushState para não criar loop)
-// lista → login: encerra sessão e vai para login
-// Sem este listener, o botão de voltar sairia completamente do portal
+// e.state = estado que estamos INDO (destino após pop), não de onde viemos.
+// Stack: [null] → pushState(lista) → pushState(detalhe)
+// Back de detalhe: e.state={portal:'lista'} → renderLista  ✓
+// Back de lista:   e.state=null            → renderLogin   ✓
 window.addEventListener('popstate',function(e){
   const state=e.state;
-  if(state&&state.portal==='detalhe'){
-    // Voltando de dentro de um detalhe → vai para lista
+  if(state&&state.portal==='lista'){
+    // Indo para o estado lista → mostra lista de RATs
     if(sessao){renderLista();}else{renderLogin();}
-  }else if(state&&state.portal==='lista'){
-    // Voltando da lista → vai para login (sem apagar sessão — usuário pode re-entrar)
-    renderLogin({cnpj:sessao?sessao.cnpj:''});
+  }else if(state&&state.portal==='detalhe'){
+    // Indo para detalhe via popstate (improvável, mas seguro) → mostra lista
+    if(sessao){renderLista();}else{renderLogin();}
   }else{
-    // Estado desconhecido — vai para login seguro
-    if(sessao){sessao=null;limparSessao();}
-    renderLogin();
+    // Estado nulo/desconhecido — antes do primeiro pushState → vai para login
+    renderLogin({cnpj:sessao?sessao.cnpj:''});
   }
 });
 })();
