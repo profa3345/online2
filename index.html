@@ -2,7 +2,17 @@
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v79
   Correções v79:
-  - [FIX-v79-SENHA-MENSAGEM] CORREÇÃO FUNCIONAL: senha não aparecia nas mensagens WhatsApp/e-mail
+  - [FIX-v79-MERGE-LOCAL] CORREÇÃO FUNCIONAL CRÍTICA: fotos e assinaturas desapareciam do PDF.
+    Causa: onSnapshot do Firestore recebia RAT nova (change.type='added') com rLocal=null no _snapMap
+    → _mergeDoc retornava versão do Firestore com '[local]'/'[comprimido]' para todas as imagens
+    → saveRelatorios sobrescrevia localStorage com os placeholders, apagando os data: URIs reais.
+    Fix: quando rLocal=null, busca versão local diretamente do loadRelatorios() antes de _mergeDoc.
+  - [FIX-v79-MERGE-COMPRIMIDO] _mergeDoc: condição de preservação de imagens expandida para
+    cobrir '[comprimido]' além de '[local]', e valida que a versão local realmente tem data: URI.
+  - [FIX-v79-SIG-LOCAL] exportarPDF: recuperação de assinaturas do localStorage adicionada —
+    mesma estratégia usada para fotos. Quando r.assinaturaCliente/assinaturaTecnicoImg é
+    '[local]' ou '[comprimido]', busca versão real em loadRelatorios(). Defense-in-depth.
+  - [FIX-v79-SENHA-MENSAGEM] CORREÇÃO FUNCIONAL: senha não aparecia nas mensagens WhatsApp/e-mail.
     enviadas ao cliente quando a senha do portal ainda era válida (>7 dias).
     Causa: _gerarCredencialPortal retornava nova:false/senha:null para não invalidar links existentes.
     Fix: _forcarRenovacaoSenha=true adicionado em todos os 3 flows de envio de mensagem:
@@ -4322,11 +4332,17 @@ html[data-role="technician"] nav button {
             _camposTexto.forEach(function(k) { if (rLocal[k] !== undefined) merged[k] = rLocal[k]; });
           }
           // Preserva imagens/assinaturas locais (base64) que o Firestore guarda como '[local]'
+          // [FIX-v79-MERGE-COMPRIMIDO] Também preserva quando valor local é '[comprimido]' —
+          // localStorage pode ter comprimido se quota foi atingida, mas local ainda é mais rico
           _camposImg.forEach(function(k) {
             var vNovo = rNovo[k], vLocal = rLocal[k];
             if (Array.isArray(vNovo) && Array.isArray(vLocal)) {
-              if (vNovo.every(function(v){ return v === '[local]'; }) && vLocal.length) merged[k] = vLocal;
-            } else if ((vNovo === '[local]' || !vNovo) && vLocal) {
+              // Preserva local se Firestore tem todos '[local]'/'[comprimido]' e local tem dados reais
+              var novoEhPlaceholder = vNovo.every(function(v){ return v === '[local]' || v === '[comprimido]'; });
+              var localTemReal = vLocal.some(function(v){ return v && typeof v === 'string' && v.startsWith('data:'); });
+              if (novoEhPlaceholder && localTemReal) merged[k] = vLocal;
+            } else if ((vNovo === '[local]' || vNovo === '[comprimido]' || !vNovo) &&
+                       vLocal && typeof vLocal === 'string' && vLocal.startsWith('data:')) {
               merged[k] = vLocal;
             }
           });
@@ -4373,6 +4389,17 @@ html[data-role="technician"] nav button {
 
             if (change.type === 'added' || change.type === 'modified') {
               var rLocal = _snapMap.get(key) || null;
+              // [FIX-v79-MERGE-LOCAL] RAT nova (change.type==='added'): rLocal=null pois ainda não
+              // está no _snapMap. O Firestore guarda '[local]' para imagens/assinaturas.
+              // Sem rLocal, _mergeDoc retorna a versão do Firestore com '[local]' e SOBRESCREVE
+              // o localStorage, apagando as imagens reais. Fix: busca versão local diretamente.
+              if (!rLocal) {
+                try {
+                  var _ls = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+                  var _lv = _ls.find(function(x){ return String(x.id||x.numero||'') === key; });
+                  if (_lv) rLocal = _lv;
+                } catch(e) {}
+              }
               _snapMap.set(key, _mergeDoc(d, rLocal));
               _mudou = true;
 
@@ -8484,10 +8511,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
           for (var y=0; y<h; y++) {
             for (var x=0; x<w; x++) {
               var idx=(y*w+x)*4;
-              // [FIX-SIG-THRESHOLD] Limiar 230 (era 200) — tolera artefatos JPEG de compressão.
-              // Também considera pixel escuro se canal alpha < 200 (assinatura PNG com transparência).
-              var escuro=(data[idx]<230&&data[idx+1]<230&&data[idx+2]<230)||(data[idx+3]<200);
-              if (escuro) {
+              if (data[idx]<200 || data[idx+1]<200 || data[idx+2]<200) {
                 if(x<minX)minX=x; if(x>maxX)maxX=x;
                 if(y<minY)minY=y; if(y>maxY)maxY=y;
                 encontrou=true;
@@ -8839,8 +8863,31 @@ if (logoBase64) {
     const SIG_ALTURA_RESERVADA = 28;
 
     // Normaliza e insere cliente (bloco esquerdo: 20-90mm)
-    if (r.assinaturaCliente) {
-      const sigCliNorm = await normalizarAssinaturaPNG(r.assinaturaCliente, SIG_NORM_W, SIG_NORM_H);
+    // [FIX-v79-SIG-LOCAL] Recupera assinatura do localStorage se r tiver '[local]' ou '[comprimido]'
+    // Mesmo mecanismo usado para imagens (linhas acima). Cobre o caso onde o onSnapshot
+    // sobrescreveu window.relatorios com a versão do Firestore antes do Fix-v79-MERGE-LOCAL.
+    var _sigCli = r.assinaturaCliente;
+    var _sigTec = r.assinaturaTecnicoImg;
+    if ((!_sigCli || _sigCli === '[local]' || _sigCli === '[comprimido]' ||
+         !_sigTec || _sigTec === '[local]' || _sigTec === '[comprimido]')) {
+      try {
+        var _localSig = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+        var _rLocalSig = _localSig.find(function(x) { return x.id === r.id; });
+        if (_rLocalSig) {
+          if ((!_sigCli || _sigCli === '[local]' || _sigCli === '[comprimido]') &&
+              _rLocalSig.assinaturaCliente && _rLocalSig.assinaturaCliente.startsWith('data:')) {
+            _sigCli = _rLocalSig.assinaturaCliente;
+          }
+          if ((!_sigTec || _sigTec === '[local]' || _sigTec === '[comprimido]') &&
+              _rLocalSig.assinaturaTecnicoImg && _rLocalSig.assinaturaTecnicoImg.startsWith('data:')) {
+            _sigTec = _rLocalSig.assinaturaTecnicoImg;
+          }
+        }
+      } catch(e) {}
+    }
+
+    if (_sigCli) {
+      const sigCliNorm = await normalizarAssinaturaPNG(_sigCli, SIG_NORM_W, SIG_NORM_H);
       if (sigCliNorm) {
         const cx = 20 + (70 - SIG_W) / 2;
         const cy = topoAssY;
@@ -8849,8 +8896,8 @@ if (logoBase64) {
     }
 
     // Normaliza e insere técnico (bloco direito: 120-190mm)
-    if (r.assinaturaTecnicoImg) {
-      const sigTecNorm = await normalizarAssinaturaPNG(r.assinaturaTecnicoImg, SIG_NORM_W, SIG_NORM_H);
+    if (_sigTec) {
+      const sigTecNorm = await normalizarAssinaturaPNG(_sigTec, SIG_NORM_W, SIG_NORM_H);
       if (sigTecNorm) {
         const cx = 120 + (70 - SIG_W) / 2;
         const cy = topoAssY;
