@@ -7,7 +7,11 @@
     → _mergeDoc retornava versão do Firestore com '[local]'/'[comprimido]' para todas as imagens
     → saveRelatorios sobrescrevia localStorage com os placeholders, apagando os data: URIs reais.
     Fix: quando rLocal=null, busca versão local diretamente do loadRelatorios() antes de _mergeDoc.
-  - [FIX-v79-MERGE-COMPRIMIDO] _mergeDoc: condição de preservação de imagens expandida para
+  - [FIX-v79-SNAP-IMG] CORREÇÃO FUNCIONAL CRÍTICA (2ª parte): o onSnapshot do Firestore
+    sobrescrevia o localStorage com '[local]'/'[comprimido]' permanentemente, apagando
+    os data:URIs reais das fotos e assinaturas a cada sync. Fix: antes de saveRelatorios()
+    no handler do snapshot, para cada RAT compara com localStorage atual e preserva campos
+    de imagem/assinatura que tenham data:URI real mas o snapshot tenha placeholder.
     cobrir '[comprimido]' além de '[local]', e valida que a versão local realmente tem data: URI.
   - [FIX-v79-SIG-LOCAL] exportarPDF: recuperação de assinaturas do localStorage adicionada —
     mesma estratégia usada para fotos. Quando r.assinaturaCliente/assinaturaTecnicoImg é
@@ -4425,6 +4429,37 @@ html[data-role="technician"] nav button {
           // Persiste localmente
           // [F-01] setReports não dispara mais _syncToFirestore, então o anti-loop é redundante
           // mas mantemos como segurança defensiva contra futuras regressões
+          //
+          // [FIX-v79-SNAP-IMG] Antes de salvar, preserva imagens/assinaturas reais do localStorage.
+          // Problema: Firestore guarda '[local]'/'[comprimido]' para imagens — o snapshot sobrescrevia
+          // o localStorage com esses placeholders, apagando os data:URIs reais permanentemente.
+          // Fix: para cada RAT em _todosParaSalvar, se localStorage tem data:URI real mas o item
+          // do snapshot tem '[local]'/'[comprimido]', preserva o valor do localStorage.
+          var _camposImgSnap = ['imgsEquip','imgsServico','imgsBaterias','vidsEquip','vidsServico','vidsBaterias','assinaturaCliente','assinaturaTecnicoImg'];
+          try {
+            var _lsAtual = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+            var _lsMap = {};
+            _lsAtual.forEach(function(r){ if(r.id) _lsMap[r.id] = r; });
+            _todosParaSalvar = _todosParaSalvar.map(function(r) {
+              var lsR = _lsMap[r.id];
+              if (!lsR) return r;
+              var out = Object.assign({}, r);
+              _camposImgSnap.forEach(function(k) {
+                var vSnap = r[k], vLs = lsR[k];
+                if (Array.isArray(vSnap) && Array.isArray(vLs)) {
+                  // Preserva local se snapshot tem todos placeholders mas local tem data:URIs reais
+                  var snapPlaceholder = vSnap.every(function(v){ return !v || v === '[local]' || v === '[comprimido]'; });
+                  var lsTemReal = vLs.some(function(v){ return v && typeof v === 'string' && v.startsWith('data:'); });
+                  if (snapPlaceholder && lsTemReal) out[k] = vLs;
+                } else if ((vSnap === '[local]' || vSnap === '[comprimido]' || !vSnap) &&
+                           vLs && typeof vLs === 'string' && vLs.startsWith('data:')) {
+                  out[k] = vLs;
+                }
+              });
+              return out;
+            });
+          } catch(e) { console.warn('[Snap] Preservação de imagens falhou:', e); }
+
           if (!window._snapshotSaving) {
             window._snapshotSaving = true;
             if (typeof saveRelatorios === 'function') try { saveRelatorios(_todosParaSalvar); } catch(e){}
