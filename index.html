@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v79
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v80
+  Correções v80:
+  - [FIX-v80-SIG-CLI-CLOSURE] assinaturaClienteAtual não era atualizada nos 3 caminhos externos
+    ao closure principal: (1) QR Code "Usar esta assinatura", (2) câmera foto assinatura cliente
+    (path principal), (3) câmera fallback input nativo. Nesses 3 pontos apenas window.assinaturaClienteAtual
+    era escrita, mas montarRelatorioAtual() lê `assinaturaClienteAtual || window.assinaturaClienteAtual`.
+    A variável local do closure nunca era atualizada e enviava null ao PDF/save.
+    Fix: os 3 pontos agora atribuem ambas as variáveis (assinaturaClienteAtual e window.assinaturaClienteAtual),
+    igual ao padrão já usado em btnUsarSigCliente (linhas 11994-11995) e sigClienteUpload (12099-12100).
+    O mesmo fix foi aplicado para assinaturaTecnicoAtual nos 2 pontos de câmera do técnico.
   Correções v79:
   - [FIX-v79-MERGE-LOCAL] CORREÇÃO FUNCIONAL CRÍTICA: fotos e assinaturas desapareciam do PDF.
     Causa: onSnapshot do Firestore recebia RAT nova (change.type='added') com rLocal=null no _snapMap
@@ -8911,17 +8920,18 @@ if (logoBase64) {
     // sobrescreveu window.relatorios com a versão do Firestore antes do Fix-v79-MERGE-LOCAL.
     var _sigCli = r.assinaturaCliente;
     var _sigTec = r.assinaturaTecnicoImg;
-    if ((!_sigCli || _sigCli === '[local]' || _sigCli === '[comprimido]' ||
-         !_sigTec || _sigTec === '[local]' || _sigTec === '[comprimido]')) {
+    var _sigCliNeedsFetch = (!_sigCli || _sigCli === '[local]' || _sigCli === '[comprimido]');
+    var _sigTecNeedsFetch = (!_sigTec || _sigTec === '[local]' || _sigTec === '[comprimido]');
+    if (_sigCliNeedsFetch || _sigTecNeedsFetch) {
       try {
         var _localSig = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
         var _rLocalSig = _localSig.find(function(x) { return x.id === r.id; });
         if (_rLocalSig) {
-          if ((!_sigCli || _sigCli === '[local]' || _sigCli === '[comprimido]') &&
+          if (_sigCliNeedsFetch &&
               _rLocalSig.assinaturaCliente && _rLocalSig.assinaturaCliente.startsWith('data:')) {
             _sigCli = _rLocalSig.assinaturaCliente;
           }
-          if ((!_sigTec || _sigTec === '[local]' || _sigTec === '[comprimido]') &&
+          if (_sigTecNeedsFetch &&
               _rLocalSig.assinaturaTecnicoImg && _rLocalSig.assinaturaTecnicoImg.startsWith('data:')) {
             _sigTec = _rLocalSig.assinaturaTecnicoImg;
           }
@@ -10570,6 +10580,7 @@ if (logoBase64) {
     if (_btnUsar) {
       _btnUsar.addEventListener('click', function() {
         if (!_sigPendente) return;
+        assinaturaClienteAtual = _sigPendente;
         window.assinaturaClienteAtual = _sigPendente;
         // Também marca como confirmada no fluxo normal
         var statusEl = document.getElementById('sigStatus');
@@ -16999,6 +17010,7 @@ async function fazerLogin(){
         }
         var dataUrl = photo.dataUrl;
         if (alvo === 'cliente') {
+          assinaturaClienteAtual = dataUrl;
           window.assinaturaClienteAtual = dataUrl;
           var sigStatus = document.getElementById('sigStatus');
           if (sigStatus) sigStatus.textContent = 'Foto da assinatura do cliente carregada.';
@@ -17007,6 +17019,7 @@ async function fazerLogin(){
           var sigNomeCliente = document.getElementById('sigNomeCliente');
           if (sigNomeCliente && !sigNomeCliente.value) sigNomeCliente.focus();
         } else {
+          assinaturaTecnicoAtual = dataUrl;
           window.assinaturaTecnicoAtual = dataUrl;
           var sigStatusTec = document.getElementById('sigStatusTec');
           if (sigStatusTec) sigStatusTec.textContent = 'Foto da assinatura do técnico carregada.';
@@ -17036,12 +17049,14 @@ async function fazerLogin(){
           try { if (inp.parentNode) document.body.removeChild(inp); } catch(e){}
           var dataUrl = ev.target.result;
           if (alvo === 'cliente') {
+            assinaturaClienteAtual = dataUrl;
             window.assinaturaClienteAtual = dataUrl;
             var sigStatus = document.getElementById('sigStatus');
             if (sigStatus) sigStatus.textContent = 'Foto da assinatura do cliente carregada.';
             var sigNomeWrap = document.getElementById('sigNomeWrap');
             if (sigNomeWrap) sigNomeWrap.style.display = 'block';
           } else {
+            assinaturaTecnicoAtual = dataUrl;
             window.assinaturaTecnicoAtual = dataUrl;
             var sigStatusTec = document.getElementById('sigStatusTec');
             if (sigStatusTec) sigStatusTec.textContent = 'Foto da assinatura do técnico carregada.';
