@@ -1,5 +1,17 @@
 <!DOCTYPE html>
-<!-- PORTAL DO CLIENTE — v79
+<!-- PORTAL DO CLIENTE — v80
+  Correções v80:
+  - [FIX-portal-v80-PBKDF2] fazerLogin usava SHA-256 simples para verificar a senha,
+    mas index.html v89 passou a salvar credenciais com PBKDF2/SHA-256 + salt (128 bits).
+    Resultado: TODAS as senhas novas eram rejeitadas com 'Senha incorreta'.
+    Fix: adicionadas _portalGerarSalt, _portalHashSenha, _portalVerificarSenha
+    (idênticas às do index.html v89+). fazerLogin agora usa _portalVerificarSenha:
+    tenta PBKDF2 se senhaSalt presente, cai para SHA-256 legado se não tiver.
+    renderExpirada e renderEsqueci também migradas para salvar com PBKDF2+salt.
+  - [FIX-portal-v80-AUTOLOGIN] init() não lia o parâmetro ?s=SENHA da URL.
+    Quando o cliente clicava no link portal.html?cnpj=XXX&s=SENHA, a senha
+    era ignorada — cliente tinha que digitá-la manualmente (e falhava por PBKDF2).
+    Fix: init() lê p.get('s'), remove da URL (segurança) e dispara auto-login.
   Correções v79:
   - [FIX-v79-MAP-ESC] _safeMapUrl inserida em href sem esc() — URL com aspas duplas (")
     quebrava o atributo e permitia injeção de atributos HTML (ex: onmouseover).
@@ -126,6 +138,8 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"/>
   <title>Portal do Cliente — ONLINE-ES</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet"/>
@@ -963,6 +977,29 @@ const db=firebase.firestore(), auth=firebase.auth();
 
 /* helpers */
 const normCnpj=v=>String(v||'').replace(/\D/g,'');
+/* ── [FIX-portal-v78-PBKDF2] Hash de senha: PBKDF2 com salt (novo) + SHA-256 legado ──
+   index.html v89 migrou para PBKDF2/SHA-256 com 100.000 iterações e salt único.
+   portal.html mantém SHA-256 como fallback para credenciais antigas (sem senhaSalt).
+   Novas senhas geradas pelo portal também usam PBKDF2 para consistência. */
+async function _portalGerarSalt(){
+  const arr=new Uint8Array(16);crypto.getRandomValues(arr);
+  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function _portalHashSenha(plain,salt){
+  const enc=new TextEncoder();
+  const key=await crypto.subtle.importKey('raw',enc.encode(plain),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},key,256);
+  return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function _portalVerificarSenha(plain,cred){
+  if(cred.senhaSalt){
+    const h=await _portalHashSenha(String(plain||'').trim(),cred.senhaSalt);
+    return h===cred.senhaHash;
+  }
+  // Legado: SHA-256 simples (credenciais criadas antes do v89)
+  const h2=await sha256(String(plain||'').trim());
+  return h2===cred.senhaHash;
+}
 async function sha256(str){
   // [FIX-PORTAL-CRYPTO] crypto.subtle não funciona em HTTP — lança TypeError sem aviso claro
   if(!window.isSecureContext){throw new Error('Este portal requer HTTPS para funcionar. Acesse via https://');}
@@ -1140,8 +1177,9 @@ async function fazerLogin(cnpjRaw,senhaRaw){
     const credExp={expiradoEm:cred.expiradoEm,ativo:cred.ativo,nome:cred.nome,emails:cred.emails,whatsapps:cred.whatsapps};
     return{ok:false,expirada:true,cnpj,cred:credExp};
   }
-  const hash=await sha256(senha);
-  if(hash!==cred.senhaHash)return{ok:false,msg:'Senha incorreta. Use os 6 dígitos enviados pelo técnico.'};
+  // [FIX-portal-v78-PBKDF2] Verifica com PBKDF2 (novo) ou SHA-256 legado
+  const _senhaOk=await _portalVerificarSenha(senha,cred);
+  if(!_senhaOk)return{ok:false,msg:'Senha incorreta. Use os 6 dígitos enviados pelo técnico.'};
   resetRL(cnpj);
   // [FIX-v72-SESS-HASH] Remove senhaHash e campos sensíveis do objeto em memória
   // Evita que extensões maliciosas ou XSS extraiam o hash via window.sessao.cred
@@ -1350,8 +1388,9 @@ async function renderExpirada(cnpj,cred){
   // Sem isso qualquer pessoa que acesse a tela de senha expirada pode gerar nova senha
   async function renovarSenha(){
     if(!await garantirAuth())throw new Error('Sem conexão com o servidor.');
-    const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();
-    await db.collection('onlineEsPortalClientes').doc(cnpj).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});
+    // [FIX-portal-v78-PBKDF2] Nova senha salva com PBKDF2+salt
+    const s=gerarSenha6(),_salt3=await _portalGerarSalt(),hash=await _portalHashSenha(s,_salt3),exp=new Date(Date.now()+30*86400000).toISOString();
+    await db.collection('onlineEsPortalClientes').doc(cnpj).update({senhaHash:hash,senhaSalt:_salt3,expiradoEm:exp,criadaEm:new Date().toISOString()});
     return s;
   }
   emails.forEach(email=>{
@@ -1440,8 +1479,9 @@ async function renderEsqueci(cnpjDigitado){
       function _todosEsq(){return Array.from(acoesEl.querySelectorAll('button'));}
       async function _renovarEsq(){
         if(!await garantirAuth())throw new Error('Sem conexão com o servidor.');
-        const s=gerarSenha6(),hash=await sha256(s),exp=new Date(Date.now()+30*86400000).toISOString();
-        await db.collection('onlineEsPortalClientes').doc(cnpjRaw).update({senhaHash:hash,expiradoEm:exp,criadaEm:new Date().toISOString()});
+        // [FIX-portal-v78-PBKDF2] Nova senha salva com PBKDF2+salt
+        const s=gerarSenha6(),_salt4=await _portalGerarSalt(),hash=await _portalHashSenha(s,_salt4),exp=new Date(Date.now()+30*86400000).toISOString();
+        await db.collection('onlineEsPortalClientes').doc(cnpjRaw).update({senhaHash:hash,senhaSalt:_salt4,expiradoEm:exp,criadaEm:new Date().toISOString()});
         return s;
       }
       emails.forEach(email=>{
@@ -2101,6 +2141,7 @@ window.addEventListener('offline', function(){
 async function init(){
   const p=new URLSearchParams(window.location.search);
   const cnpjUrl=normCnpj(p.get('cnpj')||p.get('portal')||'');
+  const senhaUrl=p.get('s')||null; // [FIX-portal-v78-AUTOLOGIN] Lê senha da URL para auto-login
   // Try restore session
   const sess=restaurarSessao();
   if(sess&&!cnpjUrl){
@@ -2120,7 +2161,46 @@ async function init(){
     }catch{}
     limparSessao();
   }
-  renderLogin({cnpj:cnpjUrl});
+  // [FIX-portal-v78-AUTOLOGIN] Se veio com ?s=SENHA na URL, faz auto-login direto
+  if(cnpjUrl && senhaUrl && /^\d{6}$/.test(senhaUrl)){
+    // Remove ?s= da URL antes de exibir (senha não deve ficar no histórico)
+    try{
+      const _cleanUrl=window.location.href.split('?')[0]+'?cnpj='+cnpjUrl;
+      window.history.replaceState({},'',_cleanUrl);
+    }catch{}
+    // Mostra tela de login com feedback de carregamento
+    renderLogin({cnpj:cnpjUrl});
+    // Preenche senha e dispara login automaticamente
+    setTimeout(async function(){
+      const _inp=document.getElementById('inputSenha');
+      const _btn=document.getElementById('btnEntrar');
+      const _errEl=document.getElementById('erroLogin');
+      if(!_inp||!_btn) return;
+      _inp.value=senhaUrl;
+      _btn.disabled=true;
+      _btn.innerHTML='<i class="ri-loader-4-line spin"></i> Entrando...';
+      try{
+        const res=await fazerLogin(cnpjUrl, senhaUrl);
+        if(res.ok){
+          try{sessionStorage.setItem('onlinees_ultimo_cnpj',cnpjUrl);}catch{}
+          document.title='Meus Relatórios — Portal ONLINE-ES';
+          renderLista();
+        } else if(res.expirada){
+          renderExpirada(res.cnpj,res.cred);
+        } else {
+          if(_errEl){_errEl.textContent=res.msg;_errEl.style.display='block';}
+          _btn.disabled=false;
+          _btn.innerHTML='<i class="ri-login-circle-line"></i> Entrar';
+        }
+      }catch(e){
+        if(_errEl){_errEl.textContent='Erro ao entrar. Tente novamente.';_errEl.style.display='block';}
+        _btn.disabled=false;
+        _btn.innerHTML='<i class="ri-login-circle-line"></i> Entrar';
+      }
+    }, 600);
+  } else {
+    renderLogin({cnpj:cnpjUrl});
+  }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 
