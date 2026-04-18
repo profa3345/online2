@@ -1,6 +1,200 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v80
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v88
+  Correções v89c:
+  - [FIX-v89c-MCP] CORREÇÃO DEFINITIVA do modal de troca de senha persistente.
+    Causa raiz identificada: múltiplos docs no Firestore com o mesmo username
+    (onlineEsUsuarios/<uid> e onlineEsUsuarios/<username>) podiam coexistir com
+    valores diferentes de mustChangePassword. syncUsuariosFromFirestore processava
+    TODOS os docs e o último vencia — se o doc stale (username) fosse processado
+    após o correto (uid), sobrescrevia mustChangePassword:true no localStorage.
+    Mesmo após o usuário trocar a senha, o próximo sync recolocava true.
+    Quatro correções em camadas:
+    (A) syncUsuariosFromFirestore: deduplica docs por username ANTES de mergear,
+        preferindo mustChangePassword:false quando há duplicata.
+    (B) syncUsuariosFromFirestore: se usuário local já tem password+_salt,
+        NÃO aceita mustChangePassword:true do Firestore — usuário já definiu senha.
+    (C) fazerLogin/_fsRefresh: mesma lógica — se tem senha local, força false.
+    (D) Modal de senha: salvarUsuarioNoFirestore agora é awaited, garantindo que
+        o Firestore esteja atualizado ANTES do sync pós-login rodar.
+  Correções v89b:
+  - [FIX-v89b-SIG-EDIT] BUG CRÍTICO em editarRelatorio: quando a RAT vinha do Firestore
+    com assinatura marcada como '[local]' ou '[comprimido]', o código atribuía essa string
+    diretamente à variável global assinaturaClienteAtual/assinaturaTecnicoAtual.
+    Como a string é truthy, o sistema mostrava 'Assinatura carregada' mas o dado real
+    era o placeholder — o PDF gerado após editar ficaria sem a assinatura.
+    Fix: antes de atribuir, verifica se é placeholder e busca o data URI real no
+    localStorage. Só atribui se o valor for um data URI real (começa com 'data:').
+  - [FIX-v89b-WA-AUTOFILL] autoFillCamposAtendimento() não era chamado no flow do
+    WhatsApp (era chamado no e-mail mas não no WA). Se data/hora estava vazia ao
+    clicar em WhatsApp, a RAT era montada e enviada sem data — inconsistente com o
+    comportamento do e-mail. Adicionada chamada antes de ensureNumeroRat() no WA.
+  Correções v89:
+  - [FIX-v89-DOCTIPO] tipoDocCliente (CNPJ/CPF) não era resetado ao limpar o formulário.
+    Se o atendimento anterior usou CPF, o próximo abria com CPF ativo mas label errado.
+    Fix: limparFormularioNovoAtendimento() chama setTipoDoc('CNPJ') antes de gerar novo nº RAT.
+  - [FIX-v89-SW] Inconsistência de versão: SW_VERSION era 'onlinees-v11' mas o painel de
+    diagnóstico reportava 'onlinees-v10'. Corrigido para v11 no diagnóstico.
+  - [FIX-v89-PORTAL-HASH] Senha do portal do cliente usava SHA-256 simples sem salt.
+    Senha de 6 dígitos = 1.000.000 combinações → quebrável por rainbow table em segundos.
+    Fix: substituído por PBKDF2/SHA-256 com salt de 128 bits e 100.000 iterações em todos
+    os fluxos: geração de credencial, renovação por expiração e fluxo 'esqueci a senha'.
+    Retrocompatibilidade mantida: docs sem 'senhaSalt' (criados antes do v89) continuam
+    verificados via SHA-256 legado. O campo 'senhaSalt' é salvo junto com 'senhaHash'
+    no Firestore — nenhuma migração manual necessária; docs se atualizam na próxima renovação.
+  - [FIX-v89-VAL] Campos 'Equipamento' e 'Status final' adicionados como obrigatórios em
+    validarObrigatorios(). Antes era possível salvar/enviar RATs sem essas informações,
+    gerando PDFs e relatórios incompletos.
+  Correções v88b:
+  - [FIX-v88b-MCP] CORREÇÃO DEFINITIVA do mustChangePassword no login:
+    Causa raiz remanescente: quando o usuário existia no localStorage, o código
+    usava diretamente o mustChangePassword local (que podia estar stale/true do
+    primeiro boot) sem consultar o Firestore para sobrescrever.
+    Fix: ao encontrar usuário local e estar online, agora SEMPRE consulta o
+    Firestore via loginBuscarUsuarioFirestore e atualiza mustChangePassword, role,
+    active e fullName com os valores autoritativos — preservando apenas a senha/salt
+    que o Firestore não armazena.
+    Também removidas as duas sobrescritas espúrias de mustChangePassword=true no
+    bloco ETAPA 3 para usuários fromFirestore: o valor correto já chega do Firestore.
+  Correções v88:
+  - [FIX-v88-MCP-SENHA] BUG CRÍTICO: sistema pedia troca de senha a cada login mesmo com
+    senha já definida no Firestore. Causa raiz: Firestore nunca armazena senha (design
+    correto), então num dispositivo novo/cache limpo: (1) loadUsers criava admin seed com
+    mustChangePassword:true, (2) syncUsuariosFromFirestore usava 'fsUser.mCP || local.mCP'
+    — nunca limpava o flag stale, (3) loadUsers marcava usuários do Firestore como
+    "hash corrompido" por não terem senha local.
+    Fix: syncUsuariosFromFirestore agora usa SOMENTE o mustChangePassword vindo do Firestore,
+    sem acumular stale local. loadUsers ignora usuários fromFirestore na detecção de hash
+    corrompido. ETAPA 3 do login não força mustChangePassword=true para fromFirestore sem
+    senha local — respeita o campo do Firestore.
+  - [FIX-v88-HASH-SEED] Hash PBKDF2 + salt do admin estavam hardcoded no código-fonte,
+    permitindo ataque de dicionário offline por qualquer pessoa que lesse o código.
+    Fix: seed do admin agora usa password:'', _salt:'' + mustChangePassword:true.
+    No primeiro login, o admin digita qualquer coisa e define a senha via modal — sem
+    hash atacável exposto no código.
+  - [FIX-v88-USERS-STRIP] Campos transitórios fromFirestore, _fromFirestore, firestoreId,
+    _firestoreId e _legacyHash eram persistidos no localStorage de usuários. _legacyHash
+    vazava informação sobre o tipo de hash; fromFirestore/_fromFirestore ficavam stale e
+    causavam comportamentos incorretos na próxima sessão (ex: ETAPA 3 pulando validação
+    de senha para usuários locais marcados erroneamente como vindos do Firestore).
+    Fix: saveUsers() remove esses campos antes de persistir (mantém em window.usuarios
+    para uso em runtime).
+  - [FIX-v88-BF-SERVER] Rate limiting de brute force era puramente client-side: fechar e
+    reabrir o browser zeraba o sessionStorage e removia o bloqueio.
+    Fix: _registerFailedAttempt grava o bloqueio também na coleção 'onlineEsBF' do
+    Firestore (fire-and-forget, não bloqueia o login). _checkBruteForce (agora async)
+    consulta o Firestore se não encontrar bloqueio local. _clearLoginAttempts apaga o
+    documento do Firestore após login bem-sucedido. Regra Firestore sugerida:
+    match /onlineEsBF/{doc} { allow read, write: if true; } — o doc ID é derivado do
+    username, sem dados pessoais sensíveis (apenas timestamps e contadores).
+  Correções v87:
+  - [FIX-v87-COPIAR-LINK] Botão "Copiar link portal" no card da RAT (painel supervisor):
+    a chamada a _gerarCredencialPortal não passava _forcarRenovacaoSenha:true, então se
+    a senha ainda era válida, a função retornava {senha:null} e _urlPortalV2 gerava o
+    link sem senha — o cliente clicava e não conseguia entrar (tela de login sem senha).
+    Fix: passa _forcarRenovacaoSenha:true garantindo que resultado.senha nunca seja null,
+    e verifica resultado.senha antes de gerar o link.
+  - [FIX-v87-PORTAL-URL] _urlPortalV2 agora aceita e inclui senha como &s=SENHA na URL.
+    O portal.html foi atualizado para ler ?s=, remover da URL (segurança) e fazer login
+    automático — o cliente clica no link e entra diretamente sem digitar nada.
+  - [FIX-v87-CLI-FEEDBACK] Feedback verde "✔ Empresa selecionada" ao selecionar cliente
+    no formulário — aplicado em 4 pontos (dropdown, edição, último cliente, limpar).
+  - [FIX-v87-CLI-BLUR] Bug case-sensitive no blur do campo de busca que zerava a seleção.
+  - [FIX-v87-CLI-FEEDBACK] Feedback de seleção de empresa totalmente reformulado.
+    Antes: apenas borda verde sutil, invisível em mobile com tela brilhante.
+    Agora: painel verde "#aClienteFeedback" exibe "✔ Nome da Empresa selecionado(a)"
+    imediatamente ao selecionar, desaparece após 4s. Aplicado em 4 pontos:
+    (1) seleção via dropdown, (2) edição de RAT existente (restaurar cliente),
+    (3) botão "Usar este cliente" (último atendimento), (4) limpar formulário oculta.
+  - [FIX-v87-CLI-BLUR] Bug de comparação case-sensitive no handler blur do campo de
+    busca. Se o nome do cliente tinha capitalização diferente da salva (ex: "empresa
+    ABC" vs "Empresa ABC"), a verificação falhava e _select.value era zerado após o
+    técnico sair do campo — causando exatamente o problema relatado ("selecionei mas
+    o sistema disse que não selecionei"). Fix: comparação toLowerCase() em ambos os
+    lados + _limparSelecaoCliente() também limpa a borda e o feedback visual.
+  Correções v86:
+  - [FIX-v86-CNPJ-WA] btnWhatsLocal: adicionado aviso proativo quando cliente não tem
+    CNPJ/CPF cadastrado (antes de chamar _gerarCredencialPortal), e toast final
+    diferenciado entre "sem conexão" e "sem CNPJ". Antes, o técnico recebia
+    "sem link — gere novamente quando houver conexão" mesmo online, sem entender
+    que a causa era a falta do documento fiscal do cliente.
+  - [FIX-v86-CNPJ-EMAIL] btnEnviarEmail: mesmo fix aplicado ao fluxo de e-mail.
+    Aviso proativo + toast final com mensagem específica por causa da ausência de link.
+  Correções v85:
+  - [FIX-v85-NUMERORAT] btnEnviarEmail: 'numeroRAT' nunca foi declarado no escopo do
+    handler de e-mail — assunto e corpo sempre exibiam "undefined" no lugar do número
+    da RAT. Exemplo: "Relatório Técnico de Atendimento nº undefined" e "Relatório nº:
+    undefined". Fix: const numeroRAT = r.numero || '' adicionado antes do assunto.
+    No fluxo WhatsApp o equivalente já era r.numero (correto) — só o e-mail tinha o bug.
+  - [FIX-v85-IMGCACHE-TIMEOUT] Promise.all(_imgCache) no exportarPDF: cada imagem agora
+    tem timeout de 8s com flag _piDone. data:URI corrompido (bytes inválidos mas prefixo
+    válido) nunca disparava onload nem onerror em alguns browsers — Promise.all travava
+    indefinidamente e o PDF nunca era gerado. Imagem que exceder o timeout é ignorada
+    (resolve null) e o PDF é gerado sem ela.
+  - [FIX-v85-FILEREADER-TIMEOUT] lerArquivoComoDataURL: timeout de 30s adicionado.
+    FileReader pode travar indefinidamente se o arquivo for removido ou tornar-se
+    inacessível após a seleção (ex: pendrive desconectado). Upload de fotos/logo
+    ficaria bloqueado para sempre sem este fix.
+  - [FIX-v85-WEBP-TIMEOUT] _prepararSrc (conversão WEBP→JPEG): timeout de 8s com flag
+    _ciDone. WEBP corrompido podia nunca disparar onload/onerror, travando addImagemReduzidaAoPdf
+    mesmo com o timeout externo de 8s na Promise raiz (os dois timers são independentes).
+  - [FIX-v85-LOGO-TIMEOUT] Redimensionamento da logo no upload: timeout de 10s com flag
+    _lgDone. Sem timeout, imagem corrompida travava o handler do btnSalvarLogo
+    indefinidamente — botão ficava em loading sem resposta.
+  Correções v84:
+  - [FIX-v84-COMPRESS-TIMEOUT] _comprimirParaFS: adicionado timeout de 10s.
+    Imagem com prefixo 'data:image' válido mas dados corrompidos nunca dispara
+    onload nem onerror — Promise ficava pendente para sempre, travando o
+    Promise.all(_compressPromises) e bloqueando salvarRelatorioNoFirestore inteiro.
+    Fix: flag _done + clearTimeout garante que a Promise sempre resolve.
+  - [FIX-v84-QR-TIMEOUT] _gerarQrCanvas: adicionado timeout de 12s na Promise
+    de carregamento da imagem do QR Code. Se api.qrserver.com não responder,
+    a Promise nunca resolvia nem rejeitava — modal ficava preso em "Gerando QR
+    Code..." sem saída para o usuário (além de fechar o modal manualmente).
+  - [FIX-v84-INTERVAL-FALLBACK] setInterval do fallback sem IntersectionObserver
+    acumulava chamadas indefinidamente em background. Agora conta ciclos
+    invisíveis e para após ~5 minutos de inatividade (100 ciclos × 3s).
+  - [FIX-v84-RIC-IOS] normalizarAssinaturaPNG: requestIdleCallback com timeout:3000
+    não dispara consistentemente no iOS Safari durante animações CSS, fazendo a
+    assinatura cair para o dataUrl bruto (não normalizado/cropado) no PDF.
+    Fix: setTimeout(200) como garantia paralela ao rIC — o primeiro a executar
+    vence via flag _ricFired, evitando dupla execução.
+  Correções v83:
+  - [FIX-v83-TEMIMGS] exportarPDF: temImgs calculado APÓS recuperação local de imagens,
+    não sobre o objeto r original que pode ter '[local]'/'[comprimido]' nos arrays.
+    Antes: r.imgsEquip=['[local]'] → temImgs=true → allImages=[] (após filtro) → exibia
+    "fotos salvas no dispositivo" mesmo com fotos reais no localStorage do técnico.
+    Agora: _rComImgsEarly recupera o objeto local primeiro, temImgs e listaMidias são
+    calculados sobre ele. Segunda leitura do localStorage removida (reusa _rComImgsEarly).
+    Contagem na tabela de mídias corrigida para contar apenas data:URIs reais.
+  - [FIX-v83-BTN-ORDER] Botão "Usar esta assinatura" movido para a primeira posição
+    em ambos os blocos de assinatura (cliente e técnico). Antes vinha depois de "Limpar",
+    o que era confuso — o fluxo natural é: assinar → Usar → Limpar se errou.
+  Correções v82:
+  - [FIX-v82-RESTORE-SENHA] restaurarBackupFirebase: hashes de senha (password, _salt,
+    _passwordHash) agora são removidos da chave online-es-usuarios-v3 ANTES de gravar
+    no localStorage. Backups antigos no Firestore (pré-fix de segurança) podiam conter
+    hashes PBKDF2 que voltavam para o dispositivo ao restaurar — permitindo ataque
+    offline de dicionário por quem tivesse acesso ao arquivo de backup.
+    Mesmo strip já aplicado no backup manual (gerarBackupJSON) e auto-backup.
+  - [FIX-v82-BF-SESSION] Rate limiting de brute force migrado de localStorage para
+    sessionStorage em AMBOS os contextos: login principal (_getBFData/_saveBFData)
+    e portal do cliente (_portalCheckBF/_portalRegisterFail/_portalClearBF).
+    localStorage era trivialmente bypassável via DevTools (removeItem) ou script
+    injetado — sessionStorage não persiste entre sessões e não pode ser zerado
+    sem fechar a aba, tornando o bypass muito mais difícil para um atacante local.
+  Correções v81:
+  - [FIX-v81-LS-SENHA] saveRelatorios: campos internos sensíveis (_portalSenha e outros)
+    agora são removidos ANTES de persistir no localStorage. Antes, _portalSenha (senha do
+    cliente em texto claro) ficava gravada no dispositivo do técnico junto com cada RAT.
+    Fix: listaSanitizada criada via _LS_CAMPOS_INTERNOS antes de JSON.stringify, inclusive
+    no caminho de compactação por quota. AppStorage não é afetado (retorna antes do fix).
+  - [FIX-v81-EMSG] showToast não expõe mais e.message interno nos 5 fluxos de
+    montarRelatorioAtual (btnSalvarLocal, btnGerarPDF, btnShare, email, WhatsApp).
+    Antes: mensagem de erro interna do JS aparecia no toast visível ao usuário final.
+    Agora: mensagem genérica amigável + console.error para diagnóstico do desenvolvedor.
+    Exceções mantidas: token do portal, restaurar backup, apagar logs, PDF de lista —
+    nesses contextos admin/supervisor o detalhe do erro é útil para diagnóstico.
   Correções v80:
   - [FIX-v80-SIG-CLI-CLOSURE] assinaturaClienteAtual não era atualizada nos 3 caminhos externos
     ao closure principal: (1) QR Code "Usar esta assinatura", (2) câmera foto assinatura cliente
@@ -361,6 +555,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ONLINE ES" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <!-- [FIX-v87-MANIFEST] PWA manifest adicionado — resolve erro PWABuilder "did not find a Web Manifest" -->
+  <link rel="manifest" href="/manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- [B-03] Plus Jakarta Sans removida — fonte consolidada em Poppins (carregada no body). -->
@@ -2199,6 +2395,10 @@ html[data-role="technician"] nav button {
                 </div>
               </div>
               <input id="aClienteManual" aria-label="Nome do cliente (manual)" placeholder="Digite o nome da empresa" style="display:none;margin-top:6px;width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              <!-- [FIX-v86-CLI-FEEDBACK] Feedback de seleção de cliente -->
+              <div id="aClienteFeedback" style="display:none;margin-top:5px;padding:5px 10px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.3);border-radius:8px;font-size:.75rem;color:#15803d;font-weight:600;align-items:center;gap:6px;">
+                <i class="ri-checkbox-circle-line"></i> <span id="aClienteFeedbackTxt">Empresa selecionada</span>
+              </div>
               <small id="avisoClienteManual" class="help" style="display:none;">Será marcado como <strong>inserido manualmente</strong> neste relatório.</small>
               <!-- [UX-8] Sugestão: reutilizar último cliente -->
               <div id="_clienteSugestao" style="display:none;align-items:center;gap:8px;margin-top:7px;padding:8px 12px;background:rgba(17,79,145,.07);border:1px solid rgba(17,79,145,.2);border-radius:10px;flex-wrap:wrap;">
@@ -2540,11 +2740,11 @@ html[data-role="technician"] nav button {
           </div>
 
           <div id="sigBtns">
-            <button type="button" class="btn small" id="btnLimparAssinatura">
-              <i class="ri-eraser-line"></i> Limpar
-            </button>
             <button type="button" class="btn small" id="btnUsarAssinatura">
               <i class="ri-check-line"></i> Usar esta assinatura
+            </button>
+            <button type="button" class="btn small" id="btnLimparAssinatura">
+              <i class="ri-eraser-line"></i> Limpar
             </button>
             <button type="button" class="btn small" id="btnTravarSigCliente" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
               <i class="ri-lock-unlock-line" id="iconTravarSigCliente"></i> <span id="lblTravarSigCliente">Travar assinatura</span>
@@ -2617,11 +2817,11 @@ html[data-role="technician"] nav button {
           </div>
 
           <div id="sigTecBtns" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-            <button type="button" class="btn small" id="btnLimparAssinaturaTec">
-              <i class="ri-eraser-line"></i> Limpar assinatura
-            </button>
             <button type="button" class="btn small" id="btnUsarAssinaturaTec">
               <i class="ri-check-line"></i> Usar esta assinatura
+            </button>
+            <button type="button" class="btn small" id="btnLimparAssinaturaTec">
+              <i class="ri-eraser-line"></i> Limpar assinatura
             </button>
             <button type="button" class="btn small" id="btnTravarSigTecnico" title="Trava a assinatura para não riscar ao rolar a tela" style="background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.35);color:#475569;">
               <i class="ri-lock-unlock-line" id="iconTravarSigTecnico"></i> <span id="lblTravarSigTecnico">Travar assinatura</span>
@@ -3975,23 +4175,55 @@ html[data-role="technician"] nav button {
       });
 
       if (lista.length) {
+        // [FIX-v89c-DEDUP] Deduplica docs do Firestore por username antes de mergear.
+        // Dois docs podem ter o mesmo username (ex: onlineEsUsuarios/<uid> e
+        // onlineEsUsuarios/<username> criados em momentos diferentes).
+        // Quando há duplicata, prefere mustChangePassword:false (valor mais permissivo
+        // e correto — indica que o usuário já definiu a senha em algum device/momento).
+        var listaDedup = [];
+        lista.forEach(function(fsUser) {
+          var existing = listaDedup.find(function(x) { return x.username === fsUser.username; });
+          if (!existing) {
+            listaDedup.push(fsUser);
+          } else if (fsUser.mustChangePassword === false && existing.mustChangePassword === true) {
+            // O doc mais recente/correto diz false — substitui
+            listaDedup[listaDedup.indexOf(existing)] = fsUser;
+          }
+          // Se ambos dizem true, mantém o existente (não importa qual)
+        });
         var localRaw = localStorage.getItem(STORAGE_USERS);
         var localUsers = localRaw ? JSON.parse(localRaw) || [] : [];
-        lista.forEach(function(fsUser) {
+        listaDedup.forEach(function(fsUser) {
           var localMatch = localUsers.find(function(lu) {
             return (lu.username || lu.usuario || '').toLowerCase() === fsUser.username;
           });
           if (localMatch) {
-            localMatch.fullName           = fsUser.fullName || localMatch.fullName;
-            localMatch.role               = fsUser.role     || localMatch.role;
-            localMatch.active             = fsUser.active;
-            localMatch.mustChangePassword = fsUser.mustChangePassword || localMatch.mustChangePassword;
+            localMatch.fullName = fsUser.fullName || localMatch.fullName;
+            localMatch.role     = fsUser.role     || localMatch.role;
+            localMatch.active   = fsUser.active;
+            // [FIX-v89c-MCP] Regra definitiva para mustChangePassword no sync:
+            // Se o usuário local JÁ TEM senha definida (password + _salt presentes),
+            // ele passou pelo modal e definiu a senha — mustChangePassword é false.
+            // Nunca sobrescrever com true vindo do Firestore nesse caso: o doc do
+            // Firestore pode estar stale (ex: doc antigo sob username/ coexistindo com
+            // doc novo sob uid/, ou doc criado antes da troca de senha).
+            // Só aceita mustChangePassword:true do Firestore se o usuário NÃO tem senha local.
+            var _localTemSenha = !!(localMatch.password && localMatch._salt);
+            if (_localTemSenha) {
+              // Usuário tem senha local → ele já completou o fluxo → nunca forçar true
+              localMatch.mustChangePassword = false;
+            } else {
+              // Sem senha local → respeita o Firestore (pode ser primeiro acesso em outro device)
+              localMatch.mustChangePassword = fsUser.mustChangePassword;
+            }
             if (!localMatch.password && fsUser.password && fsUser._salt) {
               localMatch.password = fsUser.password;
               localMatch._salt    = fsUser._salt;
             }
           } else {
-            if (!fsUser.password || !fsUser._salt) fsUser.mustChangePassword = true;
+            // [FIX-MCP-v88] Usuário novo vindo do Firestore não tem senha local — isso é normal
+            // (senhas ficam só no localStorage de cada dispositivo). NÃO forçar mustChangePassword
+            // só por ausência de senha; respeitar o campo do Firestore.
             localUsers.push(fsUser);
           }
         });
@@ -4214,10 +4446,14 @@ html[data-role="technician"] nav button {
           if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
             resolve(dataUrl); return;
           }
-          // Já está pequeno o suficiente (~100KB = ~133K chars em base64)
           if (dataUrl.length < 140000) { resolve(dataUrl); return; }
           var img = new Image();
+          var _done = false;
+          // [FIX-v84-COMPRESS-TIMEOUT] Imagem corrompida nunca dispara onload nem onerror,
+          // travando Promise.all(_compressPromises) e bloqueando salvarRelatorioNoFirestore.
+          var _t = setTimeout(function(){ if(!_done){ _done=true; resolve(dataUrl); } }, 10000);
           img.onload = function() {
+            if (_done) return; _done = true; clearTimeout(_t);
             var MAX = 800;
             var w = img.width, h = img.height;
             if (w > MAX || h > MAX) {
@@ -4229,7 +4465,7 @@ html[data-role="technician"] nav button {
             cv.getContext('2d').drawImage(img, 0, 0, w, h);
             resolve(cv.toDataURL('image/jpeg', 0.50));
           };
-          img.onerror = function() { resolve(dataUrl); };
+          img.onerror = function() { if(!_done){ _done=true; clearTimeout(_t); resolve(dataUrl); } };
           img.src = dataUrl;
         });
       }
@@ -5014,7 +5250,7 @@ function loadUsers(){
       // O hash corresponde à senha provisória de bootstrap definida no deploy.
       // NUNCA remover mustChangePassword:true deste seed.
       lista = [
-        {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
+        {username:'admin', fullName:'Administrador do Sistema', password:'', _salt:'', role:'admin', mustChangePassword:true, active:true}
       ];
       console.warn('[SEC] Primeiro boot: admin criado com senha padrão. TROQUE A SENHA IMEDIATAMENTE ao fazer login.');
       localStorage.setItem(STORAGE_USERS, JSON.stringify(lista));
@@ -5048,23 +5284,25 @@ function loadUsers(){
     // marca mustChangePassword=true — o upgrade real para PBKDF2 ocorre em verifyPassword()
     // no próximo login bem-sucedido, sem interromper o acesso do usuário.
     lista.forEach(x => {
-      if (!x || !x.password) return;
+      if (!x) return;
+      // [FIX-MCP-v88] Usuários vindos do Firestore (fromFirestore/_fromFirestore) não têm senha
+      // local — isso é proposital (senhas nunca sobem ao Firestore). Não tratar ausência de
+      // senha como hash corrompido nesses casos.
+      if (x.fromFirestore || x._fromFirestore) return;
+      if (!x.password) return;
       var pw = String(x.password);
       // Se tem _salt, é um hash PBKDF2 válido - não mexe
       if (x._salt) return;
       // Se é curta (<= 20 chars), provavelmente é texto plano - OK (ex: senha provisória)
       if (pw.length <= 20) return;
-      // Hash longo sem salt:
+      // Hash longo sem salt (apenas para usuários locais, não vindos do Firestore):
       // - 64 chars hex = SHA-256 legado => mantém senha para login mas agenda upgrade
-      // - Qualquer outro comprimento = corrompido (veio do Firestore) => força reset
+      // - Qualquer outro comprimento = corrompido => força reset
       var isSHA256 = /^[0-9a-f]{64}$/.test(pw);
       if (isSHA256) {
         // [FIX-SEC2] Hash SHA-256 sem salt — funciona para login mas é fraco.
         // verifyPassword() fará o upgrade para PBKDF2 no próximo login.
-        // Não força reset de senha, mas registra para auditoria.
-        if (!x._legacyHash) {
-          x._legacyHash = true; // flag para auditoria — removida após upgrade
-        }
+        // Não força reset de senha, não registra _legacyHash (evitar vazamento no LS).
       } else {
         // Hash corrompido — força redefinição
         x.password = '';
@@ -5080,7 +5318,7 @@ function loadUsers(){
     const temValido = lista.some(x => x && typeof x.username === 'string' && x.username.trim() !== '');
     if (!temValido) {
       lista = [
-        {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
+        {username:'admin', fullName:'Administrador do Sistema', password:'', _salt:'', role:'admin', mustChangePassword:true, active:true}
       ];
     }
 
@@ -5090,7 +5328,7 @@ function loadUsers(){
   } catch(e){
     console.warn('Erro ao carregar usuários, usando configuração padrão.');
     const base = [
-      {username:'admin', fullName:'Administrador do Sistema', password:'839a13810ffb0fd96792aebc14762cdc25e637b1578e6f049f6575d321894e23', _salt:'63d78f9b1144c6bec9b6bcb5573b8e77', role:'admin', mustChangePassword:true, active:true}
+      {username:'admin', fullName:'Administrador do Sistema', password:'', _salt:'', role:'admin', mustChangePassword:true, active:true}
     ];
     try {
       localStorage.setItem(STORAGE_USERS, JSON.stringify(base));
@@ -5100,16 +5338,27 @@ function loadUsers(){
   }
 }
 
+// [FIX-v88-USERS-STRIP] Campos transitórios que não devem persistir no localStorage de usuários.
+// fromFirestore/_fromFirestore: flags de runtime, tornam-se stale e causam bugs no próximo boot.
+// _legacyHash: flag de auditoria interna, não tem valor persistente e vaza info sobre hash type.
+// firestoreId/_firestoreId: IDs de documento do Firestore — recalculados ao sincronizar.
+var _LS_USER_CAMPOS_TRANSITORIOS = ['fromFirestore','_fromFirestore','firestoreId','_firestoreId','_legacyHash'];
+
 function saveUsers(lista){
   try{
     const arr = Array.isArray(lista) ? lista : [];
     // [SEC-v53] Salva lista completa (com hashes) apenas no localStorage local —
     // nunca no Firestore. O sync para Firestore (salvarUsuarioNoFirestore) já faz
     // delete de password/_salt antes de enviar. Aqui apenas garantimos a persistência local.
-    if (window.AppStorage) AppStorage.setUsers(arr);
-    else localStorage.setItem(STORAGE_USERS, JSON.stringify(arr));
-    // window.usuarios expõe os hashes em memória — necessário para login local offline.
-    // Risco aceitável: memory scraping requer acesso físico ao dispositivo.
+    // [FIX-v88-USERS-STRIP] Remove campos transitórios antes de persistir.
+    var arrSanitizado = arr.map(function(u) {
+      var out = Object.assign({}, u);
+      _LS_USER_CAMPOS_TRANSITORIOS.forEach(function(k) { delete out[k]; });
+      return out;
+    });
+    if (window.AppStorage) AppStorage.setUsers(arrSanitizado);
+    else localStorage.setItem(STORAGE_USERS, JSON.stringify(arrSanitizado));
+    // window.usuarios mantém os flags em memória para uso no runtime (login, sync).
     window.usuarios = arr;
   }catch(e){
     console.warn('Erro ao salvar usuários em STORAGE_USERS:', e);
@@ -5118,10 +5367,21 @@ function saveUsers(lista){
 
   // RELATÓRIOS/PENDENTES — via AppStorage (local + Firestore sync)
   function loadRelatorios(){ try { return window.AppStorage ? AppStorage.getReports() : JSON.parse(localStorage.getItem(STORAGE_REPORTS)||'[]'); } catch(e){ return []; } }
+  // [FIX-v81-LS-SENHA] Campos internos que nunca devem persistir no localStorage.
+  // _portalSenha em especial é a senha do cliente em texto claro — não deve ficar
+  // gravada no dispositivo do técnico. Os demais são flags de UI/sync sem valor persistente.
+  var _LS_CAMPOS_INTERNOS = ['_portalSenha','_forcarRenovacaoSenha','_rascunho','_rascunhoCard','_somenteMemoria','_legacyHash'];
+
   function saveRelatorios(list){
     try {
       if (window.AppStorage) { AppStorage.setReports(list); return; }
-      var dados = JSON.stringify(list);
+      // [FIX-v81-LS-SENHA] Remove campos internos sensíveis antes de persistir
+      var listaSanitizada = list.map(function(r) {
+        var out = Object.assign({}, r);
+        _LS_CAMPOS_INTERNOS.forEach(function(k) { delete out[k]; });
+        return out;
+      });
+      var dados = JSON.stringify(listaSanitizada);
       // Verifica tamanho — localStorage tem limite ~5MB
       if (dados.length > 4 * 1024 * 1024) {
         // [FIX-ST1] Avisa o usuário ANTES de comprimir — fotos serão perdidas localmente
@@ -5130,7 +5390,7 @@ function saveUsers(lista){
           showToast('⚠️ Armazenamento local quase cheio. Fotos removidas do cache local — dados no servidor estão preservados.', 5000);
         }
         console.warn('localStorage: relatórios compactados (base64 removido) para economizar espaço.');
-        var compacto = list.map(function(r) {
+        var compacto = listaSanitizada.map(function(r) {
           var rc = Object.assign({}, r);
           ['imgsEquip','imgsServico','imgsBaterias'].forEach(function(k) {
             if (Array.isArray(rc[k])) rc[k] = rc[k].map(function(v) {
@@ -6062,9 +6322,13 @@ function autoFillCamposAtendimento(){
           await authUser.updatePassword(s1);
         }
       } catch(e) { console.warn('Falha ao atualizar senha no Firebase Auth:', e); }
+      // [FIX-v89c-MCP] Salva mustChangePassword:false no Firestore com await
+      // para garantir que o doc esteja atualizado antes do próximo sync.
+      // Sem await, o Firestore podia continuar com true e o sync pós-login
+      // reescrevia mustChangePassword:true no localStorage.
       try {
         if (typeof salvarUsuarioNoFirestore === 'function') {
-          salvarUsuarioNoFirestore(u);
+          await salvarUsuarioNoFirestore(u);
         }
       } catch (e) {
         console.warn('Falha ao atualizar senha no Firestore:', e);
@@ -6252,7 +6516,20 @@ function autoFillCamposAtendimento(){
           aClienteSelect.value = _sc(r.cliente);
           // [UX] Sincroniza campo de busca visual com o valor restaurado
           var _busca = document.getElementById('aClienteBusca');
-          if (_busca) _busca.value = _sc(r.cliente);
+          if (_busca) {
+            _busca.value = _sc(r.cliente);
+            // [FIX-v86-CLI-FEEDBACK] Mostra feedback ao restaurar cliente na edição
+            if (r.cliente) {
+              _busca.style.borderColor = '#16a34a';
+              _busca.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.12)';
+              var _fbEd = document.getElementById('aClienteFeedback');
+              var _fbTxtEd = document.getElementById('aClienteFeedbackTxt');
+              if (_fbEd && _fbTxtEd) {
+                _fbTxtEd.textContent = '✔ ' + _sc(r.cliente) + ' selecionado(a)';
+                _fbEd.style.display = 'flex';
+              }
+            }
+          }
         }
 
         const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val || ''; };
@@ -6357,16 +6634,38 @@ function autoFillCamposAtendimento(){
         } catch(e) { console.warn('Restaurar previews ao editar:', e); }
 
         // Restaura assinaturas nas variáveis globais ao editar
+        // [FIX-v89b-SIG-EDIT] Se a assinatura é '[local]' ou '[comprimido]' (placeholder do Firestore),
+        // busca a versão real no localStorage antes de atribuir — caso contrário a variável global
+        // ficaria com a string placeholder (truthy) e o PDF seria gerado sem a assinatura.
         try {
-          assinaturaClienteAtual = r.assinaturaCliente || null;
+          var _sigCliEd  = r.assinaturaCliente   || null;
+          var _sigTecEd  = r.assinaturaTecnicoImg || null;
+          var _needsLocalEd = (_sigCliEd === '[local]' || _sigCliEd === '[comprimido]' ||
+                               _sigTecEd === '[local]' || _sigTecEd === '[comprimido]');
+          if (_needsLocalEd) {
+            try {
+              var _localListEd = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+              var _rLocalEd = _localListEd.find(function(x) { return x.id === r.id; });
+              if (_rLocalEd) {
+                if ((_sigCliEd === '[local]' || _sigCliEd === '[comprimido]') &&
+                    _rLocalEd.assinaturaCliente && _rLocalEd.assinaturaCliente.startsWith('data:'))
+                  _sigCliEd = _rLocalEd.assinaturaCliente;
+                if ((_sigTecEd === '[local]' || _sigTecEd === '[comprimido]') &&
+                    _rLocalEd.assinaturaTecnicoImg && _rLocalEd.assinaturaTecnicoImg.startsWith('data:'))
+                  _sigTecEd = _rLocalEd.assinaturaTecnicoImg;
+              }
+            } catch(e) { console.warn('editarRelatorio: busca assinatura local:', e); }
+          }
+          // Só atribui se for um data URI real — descarta placeholders residuais
+          assinaturaClienteAtual = (_sigCliEd && _sigCliEd.startsWith('data:')) ? _sigCliEd : null;
           window.assinaturaClienteAtual = assinaturaClienteAtual;
           if (assinaturaClienteAtual && sigStatus) sigStatus.textContent = 'Assinatura do cliente carregada.';
           if (assinaturaClienteAtual && sigNomeWrap) sigNomeWrap.style.display = 'block';
           // [FIX-OVERLAY] Assinatura existente: ativa canvas para exibir/editar
           if (assinaturaClienteAtual && typeof _ativarSigCliente === 'function') setTimeout(_ativarSigCliente, 50);
-          assinaturaTecnicoAtual = r.assinaturaTecnicoImg || null;
+          assinaturaTecnicoAtual = (_sigTecEd && _sigTecEd.startsWith('data:')) ? _sigTecEd : null;
           window.assinaturaTecnicoAtual = assinaturaTecnicoAtual;
-          if (assinaturaTecnicoAtual && sigStatusTec) sigStatusTec.textContent = 'Assinatura do t\u00e9cnico carregada.';
+          if (assinaturaTecnicoAtual && sigStatusTec) sigStatusTec.textContent = 'Assinatura do técnico carregada.';
           // [FIX-OVERLAY] Assinatura técnico existente: ativa canvas
           if (assinaturaTecnicoAtual && typeof _ativarSigTecnico === 'function') setTimeout(_ativarSigTecnico, 50);
         } catch(e) { console.warn('Restaurar assinaturas ao editar:', e); }
@@ -8480,14 +8779,18 @@ document.getElementById('btnAddCliente').onclick=()=>{
       if (!src.toLowerCase().startsWith('data:image/webp')) { resolve(src); return; }
       try {
         var ci = new Image();
+        var _ciDone = false;
+        // [FIX-v85-WEBP-TIMEOUT] WEBP corrompido pode nunca disparar onload/onerror
+        var _ciTimer = setTimeout(function(){ if(!_ciDone){ _ciDone=true; resolve(src); } }, 8000);
         ci.onload = function() {
+          if(_ciDone) return; _ciDone=true; clearTimeout(_ciTimer);
           var cv = document.createElement('canvas');
           cv.width = ci.width; cv.height = ci.height;
           var cx = cv.getContext('2d');
           cx.drawImage(ci, 0, 0);
           resolve(cv.toDataURL('image/jpeg', 0.85));
         };
-        ci.onerror = function() { resolve(src); };
+        ci.onerror = function() { if(!_ciDone){ _ciDone=true; clearTimeout(_ciTimer); resolve(src); } };
         ci.src = src;
       } catch(e) { resolve(src); }
     });
@@ -8597,17 +8900,28 @@ document.getElementById('btnAddCliente').onclick=()=>{
             var octxOff = osc.getContext('2d');
             octxOff.drawImage(img, 0, 0);
             var imgData = octxOff.getImageData(0, 0, img.width, img.height);
-            // requestIdleCallback para não bloquear animações durante geração de PDF
             var _doProcess = function() {
               var bbox = _processarPixels(imgData.data, img.width, img.height);
-              // Para renderizar no canvas DOM precisamos de um canvas normal
               var tmp=document.createElement('canvas');
               tmp.width=img.width; tmp.height=img.height;
               tmp.getContext('2d').drawImage(img,0,0);
               _cropECentralizar(tmp, bbox, img.width, img.height);
             };
-            if (typeof requestIdleCallback !== 'undefined') { requestIdleCallback(_doProcess, {timeout:3000}); }
-            else { setTimeout(_doProcess, 0); }
+            // [FIX-v84-RIC-IOS] requestIdleCallback com timeout:3000 não dispara no iOS Safari
+            // durante animações CSS mesmo com timeout — usa setTimeout(200) como garantia.
+            // O setTimeout cancela o rIC se ele já rodou (_ricFired), evitando dupla execução.
+            var _ricFired = false;
+            var _ricSafety = setTimeout(function(){
+              if (!_ricFired) { _ricFired = true; _doProcess(); }
+            }, 200);
+            if (typeof requestIdleCallback !== 'undefined') {
+              requestIdleCallback(function() {
+                if (!_ricFired) { _ricFired = true; clearTimeout(_ricSafety); _doProcess(); }
+              }, {timeout:3000});
+            } else {
+              clearTimeout(_ricSafety);
+              setTimeout(_doProcess, 0);
+            }
             return;
           } catch(e) { /* fallback abaixo */ }
         }
@@ -8779,14 +9093,34 @@ if (logoBase64) {
 
     y = doc.lastAutoTable.finalY + 4;
 
-    const temImgs=(r.imgsEquip&&r.imgsEquip.length)||(r.imgsServico&&r.imgsServico.length)||(r.imgsBaterias&&r.imgsBaterias.length);
+    // [FIX-v82-TEMIMGS] temImgs calculado APÓS recuperação local de imagens —
+    // antes era calculado sobre r original, que pode ter '[local]'/'[comprimido]'.
+    // Isso fazia o bloco entrar mas allImages ficava vazio, exibindo mensagem
+    // "fotos salvas no dispositivo" mesmo com fotos reais no localStorage.
+    // Agora recupera _rComImgs primeiro e calcula temImgs sobre ele.
+    var _rComImgsEarly = r;
+    try {
+      var _localListEarly = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
+      var _rLocal2Early = _localListEarly.find(function(x) { return x.id === r.id; });
+      if (_rLocal2Early && (
+        (_rLocal2Early.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
+        (_rLocal2Early.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
+        (_rLocal2Early.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
+      )) {
+        _rComImgsEarly = _rLocal2Early;
+      }
+    } catch(e) {}
+
+    const temImgs = (_rComImgsEarly.imgsEquip&&_rComImgsEarly.imgsEquip.some(function(s){return s&&s.startsWith('data:');})) ||
+                    (_rComImgsEarly.imgsServico&&_rComImgsEarly.imgsServico.some(function(s){return s&&s.startsWith('data:');})) ||
+                    (_rComImgsEarly.imgsBaterias&&_rComImgsEarly.imgsBaterias.some(function(s){return s&&s.startsWith('data:');}));
     const temVids=(r.vidsEquip&&r.vidsEquip.length)||(r.vidsServico&&r.vidsServico.length)||(r.vidsBaterias&&r.vidsBaterias.length);
 
     if(temImgs||temVids){
       const listaMidias=[];
-      if(r.imgsEquip&&r.imgsEquip.length) listaMidias.push(['Fotos de equipamento', r.imgsEquip.length + ' anexada(s)']);
-      if(r.imgsServico&&r.imgsServico.length) listaMidias.push(['Fotos do serviço', r.imgsServico.length + ' anexada(s)']);
-      if(r.imgsBaterias&&r.imgsBaterias.length) listaMidias.push(['Fotos de baterias/painel', r.imgsBaterias.length + ' anexada(s)']);
+      if(_rComImgsEarly.imgsEquip&&_rComImgsEarly.imgsEquip.some(function(s){return s&&s.startsWith('data:');})) listaMidias.push(['Fotos de equipamento', _rComImgsEarly.imgsEquip.filter(function(s){return s&&s.startsWith('data:');}).length + ' anexada(s)']);
+      if(_rComImgsEarly.imgsServico&&_rComImgsEarly.imgsServico.some(function(s){return s&&s.startsWith('data:');})) listaMidias.push(['Fotos do serviço', _rComImgsEarly.imgsServico.filter(function(s){return s&&s.startsWith('data:');}).length + ' anexada(s)']);
+      if(_rComImgsEarly.imgsBaterias&&_rComImgsEarly.imgsBaterias.some(function(s){return s&&s.startsWith('data:');})) listaMidias.push(['Fotos de baterias/painel', _rComImgsEarly.imgsBaterias.filter(function(s){return s&&s.startsWith('data:');}).length + ' anexada(s)']);
       if(r.vidsEquip&&r.vidsEquip.length) listaMidias.push(['Vídeos de equipamento', r.vidsEquip.length + ' anexado(s)']);
       if(r.vidsServico&&r.vidsServico.length) listaMidias.push(['Vídeos do serviço', r.vidsServico.length + ' anexado(s)']);
       if(r.vidsBaterias&&r.vidsBaterias.length) listaMidias.push(['Vídeos de baterias/painel', r.vidsBaterias.length + ' anexado(s)']);
@@ -8822,19 +9156,8 @@ if (logoBase64) {
         return null;
       };
 
-      // Tenta recuperar versão local completa do relatório
-      var _rComImgs = r;
-      try {
-        var _localList = typeof loadRelatorios === 'function' ? loadRelatorios() : [];
-        var _rLocal2 = _localList.find(function(x) { return x.id === r.id; });
-        if (_rLocal2 && (
-          (_rLocal2.imgsEquip  || []).some(function(s) { return s && s.startsWith('data:'); }) ||
-          (_rLocal2.imgsServico|| []).some(function(s) { return s && s.startsWith('data:'); }) ||
-          (_rLocal2.imgsBaterias||[]).some(function(s) { return s && s.startsWith('data:'); })
-        )) {
-          _rComImgs = _rLocal2;
-        }
-      } catch(e) {}
+      // [FIX-v82-TEMIMGS] Reutiliza _rComImgsEarly já calculado acima — evita segunda leitura do localStorage
+      var _rComImgs = _rComImgsEarly;
 
       // [FIX-PDF] Filtra imagens válidas — remove placeholders '[local]' e '[comprimido]'
       const allImages = [].concat(_rComImgs.imgsEquip||[]).concat(_rComImgs.imgsServico||[]).concat(_rComImgs.imgsBaterias||[])
@@ -8851,14 +9174,17 @@ if (logoBase64) {
       } else {
         doc.text("As imagens abaixo foram reduzidas automaticamente para envio em PDF.",10,y); y+=5;
         // [FIX-v71-PDF-PARALLEL] Pré-decodifica TODAS as imagens em paralelo antes do loop sequencial.
-        // [FIX-v72-IMG-CACHE] _imgCache agora realmente evita re-decode: armazena o elemento Image já carregado
-        // e o passa diretamente para drawImage no canvas — addImagemReduzidaAoPdf aceita src OU Image pre-decoded
+        // [FIX-v85-IMGCACHE-TIMEOUT] Sem timeout, data:URI corrompido nunca dispara onload
+        // nem onerror em alguns browsers — travando Promise.all e o PDF inteiro.
+        // Cada imagem tem timeout de 8s; se não carregar, resolve null (imagem ignorada).
         const _imgCache = await Promise.all(allImages.map(function(src) {
           return new Promise(function(res) {
             if (!src || src === '[local]' || src === '[comprimido]') { res(null); return; }
             var _pi = new Image();
-            _pi.onload = function() { res(_pi); }; // guarda o elemento Image pronto
-            _pi.onerror = function() { res(null); };
+            var _piDone = false;
+            var _piTimer = setTimeout(function(){ if(!_piDone){ _piDone=true; res(null); } }, 8000);
+            _pi.onload  = function() { if(!_piDone){ _piDone=true; clearTimeout(_piTimer); res(_pi); } };
+            _pi.onerror = function() { if(!_piDone){ _piDone=true; clearTimeout(_piTimer); res(null); } };
             _pi.src = src;
           });
         }));
@@ -9295,6 +9621,11 @@ if (logoBase64) {
 
     if (!cDiagnostico || !cDiagnostico.value.trim()) return _erroCampo(cDiagnostico, 'O campo "Diagnóstico do técnico" é obrigatório.');
     if (!cAcoes || !cAcoes.value.trim())              return _erroCampo(cAcoes,       'O campo "Ações realizadas" é obrigatório.');
+    // [FIX-v89-VAL] Campos adicionais obrigatórios para RATs completas
+    var _bEquip = document.getElementById('bEquipamento');
+    if (!_bEquip || !_bEquip.value.trim()) return _erroCampo(_bEquip, 'O campo "Equipamento" é obrigatório.');
+    var _cStatus = document.getElementById('cStatus');
+    if (!_cStatus || !_cStatus.value.trim()) return _erroCampo(_cStatus, 'O campo "Status final" é obrigatório.');
     if (!/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/.test((aDataHoraBR && aDataHoraBR.value || '').trim()))
       return _erroCampo(aDataHoraBR, 'Data/hora inválida. Use o formato: dd/mm/aaaa hh:mm');
     return true;
@@ -9326,7 +9657,7 @@ if (logoBase64) {
     var novo;
     try { novo = montarRelatorioAtual(); } catch(e) {
       console.error('montarRelatorioAtual falhou:', e);
-      showToast('Erro ao montar relatório: ' + e.message);
+      showToast('❌ Erro ao montar o relatório. Verifique os campos e tente novamente.');
       return;
     }
 
@@ -9890,10 +10221,28 @@ if (logoBase64) {
       _dropdown.style.display = 'none';
       // Dispara o evento change para que o código existente preencha CNPJ/telefone/endereço
       _select.dispatchEvent(new Event('change'));
-      // Feedback visual
+      // [FIX-v86-CLI-FEEDBACK] Feedback visual claro ao selecionar empresa
       _busca.style.borderColor = '#16a34a';
       _busca.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.12)';
+      var _fb    = document.getElementById('aClienteFeedback');
+      var _fbTxt = document.getElementById('aClienteFeedbackTxt');
+      if (_fb && _fbTxt) {
+        _fbTxt.textContent = '✔ ' + nome + ' selecionado(a)';
+        _fb.style.display = 'flex';
+        // Oculta automaticamente após 4s para não poluir o formulário
+        clearTimeout(_fb._timer);
+        _fb._timer = setTimeout(function(){ _fb.style.display = 'none'; }, 4000);
+      }
       if (typeof window._atualizarProgressoFormulario === 'function') window._atualizarProgressoFormulario();
+    }
+
+    // [FIX-v86-CLI-BLUR] Limpa o feedback quando o campo é apagado
+    function _limparSelecaoCliente() {
+      _select.value = '';
+      _busca.style.borderColor = '';
+      _busca.style.boxShadow   = '';
+      var _fb = document.getElementById('aClienteFeedback');
+      if (_fb) { _fb.style.display = 'none'; }
     }
 
     function _renderDropdown(termo) {
@@ -9933,8 +10282,8 @@ if (logoBase64) {
     _busca.addEventListener('input', function() {
       var v = _busca.value.trim();
       _renderDropdown(v);
-      // Se limpou o campo, limpa o select também
-      if (!v) { _select.value = ''; _busca.style.borderColor=''; _busca.style.boxShadow=''; }
+      // Se limpou o campo, limpa o select e o feedback também
+      if (!v) { _limparSelecaoCliente(); }
     });
     // Teclado: setas para navegar, Enter para selecionar, Escape para fechar
     _busca.addEventListener('keydown', function(e) {
@@ -9960,11 +10309,14 @@ if (logoBase64) {
     _busca.addEventListener('blur', function() {
       // Fecha com delay para deixar o click no item disparar
       setTimeout(function() { _dropdown.style.display = 'none'; }, 180);
-      // Se o texto digitado não corresponde a nenhum cliente, limpa
+      // [FIX-v86-CLI-BLUR] Comparação case-insensitive — antes 'Empresa ABC' vs 'empresa abc'
+      // falhava e limpava a seleção. Também usa _limparSelecaoCliente para limpar o feedback.
       var lista = Array.isArray(window.clientes) ? window.clientes : [];
-      var match = lista.find(function(c) { return (c.nome||'').toLowerCase() === _busca.value.toLowerCase(); });
-      if (!match && _select.value !== _busca.value) {
-        _select.value = '';
+      var valBusca = (_busca.value || '').trim().toLowerCase();
+      var match = lista.find(function(c) { return (c.nome||'').toLowerCase() === valBusca; });
+      if (!match && (_select.value || '').toLowerCase() !== valBusca) {
+        _limparSelecaoCliente();
+        _busca.value = ''; // limpa o campo também para não confundir
       }
     });
     // Fecha dropdown ao clicar fora
@@ -10424,8 +10776,13 @@ if (logoBase64) {
         var size = Math.min(220, Math.floor(window.innerWidth * 0.55));
         var url  = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(text) + '&ecc=M&bgcolor=ffffff&color=1e293b';
         var img  = new Image();
+        var _done = false;
+        // [FIX-v84-QR-TIMEOUT] sem timeout, se api.qrserver.com não responder a Promise
+        // nunca resolve nem rejeita — modal fica preso em "Gerando QR Code..." para sempre.
+        var _t = setTimeout(function(){ if(!_done){ _done=true; reject(new Error('Timeout ao carregar QR')); } }, 12000);
         img.crossOrigin = 'anonymous';
         img.onload = function() {
+          if (_done) return; _done = true; clearTimeout(_t);
           canvas.width  = img.width;
           canvas.height = img.height;
           var ctx = canvas.getContext('2d');
@@ -10434,7 +10791,7 @@ if (logoBase64) {
           ctx.drawImage(img, 0, 0);
           resolve();
         };
-        img.onerror = function() { reject(new Error('Falha ao carregar QR')); };
+        img.onerror = function() { if(!_done){ _done=true; clearTimeout(_t); reject(new Error('Falha ao carregar QR')); } };
         img.src = url;
       });
     }
@@ -11020,13 +11377,13 @@ if (logoBase64) {
     if (!validarObrigatorios()) return;
     ensureNumeroRat();
     var rAtual;
-    try { rAtual = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
+    try { rAtual = montarRelatorioAtual(); } catch(e){ console.error('montarRelatorioAtual (PDF):', e); showToast('❌ Erro ao montar o relatório. Verifique os campos e tente novamente.'); return; }
     try{
       showLoader('Gerando PDF...');
       await exportarPDF(rAtual);
     } catch(e){
       console.error(e);
-      showToast('❌ Erro ao gerar o PDF deste atendimento. ' + (e && e.message ? e.message : ''), 5000);
+      showToast('❌ Erro ao gerar o PDF deste atendimento. Tente novamente.', 5000);
     } finally {
       hideLoader();
     }
@@ -11087,7 +11444,7 @@ if (logoBase64) {
       if (typeof validarObrigatorios === 'function' && !validarObrigatorios()) return;
       ensureNumeroRat();
       var r;
-      try { r = montarRelatorioAtual(); } catch(e) { showToast('Erro ao montar relatório: ' + e.message); return; }
+      try { r = montarRelatorioAtual(); } catch(e) { console.error('montarRelatorioAtual (share):', e); showToast('❌ Erro ao montar o relatório. Verifique os campos e tente novamente.'); return; }
 
       showLoader('Gerando PDF...');
       try {
@@ -11134,11 +11491,7 @@ if (logoBase64) {
       }
       if (typeof autoFillCamposAtendimento === 'function') autoFillCamposAtendimento();
       ensureNumeroRat();
-      var r; try { r = montarRelatorioAtual(); } catch(e) { showToast('Erro ao montar relatório: ' + e.message); return; }
-      if (!r) { showToast('Erro ao montar relatório.'); return; }
-      window._ratPreSalvoId = r.id;
-
-      const numeroRAT    = r.numero || '';
+      var r; try { r = montarRelatorioAtual(); } catch(e) { console.error('montarRelatorioAtual (email):', e); showToast('❌ Erro ao montar o relatório. Verifique os campos e tente novamente.'); return; }
       const nomeEmpresa  = r.cliente || r.clienteManual || '';
       const nomeVistoria = r.nomeAssinaturaCliente || r.assinaturaNome || r.contato || '';
       const dataTexto    = r.dataHoraBr || r.dataHoraBR || r.dataHora || '';
@@ -11168,7 +11521,12 @@ if (logoBase64) {
       // [FIX-v54-4] _gerarTokenPortal salva token localmente mesmo offline.
       // Se falhar completamente, envia mensagem sem link em vez de bloquear.
       var portalUrl = null;
-      if (window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
+      // [FIX-v86-CNPJ-EMAIL] Avisa imediatamente se cliente não tem CNPJ/CPF
+      var _temCnpjEmail = r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length >= 8;
+      if (!_temCnpjEmail && navigator.onLine) {
+        showToast('⚠️ Cliente sem CNPJ/CPF cadastrado — link do portal não será gerado. Cadastre o CNPJ para enviar o link.', 5000);
+      }
+      if (_temCnpjEmail && window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
         try {
           showToast('🔗 Gerando credencial...', 2000);
           r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
@@ -11191,6 +11549,9 @@ if (logoBase64) {
 
       // 3. Monta e-mail com link do portal
       hideLoader();
+      // [FIX-v85-NUMERORAT] numeroRAT nunca foi declarado neste escopo — assunto e corpo
+      // do e-mail sempre exibiam "undefined" no lugar do número da RAT.
+      const numeroRAT = r.numero || '';
       const assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + numeroRAT;
       var _linhasEmail = [
         'Olá' + (nomeVistoria ? ', ' + nomeVistoria : '') + '!',
@@ -11233,7 +11594,9 @@ if (logoBase64) {
       }
       showToast(portalUrl
         ? '✅ E-mail aberto! O cliente receberá o link para baixar o PDF no portal.'
-        : '✅ E-mail aberto! (sem link — gere novamente quando houver conexão)', 5000);
+        : (_temCnpjEmail
+            ? '✅ E-mail aberto! (sem link — verifique a conexão e tente novamente)'
+            : '✅ E-mail aberto! (sem link — cadastre o CNPJ/CPF do cliente para gerar o portal)'), 5000);
       try { logInfo('RAT enviada por e-mail', { numero: numeroRAT, cliente: nomeEmpresa, email, comPortal: !!portalUrl }); } catch(e) {}
 
       } finally { hideLoader(); } // [FIX-LOADER] fecha try/finally do e-mail
@@ -11251,8 +11614,9 @@ if (logoBase64) {
       return;
     }
     if (tel.length <= 11) tel = '55' + tel;
+    if (typeof autoFillCamposAtendimento === 'function') autoFillCamposAtendimento(); // [FIX-v89b-WA-AUTOFILL]
     ensureNumeroRat();
-    var r; try { r = montarRelatorioAtual(); } catch(e) { showToast('Erro ao montar relatório: ' + e.message); return; }
+    var r; try { r = montarRelatorioAtual(); } catch(e) { console.error('montarRelatorioAtual (whatsapp):', e); showToast('❌ Erro ao montar o relatório. Verifique os campos e tente novamente.'); return; }
     window._ratPreSalvoId = r.id;
 
     // [FIX-POPUP] Abre janela em branco ANTES dos awaits — browsers bloqueiam window.open
@@ -11277,7 +11641,13 @@ if (logoBase64) {
 
     // 2. Gera credencial do portal (CNPJ + senha) — Portal v2
     var portalUrlWa = null;
-    if (window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
+    // [FIX-v86-CNPJ-WA] Avisa imediatamente se cliente não tem CNPJ/CPF — antes o técnico
+    // só descobria que o link não foi gerado depois de abrir o WhatsApp.
+    var _temCnpjWa = r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length >= 8;
+    if (!_temCnpjWa && navigator.onLine) {
+      showToast('⚠️ Cliente sem CNPJ/CPF cadastrado — link do portal não será gerado. Cadastre o CNPJ para enviar o link.', 5000);
+    }
+    if (_temCnpjWa && window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
       try {
         showToast('🔗 Gerando credencial...', 2000);
         r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
@@ -11302,18 +11672,18 @@ if (logoBase64) {
     // 3. Monta mensagem com link do portal e abre WhatsApp
     hideLoader();
     var msgFinal;
-    // [PORTAL-V2] [FIX-v60-LINK] Link sem senha — senha em destaque no corpo da mensagem
-    if (r._portalCnpj) {
-      var _urlWa = window._urlPortalV2 ? window._urlPortalV2(r._portalCnpj) : null;
-      var _senhaWa = r._portalSenha || null;
+    // [FIX-v88-WA-URL] Usa portalUrlWa (já gerado com senha na URL) em vez de reconstruir
+    // a URL sem senha. O branch antigo chamava _urlPortalV2(r._portalCnpj) sem passar a senha,
+    // fazendo o cliente receber um link sem login automático mesmo quando a senha foi gerada.
+    if (portalUrlWa && r._portalCnpj) {
       msgFinal =
         'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
         'Segue o Relatório Técnico de Atendimento RAT *' + (r.numero||'') + '* — ' + (r.cliente||'') + '.\n\n' +
-        '📂 *Acesse o Portal do Cliente:*\n' + (_urlWa||'') + '\n\n' +
+        '📂 *Acesse o Portal do Cliente:*\n' + portalUrlWa + '\n\n' +
         '🔑 *Seus dados de acesso:*\n' +
         '   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') + '\n' +
-        (_senhaWa
-          ? '   🔑 Senha: *' + _senhaWa + '* (válida por 30 dias)'
+        (r._portalSenha
+          ? '   🔑 Senha: *' + r._portalSenha + '* (válida por 30 dias)'
           : '   🔑 Use a senha já recebida anteriormente.') + '\n\n' +
         'Qualquer dúvida estamos à disposição!';
     } else if (portalUrlWa) {
@@ -11341,7 +11711,9 @@ if (logoBase64) {
     }
     showToast(portalUrlWa
       ? '✅ WhatsApp aberto! Link e senha do portal incluídos na mensagem.'
-      : '✅ WhatsApp aberto! (sem link — gere novamente quando houver conexão)', 5000);
+      : (_temCnpjWa
+          ? '✅ WhatsApp aberto! (sem link — verifique a conexão e tente novamente)'
+          : '✅ WhatsApp aberto! (sem link — cadastre o CNPJ/CPF do cliente para gerar o portal)'), 5000);
     try { logInfo('RAT enviada por WhatsApp', { numero: r.numero || 'N/A', cliente: r.cliente || '', telefone: tel, comPortal: !!portalUrlWa }); } catch(e) {}
 
     } finally { hideLoader(); }
@@ -11393,6 +11765,9 @@ if (logoBase64) {
       var _buscaWrapClear = document.getElementById('aClienteBuscaWrap');
       if (_buscaClear) { _buscaClear.value=''; _buscaClear.style.borderColor=''; _buscaClear.style.boxShadow=''; }
       if (_buscaWrapClear) _buscaWrapClear.style.display = '';
+      // [FIX-v86-CLI-FEEDBACK] Oculta feedback de seleção ao limpar formulário
+      var _fbClear = document.getElementById('aClienteFeedback');
+      if (_fbClear) { _fbClear.style.display = 'none'; clearTimeout(_fbClear._timer); }
       if (aClienteManual) { aClienteManual.value = ''; aClienteManual.style.display = 'none'; }
       if (aCnpj) { aCnpj.value = ''; aCnpj.readOnly = false; }
       var cnpjWrap = (aCnpj && aCnpj.parentElement) ? aCnpj.parentElement : document.getElementById('aCnpjWrapper');
@@ -11405,6 +11780,10 @@ if (logoBase64) {
       // Apaga rascunho salvo
       try { localStorage.removeItem(typeof STORAGE_RASCUNHO !== 'undefined' ? STORAGE_RASCUNHO : 'online-es-rascunho-v1'); } catch(e){}
     try { var _luL = window.usuarioLogado; var _lkL = _luL ? 'rascunho-perguntado-' + (_luL.username||_luL.usuario||'').toLowerCase() : null; if (_lkL) sessionStorage.removeItem(_lkL); } catch(e) {}
+      // [FIX-v89-DOCTIPO] Reseta tipo de documento para CNPJ (padrão) ao limpar formulário.
+      // Sem este fix, se o atendimento anterior usou CPF, o próximo abre com CPF selecionado
+      // mas o label do campo mostrando 'CNPJ' — causando confusão visual.
+      try { if (typeof setTipoDoc === 'function') setTipoDoc('CNPJ'); } catch(e){}
       // Gera novo número RAT e reinicia relógio
       window._ratNumeroBloqueado = false;
       try { ensureNumeroRat(); } catch(e){}
@@ -11448,7 +11827,22 @@ if (logoBase64) {
         } else if (aClienteSelect) {
           aClienteSelect.value = _sc(ult.cliente);
           var _bs = document.getElementById('aClienteBusca');
-          if (_bs) _bs.value = _sc(ult.cliente);
+          if (_bs) {
+            _bs.value = _sc(ult.cliente);
+            // [FIX-v86-CLI-FEEDBACK] Feedback ao usar último cliente
+            if (ult.cliente) {
+              _bs.style.borderColor = '#16a34a';
+              _bs.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.12)';
+              var _fbUlt = document.getElementById('aClienteFeedback');
+              var _fbTxtUlt = document.getElementById('aClienteFeedbackTxt');
+              if (_fbUlt && _fbTxtUlt) {
+                _fbTxtUlt.textContent = '✔ ' + _sc(ult.cliente) + ' selecionado(a)';
+                _fbUlt.style.display = 'flex';
+                clearTimeout(_fbUlt._timer);
+                _fbUlt._timer = setTimeout(function(){ _fbUlt.style.display = 'none'; }, 4000);
+              }
+            }
+          }
           aClienteSelect.dispatchEvent(new Event('change'));
         }
         setVal('aContato',      ult.contato);
@@ -12636,8 +13030,11 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   function lerArquivoComoDataURL(file){
     return new Promise((resolve,reject)=>{
       const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = reject;
+      // [FIX-v85-FILEREADER-TIMEOUT] FileReader pode nunca disparar em alguns browsers
+      // se o arquivo for removido/inacessível após seleção. Timeout de 30s como segurança.
+      const _t = setTimeout(()=> reject(new Error('Timeout ao ler arquivo')), 30000);
+      fr.onload  = () => { clearTimeout(_t); resolve(fr.result); };
+      fr.onerror = (e) => { clearTimeout(_t); reject(e); };
       fr.readAsDataURL(file);
     });
   }
@@ -12667,7 +13064,11 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       var b64 = await new Promise(function(resolve) {
         try {
           var img = new Image();
+          var _lgDone = false;
+          // [FIX-v85-LOGO-TIMEOUT] Imagem corrompida pode nunca disparar onload/onerror
+          var _lgTimer = setTimeout(function(){ if(!_lgDone){ _lgDone=true; resolve(b64raw); } }, 10000);
           img.onload = function() {
+            if(_lgDone) return; _lgDone=true; clearTimeout(_lgTimer);
             var MAX = 400;
             var w = img.width, h = img.height;
             if (w > MAX || h > MAX) { var r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
@@ -12675,7 +13076,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
             cv.getContext('2d').drawImage(img, 0, 0, w, h);
             resolve(cv.toDataURL('image/png'));
           };
-          img.onerror = function() { resolve(b64raw); };
+          img.onerror = function() { if(!_lgDone){ _lgDone=true; clearTimeout(_lgTimer); resolve(b64raw); } };
           img.src = b64raw;
         } catch(e) { resolve(b64raw); }
       });
@@ -13151,6 +13552,18 @@ function aplicarPermissoesConfiguracoes(){
       Object.entries(data).forEach(([k, v]) => {
         if (!_CHAVES_FB.has(k)) return; // ignora chaves desconhecidas
         try {
+          // [FIX-v82-RESTORE-SENHA] Remove hashes de senha ao restaurar usuários —
+          // backups antigos (pré-fix) podem conter password+_salt em texto que não
+          // devem ser restaurados no localStorage do dispositivo atual.
+          if (k === 'online-es-usuarios-v3' || k === 'online-es-users' || k === 'online-es-usuarios-v1') {
+            try {
+              var _users = JSON.parse(v);
+              if (Array.isArray(_users)) {
+                _users.forEach(function(u) { delete u.password; delete u._salt; delete u._passwordHash; });
+                v = JSON.stringify(_users);
+              }
+            } catch(e2) {}
+          }
           // Sanitiza IDs em arrays de objetos para bloquear payloads com IDs malformados
           if (['online-es-relatorios','online-es-pendentes','online-es-equipamentos-v1','online-es-clientes-v1'].includes(k)) {
             try {
@@ -14950,10 +15363,18 @@ document.addEventListener('click', function(ev){
       _obs.observe(telaNovo);
     } else {
       // Fallback para navegadores sem IntersectionObserver (muito antigos)
-      setInterval(function(){
+      // [FIX-v84-INTERVAL-FALLBACK] Guarda referência e para quando a tela não está mais visível
+      // por 5 ciclos consecutivos — evita interval rodando para sempre em background.
+      var _fbInvisCount = 0;
+      var _fbInt = setInterval(function(){
         try{
           if (telaNovo && telaNovo.style.display !== 'none'){
+            _fbInvisCount = 0;
             preencherCamposAtendimentoSeguro();
+          } else {
+            _fbInvisCount++;
+            // Para após 5 min de inatividade (100 ciclos × 3s) e reinicia ao mostrar a tela
+            if (_fbInvisCount > 100) { clearInterval(_fbInt); _fbInt = null; }
           }
         }catch(e){}
       }, 3000);
@@ -15582,39 +16003,101 @@ async function loginBuscarUsuarioFirestore(loginDigitado, firebaseUid) {
 
 
 // ===== SEGURANÇA: Proteção contra força bruta =====
-// [B-05] Proteção anti-brute-force local — complementar ao rate limiting do Firebase Auth.
-// LIMITAÇÃO CONHECIDA: usa localStorage, que pode ser limpo em modo privado.
-// A defesa principal e autoritativa é o rate limiting server-side do Firebase Auth
-// (auth/too-many-requests), que NÃO pode ser bypassado pelo usuário.
-// Esta camada local serve como feedback imediato antes de atingir o Firebase.
+// [B-05] Proteção anti-brute-force — dupla camada: client-side (sessionStorage) + server-side (Firestore).
+// A defesa autoritativa é o rate limiting server-side do Firebase Auth (auth/too-many-requests).
+// Esta camada acrescenta: (1) feedback imediato ao usuário e (2) bloqueio Firestore persistente
+// que não pode ser bypassado fechando a aba (diferente do sessionStorage).
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutos
 const _BF_KEY = 'online-es-bf';
 
 function _getBFData() {
-  try { return JSON.parse(localStorage.getItem(_BF_KEY) || '{}'); } catch(e) { return {}; }
+  try { return JSON.parse(sessionStorage.getItem(_BF_KEY) || '{}'); } catch(e) { return {}; }
 }
 function _saveBFData(data) {
-  // Remove entradas expiradas antes de salvar (TTL: 24h) para não acumular dados
   try {
     var now = Date.now();
     Object.keys(data).forEach(function(k){
       if (data[k].lockedUntil && data[k].lockedUntil < now && data[k].lastAttempt && (now - data[k].lastAttempt) > 86400000) delete data[k];
     });
-    localStorage.setItem(_BF_KEY, JSON.stringify(data));
+    sessionStorage.setItem(_BF_KEY, JSON.stringify(data));
   } catch(e) {}
 }
 
-function _checkBruteForce(username) {
+// [FIX-v88-BF-SERVER] Persistência de bloqueio no Firestore — sobrevive a fechar aba/browser.
+// Usa a chave 'online-es-bf-<username>' em sessionStorage como cache local; o Firestore
+// é a fonte autoritativa. Leitura/escrita em background para não bloquear o login legítimo.
+async function _checkBFServer(username) {
+  try {
+    var cfg = window.firebaseConfig || {};
+    if (!cfg.projectId || !cfg.apiKey) return null;
+    var key = (username || '').toLowerCase().trim().replace(/[^a-z0-9._-]/g, '_');
+    var url = 'https://firestore.googleapis.com/v1/projects/' + cfg.projectId +
+              '/databases/(default)/documents/onlineEsBF/' + encodeURIComponent(key) +
+              '?key=' + cfg.apiKey;
+    var resp = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined });
+    if (!resp.ok) return null;
+    var json = await resp.json();
+    if (!json.fields) return null;
+    var lockedUntil = json.fields.lockedUntil ? Number(json.fields.lockedUntil.integerValue || json.fields.lockedUntil.doubleValue || 0) : 0;
+    var count = json.fields.count ? Number(json.fields.count.integerValue || 0) : 0;
+    return { lockedUntil, count };
+  } catch(e) { return null; }
+}
+
+async function _saveBFServer(username, entry) {
+  try {
+    var cfg = window.firebaseConfig || {};
+    if (!cfg.projectId || !cfg.apiKey) return;
+    var key = (username || '').toLowerCase().trim().replace(/[^a-z0-9._-]/g, '_');
+    var url = 'https://firestore.googleapis.com/v1/projects/' + cfg.projectId +
+              '/databases/(default)/documents/onlineEsBF/' + encodeURIComponent(key) +
+              '?key=' + cfg.apiKey;
+    var body = { fields: {
+      lockedUntil: { integerValue: String(entry.lockedUntil || 0) },
+      count:       { integerValue: String(entry.count || 0) },
+      lastAttempt: { integerValue: String(entry.lastAttempt || Date.now()) }
+    }};
+    // PATCH com updateMask para não sobrescrever outros campos
+    fetch(url + '&updateMask.fieldPaths=lockedUntil&updateMask.fieldPaths=count&updateMask.fieldPaths=lastAttempt',
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch(e) {}
+}
+
+async function _clearBFServer(username) {
+  try {
+    var cfg = window.firebaseConfig || {};
+    if (!cfg.projectId || !cfg.apiKey) return;
+    var key = (username || '').toLowerCase().trim().replace(/[^a-z0-9._-]/g, '_');
+    var url = 'https://firestore.googleapis.com/v1/projects/' + cfg.projectId +
+              '/databases/(default)/documents/onlineEsBF/' + encodeURIComponent(key) +
+              '?key=' + cfg.apiKey;
+    fetch(url, { method: 'DELETE' });
+  } catch(e) {}
+}
+
+async function _checkBruteForce(username) {
   const key = (username || '').toLowerCase().trim();
   const now = Date.now();
+  // 1) Verifica cache local (sessionStorage) — resposta imediata
   const data = _getBFData();
-  if (!data[key]) return { blocked: false };
-  const entry = data[key];
-  if (entry.lockedUntil > now) {
-    const mins = Math.ceil((entry.lockedUntil - now) / 60000);
+  if (data[key] && data[key].lockedUntil > now) {
+    const mins = Math.ceil((data[key].lockedUntil - now) / 60000);
     return { blocked: true, message: 'Muitas tentativas incorretas. Tente novamente em ' + mins + ' minuto(s).' };
   }
+  // 2) Verifica bloqueio no Firestore (persiste entre sessões) — async
+  try {
+    var serverEntry = await _checkBFServer(key);
+    if (serverEntry && serverEntry.lockedUntil > now) {
+      // Sincroniza o bloqueio server no sessionStorage local
+      if (!data[key]) data[key] = {};
+      data[key].lockedUntil = serverEntry.lockedUntil;
+      data[key].count = serverEntry.count;
+      _saveBFData(data);
+      const mins = Math.ceil((serverEntry.lockedUntil - now) / 60000);
+      return { blocked: true, message: 'Muitas tentativas incorretas. Tente novamente em ' + mins + ' minuto(s).' };
+    }
+  } catch(e) {}
   return { blocked: false };
 }
 
@@ -15629,6 +16112,8 @@ function _registerFailedAttempt(username) {
   if (entry.count >= LOGIN_MAX_ATTEMPTS) {
     entry.lockedUntil = now + LOGIN_LOCKOUT_MS;
     entry.count = 0;
+    // [FIX-v88-BF-SERVER] Persiste bloqueio no Firestore — não bypassável fechando a aba
+    _saveBFServer(key, { lockedUntil: entry.lockedUntil, count: 0, lastAttempt: now });
   }
   _saveBFData(data);
 }
@@ -15638,9 +16123,10 @@ function _clearLoginAttempts(username) {
   const data = _getBFData();
   delete data[key];
   _saveBFData(data);
+  // [FIX-v88-BF-SERVER] Remove bloqueio do Firestore após login bem-sucedido
+  _clearBFServer(key);
 }
 
-// Retorna número de tentativas restantes
 function _tentativasRestantes(username) {
   const key = (username || '').toLowerCase().trim();
   const data = _getBFData();
@@ -15679,8 +16165,8 @@ async function fazerLogin(){
     return;
   }
 
-  // SEGURANÇA: Proteção contra força bruta
-  const _bf = _checkBruteForce(u);
+  // SEGURANÇA: Proteção contra força bruta (dupla camada: sessionStorage + Firestore)
+  const _bf = await _checkBruteForce(u);
   if (_bf.blocked) {
     msgErro.textContent = _bf.message;
     return;
@@ -15730,9 +16216,34 @@ async function fazerLogin(){
     }
   } catch(e){}
 
+  // [FIX-v88b-MCP] Sempre consulta o Firestore para obter mustChangePassword atualizado,
+  // mesmo quando o usuário já existe no localStorage.
+  // O localStorage pode ter mustChangePassword:true stale de uma sessão anterior (ex: primeiro
+  // boot criou o seed admin com true, o Firestore já diz false mas nunca sobrescrevia o local).
+  var searchUid = (firebaseUser && firebaseUser.uid) ? firebaseUser.uid : null;
   if (!achou) {
-    var searchUid = (firebaseUser && firebaseUser.uid) ? firebaseUser.uid : null;
     try { achou = await loginBuscarUsuarioFirestore(u, searchUid); } catch(e){ console.warn('Falha ao buscar perfil no Firestore:', e); }
+  } else if (navigator.onLine) {
+    // Usuário existe localmente: atualiza campos autoritativos do Firestore (mustChangePassword,
+    // role, active) mas preserva a senha/salt que o Firestore não armazena.
+    try {
+      var _fsRefresh = await loginBuscarUsuarioFirestore(u, searchUid);
+      if (_fsRefresh) {
+        // [FIX-v89c-MCP] Se usuário tem senha local válida, ele já definiu a senha.
+        // Nunca aceitar mustChangePassword:true do Firestore nesse caso — o doc
+        // pode ser stale (criado antes da troca ou duplicado sob outro ID).
+        var _temSenhaLocal = !!(achou.password && achou._salt);
+        if (_temSenhaLocal) {
+          achou.mustChangePassword = false;
+        } else {
+          achou.mustChangePassword = _fsRefresh.mustChangePassword;
+        }
+        achou.role     = _fsRefresh.role     || achou.role;
+        achou.active   = _fsRefresh.active   !== undefined ? _fsRefresh.active   : achou.active;
+        achou.fullName = _fsRefresh.fullName || achou.fullName;
+        if (_fsRefresh._firebaseUid) achou._firebaseUid = _fsRefresh._firebaseUid;
+      }
+    } catch(e) { /* offline ou Firestore indisponível — usa dados locais */ }
   }
 
 
@@ -15871,10 +16382,17 @@ async function fazerLogin(){
     const stored = String(achou.password || '');
     let ok = false;
     if (!stored) {
-      // Primeiro acesso: nenhuma senha definida ainda
-      // O sistema vai exigir que o usuário defina uma senha nova
+      // [FIX-MCP-v88] Sem senha local E sem Firebase Auth:
+      // Se veio do Firestore (fromFirestore), permite acesso e pede definição de senha.
+      // Se é usuário puramente local sem senha, também pede definição.
+      // Em ambos os casos, mustChangePassword já virá correto do Firestore ou será true aqui.
       ok = true;
-      achou.mustChangePassword = true;
+      if (!achou.fromFirestore && !achou._fromFirestore) {
+        // Usuário puramente local sem senha = primeiro acesso
+        achou.mustChangePassword = true;
+      }
+      // [FIX-v89c-MCP] fromFirestore sem senha local: respeita Firestore.
+      // O valor já foi atualizado via _fsRefresh acima.
     } else {
       // [FIX-v68-CRYPTO] verifyPassword usa crypto.subtle que lança TypeError em contextos
       // não-seguros (HTTP, file://). Sem try/catch, o erro subia ao handler externo que
@@ -15892,12 +16410,17 @@ async function fazerLogin(){
       }
     }
     if (!ok) {
-      // Recovery: apenas se o usuário veio do Firestore E não tem senha salva localmente
-      // (situação de primeiro login de outro dispositivo) — não permite bypass se há senha local
+      // Recovery: usuário vindo do Firestore sem senha local = primeiro login neste dispositivo.
+      // [FIX-MCP-v88] Permite o acesso mas exige definição de senha nova via modal.
+      // Isso é seguro porque: (1) o usuário já foi autenticado pelo Firebase Auth na ETAPA 1
+      // (se disponível), ou (2) não há senha local para comparar (sem bypass de senha existente).
+      // [FIX-v88b-MCP] fromFirestore sem senha local = primeiro login neste dispositivo.
+      // NÃO força mustChangePassword=true: o valor correto já vem do Firestore.
+      // Força apenas se o Firestore também indicar (mustChangePassword já estará true).
       if ((achou.fromFirestore || achou._fromFirestore) && !stored) {
         achou.password = '';
         achou._salt = '';
-        achou.mustChangePassword = true;
+        // mustChangePassword já está correto vindo do Firestore — não sobrescreve
         ok = true;
       }
     }
@@ -17383,7 +17906,7 @@ async function fazerLogin(){
       btnMon.style.display = '';
     }
     monRegistrar('acao', 'info', 'Sessão iniciada', {
-      versaoSW: 'onlinees-v10',
+      versaoSW: 'onlinees-v11', // [FIX-v89-SW] Atualizado para refletir SW_VERSION real
       plataforma: navigator.platform || ''
     });
     _monCarregarLogs();
@@ -17955,10 +18478,41 @@ function _db(){
   return null;
 }
 
-/* ── SHA-256 para hash de senha ─────────────────────────── */
+/* ── SHA-256 legado (mantido apenas para verificação de hashes antigos) ── */
 async function _sha256(str){
   var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+/* ── [FIX-v89-PORTAL-HASH] PBKDF2 com salt para hash de senha do portal do cliente ──
+   SHA-256 simples é vulnerável a rainbow table: senha de 6 dígitos tem apenas
+   1.000.000 combinações — uma tabela pré-computada quebra instantaneamente.
+   PBKDF2/SHA-256 com 100.000 iterações e salt único torna o ataque inviável.
+   Compatibilidade: se o doc Firestore tiver 'senhaSalt', usa PBKDF2;
+   caso contrário cai para SHA-256 legado (docs criados antes do v89). */
+async function _portalGerarSalt(){
+  var arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+async function _portalHashSenha(plain, salt){
+  var enc = new TextEncoder();
+  var key = await crypto.subtle.importKey('raw', enc.encode(plain), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits(
+    { name:'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash:'SHA-256' },
+    key, 256
+  );
+  return Array.from(new Uint8Array(bits)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+async function _portalVerificarSenha(plain, cred){
+  // Novo formato: PBKDF2 com salt
+  if (cred.senhaSalt) {
+    var h = await _portalHashSenha(String(plain||'').trim(), cred.senhaSalt);
+    return h === cred.senhaHash;
+  }
+  // Legado: SHA-256 simples (docs criados antes do v89)
+  var h2 = await _sha256(String(plain||'').trim());
+  return h2 === cred.senhaHash;
 }
 
 /* ── Gerar senha aleatória de 6 dígitos ─────────────────── */
@@ -18025,7 +18579,9 @@ window._gerarCredencialPortal = async function(rat){
 
     // Senha expirada, faltam ≤7 dias, ou renovação forçada → gera nova senha
     senhaPlain = _gerarSenha6();
-    var hash = await _sha256(senhaPlain);
+    // [FIX-v89-PORTAL-HASH] PBKDF2 com salt em vez de SHA-256 simples
+    var senhaSalt = await _portalGerarSalt();
+    var hash = await _portalHashSenha(senhaPlain, senhaSalt);
     var expiraEm = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
 
     // Coleta e-mails das últimas RATs do mesmo CNPJ
@@ -18047,6 +18603,7 @@ window._gerarCredencialPortal = async function(rat){
       cnpj: cnpj,
       nome: rat.cliente || '',
       senhaHash: hash,
+      senhaSalt: senhaSalt, // [FIX-v89-PORTAL-HASH] salt para PBKDF2
       criadaEm: agora.toISOString(),
       expiradoEm: expiraEm,
       emails: emails,
@@ -18069,11 +18626,19 @@ window._gerarCredencialPortal = async function(rat){
    não fica no histórico do browser nem em logs de servidor).
    O portal mostra o CNPJ pré-preenchido e o cliente digita a senha.
 ──────────────────────────────────────────────────────────── */
-window._urlPortalV2 = function(cnpj){
-  // [FIX-v60-PORTAL-SEPARADO] Link aponta para portal.html — arquivo independente do sistema.
-  // Elimina completamente o conflito entre app interno e portal do cliente.
+window._urlPortalV2 = function(cnpj, senha){
+  // [FIX-v87-PORTAL-URL] Inclui senha como parâmetro &s= quando fornecida —
+  // permite login automático ao cliente clicar no link sem precisar digitar a senha.
+  // A senha já é enviada no corpo da mensagem (WhatsApp/e-mail) por segurança;
+  // incluir na URL do "Copiar link" é conveniente e equivalente ao que já era feito
+  // via _urlPortal() legado. O portal.html lê ?s= e faz login automático.
   var base = window.location.href.split('/').slice(0, -1).join('/');
-  return base + '/portal.html?cnpj=' + (typeof _normCnpj === 'function' ? _normCnpj(cnpj) : String(cnpj||'').replace(/\D/g,''));
+  var cnpjNorm = typeof _normCnpj === 'function' ? _normCnpj(cnpj) : String(cnpj||'').replace(/\D/g,'');
+  var url = base + '/portal.html?cnpj=' + cnpjNorm;
+  if (senha && String(senha).trim()) {
+    url += '&s=' + encodeURIComponent(String(senha).trim());
+  }
+  return url;
 };
 
 /* Mantém _urlPortal para compatibilidade (alguns botões ainda usam).
@@ -18292,8 +18857,9 @@ var _PORTAL_MAX_TENT  = 5;
 var _PORTAL_LOCKOUT   = 15 * 60 * 1000; // 15 minutos
 
 function _portalCheckBF(cnpj){
+  // [FIX-v82-BF-SESSION] sessionStorage — não bypassável via DevTools sem fechar a aba
   try{
-    var d = JSON.parse(localStorage.getItem(_PORTAL_BF_KEY) || '{}');
+    var d = JSON.parse(sessionStorage.getItem(_PORTAL_BF_KEY) || '{}');
     var e = d[cnpj];
     if(!e) return { blocked: false };
     if(e.lockedUntil > Date.now()){
@@ -18305,7 +18871,7 @@ function _portalCheckBF(cnpj){
 }
 function _portalRegisterFail(cnpj){
   try{
-    var d = JSON.parse(localStorage.getItem(_PORTAL_BF_KEY) || '{}');
+    var d = JSON.parse(sessionStorage.getItem(_PORTAL_BF_KEY) || '{}');
     if(!d[cnpj]) d[cnpj] = { count: 0, lockedUntil: 0 };
     d[cnpj].count++;
     d[cnpj].lastAttempt = Date.now();
@@ -18313,14 +18879,14 @@ function _portalRegisterFail(cnpj){
       d[cnpj].lockedUntil = Date.now() + _PORTAL_LOCKOUT;
       d[cnpj].count = 0;
     }
-    localStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
+    sessionStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
   }catch(e){}
 }
 function _portalClearBF(cnpj){
   try{
-    var d = JSON.parse(localStorage.getItem(_PORTAL_BF_KEY) || '{}');
+    var d = JSON.parse(sessionStorage.getItem(_PORTAL_BF_KEY) || '{}');
     delete d[cnpj];
-    localStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
+    sessionStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
   }catch(e){}
 }
 
@@ -18384,9 +18950,9 @@ async function _loginPortal(cnpjInput, senhaInput){
     return { ok: false, expirada: true, cred: cred, cnpj: cnpj };
   }
 
-  // Verifica hash
-  var hash = await _sha256(String(senhaInput||'').trim());
-  if(hash !== cred.senhaHash){
+  // [FIX-v89-PORTAL-HASH] Verifica senha via PBKDF2 (novo) ou SHA-256 legado
+  var _senhaOk = await _portalVerificarSenha(senhaInput, cred);
+  if(!_senhaOk){
     _portalRegisterFail(cnpj); // [FIX-v63-PORTAL-BF]
     return { ok: false, msg: 'Senha incorreta. Verifique a senha recebida pelo WhatsApp ou e-mail.' };
   }
@@ -18636,13 +19202,16 @@ async function _renderSenhaExpirada(cnpj, cred){
 
   // 1. Gera nova senha e salva no Firestore
   var novaSenha = _gerarSenha6();
-  var hash = await _sha256(novaSenha);
+  // [FIX-v89-PORTAL-HASH] PBKDF2 com salt
+  var novaSalt = await _portalGerarSalt();
+  var hash = await _portalHashSenha(novaSenha, novaSalt);
   var expiraEm = new Date(Date.now() + 30*24*60*60*1000).toISOString();
   var db = _db();
   if(db){
     try{
       await db.collection('onlineEsPortalClientes').doc(cnpj).update({
         senhaHash: hash,
+        senhaSalt: novaSalt, // [FIX-v89-PORTAL-HASH]
         criadaEm: new Date().toISOString(),
         expiradoEm: expiraEm
       });
@@ -18838,10 +19407,13 @@ function _renderEsqueciSenha(){
         } else {
           var cred = snap.data();
           var novaSenha = _gerarSenha6();
-          var hash = await _sha256(novaSenha);
+          // [FIX-v89-PORTAL-HASH] PBKDF2 com salt
+          var novoSaltEsq = await _portalGerarSalt();
+          var hash = await _portalHashSenha(novaSenha, novoSaltEsq);
           var expiraEm = new Date(Date.now()+30*24*60*60*1000).toISOString();
           await db.collection('onlineEsPortalClientes').doc(cnpj).update({
-            senhaHash: hash, criadaEm: new Date().toISOString(), expiradoEm: expiraEm
+            senhaHash: hash, senhaSalt: novoSaltEsq, // [FIX-v89-PORTAL-HASH]
+            criadaEm: new Date().toISOString(), expiradoEm: expiraEm
           });
           var emails = cred.emails || [];
           if(emails.length > 0){
@@ -19122,9 +19694,14 @@ function _injetarPainel(){
           e.stopPropagation();
           bg.disabled=true; bg.innerHTML='<i class="ri-loader-4-line"></i> Gerando...';
           try{
-            var resultado = await window._gerarCredencialPortal(r);
-            if(resultado && resultado.cnpj){
-              var url = window._urlPortalV2(resultado.cnpj, resultado.senha || null);
+            // [FIX-v87-COPIAR-LINK] _forcarRenovacaoSenha=true garante que resultado.senha
+            // nunca seja null — sem isso, se a senha ainda era válida, _gerarCredencialPortal
+            // retornava {senha:null} e _urlPortalV2 gerava o link sem senha, impedindo o
+            // cliente de entrar no portal ao clicar no link copiado pelo técnico.
+            var _rComForce = Object.assign({}, r, { _forcarRenovacaoSenha: true });
+            var resultado = await window._gerarCredencialPortal(_rComForce);
+            if(resultado && resultado.cnpj && resultado.senha){
+              var url = window._urlPortalV2(resultado.cnpj, resultado.senha);
               // [FIX-v66-CLIPBOARD-FALLBACK] Tenta clipboard API; ao falhar, exibe campo readonly selecionável.
               var _clipOk = false;
               try{ await navigator.clipboard.writeText(url); _clipOk = true; }catch(_){}
@@ -19137,11 +19714,7 @@ function _injetarPainel(){
                 setTimeout(function(){ if(_inp.parentNode) _inp.parentNode.removeChild(_inp); },5000);
               }
               if(typeof showToast==='function'){
-                if(resultado.nova && resultado.senha){
-                  showToast('🔗 Link copiado! Senha disponível na caixa de credenciais.', 4000);
-                } else {
-                  showToast('🔗 Link copiado! (senha anterior ainda válida)', 4000);
-                }
+                showToast('🔗 Link copiado! O cliente pode clicar e entrar diretamente (válido 30 dias).', 5000);
               }
               r._portalCnpj = resultado.cnpj;
               r.portalToken = 'cnpj:' + resultado.cnpj;
