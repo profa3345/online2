@@ -1,6 +1,44 @@
 <!DOCTYPE html>
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v88
+  Correções v90d:
+  - [FIX-v90d-MODAL-ID] Modal de compartilhamento usava getElementById com IDs fixos
+    (_ov_wa, _ov_email, etc). Se dois modais fossem abertos ao mesmo tempo (ex: dois
+    cards do painel), getElementById retornava o primeiro no DOM — os handlers do
+    segundo modal executavam ações do primeiro. Fix: substituído por querySelector
+    escopado ao elemento _ov, garantindo que cada modal manipule apenas seus próprios
+    botões independentemente de quantos estejam abertos.
+  Correções v90c:
+  - [FIX-v90c-COMPARTILHAR] Botão "Copiar link portal" substituído por modal de
+    compartilhamento completo com opções selecionáveis:
+    • WhatsApp — abre conversa com mensagem pronta (link + usuário + senha)
+    • E-mail   — abre cliente de e-mail com assunto e corpo formatados
+    • SMS      — abre app de mensagens com texto pronto
+    • Telegram — abre compartilhamento no Telegram
+    • Compartilhar — usa Web Share API nativa do browser/SO (Android/iOS)
+    • Copiar   — copia link + usuário + senha para o clipboard
+    WhatsApp e E-mail ficam desabilitados (cinza) se a RAT não tiver o contato
+    cadastrado, com aviso explicativo. Web Share API aparece apenas quando
+    disponível (mobile). O modal exibe os dados do portal visivelmente antes
+    de qualquer ação.
+  Correções v90b:
+  - [FIX-v90b-LINK-SENHA] Botão "Copiar link portal" no painel supervisor copiava
+    apenas o link para o clipboard — a senha não era exibida em lugar nenhum.
+    O cliente recebia o link mas não conseguia entrar por não ter a senha.
+    Fix: ao clicar, exibe modal com link E senha visíveis lado a lado, botão
+    "Copiar tudo" que copia link + usuário + senha em formato pronto para
+    colar no WhatsApp/e-mail, e fecha ao confirmar. Clipboard tenta copiar
+    automaticamente ao abrir (com fallback manual via botão).
+  Correções v90:
+  - [FIX-v90-CEP] Campo CEP do formulário de atendimento (aCep) não tinha
+    auto-preenchimento de endereço. Ao sair do campo (blur) com 8 dígitos, agora
+    consulta a ViaCEP e preenche logradouro, bairro, cidade e UF automaticamente
+    (apenas se os campos estiverem vazios — não sobrescreve dados já preenchidos).
+    Também adicionada máscara visual 00000-000 ao digitar.
+  - [FIX-v90-FS-CATCH] salvarRelatorioNoFirestore no path principal de save
+    não tinha .catch() — falhas do Firestore eram silenciosas sem log. Adicionado
+    .catch(console.warn) para diagnóstico sem quebrar o fluxo (localStorage já
+    garantiu o dado; o Firestore é complementar).
   Correções v89c:
   - [FIX-v89c-MCP] CORREÇÃO DEFINITIVA do modal de troca de senha persistente.
     Causa raiz identificada: múltiplos docs no Firestore com o mesmo username
@@ -5828,6 +5866,38 @@ function autoFillCamposAtendimento(){
   const aCep = document.getElementById('aCep');
   const aUF = document.getElementById('aUF');
 
+  // [FIX-v90-CEP] Auto-preenchimento de endereço pelo CEP no formulário de atendimento
+  if (aCep) {
+    aCep.addEventListener('blur', async function() {
+      try {
+        var cepDigits = (aCep.value || '').replace(/\D/g, '');
+        if (cepDigits.length !== 8) return;
+        if (!navigator.onLine) return;
+        var _ac = new AbortController();
+        var _timer = setTimeout(function() { _ac.abort(); }, 5000);
+        var resp = await fetch('https://viacep.com.br/ws/' + cepDigits + '/json/', { signal: _ac.signal });
+        clearTimeout(_timer);
+        if (!resp.ok) return;
+        var dados = await resp.json();
+        if (dados.erro) return;
+        var _aEnd = document.getElementById('aEndereco');
+        var _aBai = document.getElementById('aBairro');
+        var _aCid = document.getElementById('aCidade');
+        var _aUF  = document.getElementById('aUF');
+        if (_aEnd && dados.logradouro && !_aEnd.value) _aEnd.value = dados.logradouro;
+        if (_aBai && dados.bairro     && !_aBai.value) _aBai.value = dados.bairro;
+        if (_aCid && dados.localidade && !_aCid.value) _aCid.value = dados.localidade;
+        if (_aUF  && dados.uf         && !_aUF.value)  _aUF.value  = dados.uf;
+        if (dados.logradouro || dados.localidade) showToast('📍 Endereço preenchido pelo CEP.', 2000);
+      } catch(e) { /* AbortError ou falha de rede — silencioso */ }
+    });
+    // Máscara CEP: 00000-000
+    aCep.addEventListener('input', function() {
+      var v = aCep.value.replace(/\D/g, '').slice(0, 8);
+      aCep.value = v.length > 5 ? v.slice(0, 5) + '-' + v.slice(5) : v;
+    });
+  }
+
   const aCnpj = document.getElementById('aCnpj');
   let aCnpjWrapper = null;
   if (aCnpj){
@@ -9743,8 +9813,9 @@ if (logoBase64) {
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
-      // Salva diretamente no Firestore
-      try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo); } catch(e){}
+      // Salva diretamente no Firestore (fire-and-forget — localStorage já garantiu o dado)
+      // [FIX-v90-FS-CATCH] Adiciona .catch para logar falhas silenciosas do Firestore
+      try { if (typeof salvarRelatorioNoFirestore === 'function') salvarRelatorioNoFirestore(novo).catch(function(e){ console.warn('[Save] Firestore falhou silenciosamente:', e && e.message); }); } catch(e){}
       // [FIX-v68-QUOTA-TOAST] Só mostra "salvo" se o save local teve sucesso; caso contrário
       // o toast de QuotaExceeded já foi exibido e "Relatório salvo" seria enganoso.
       if (_saveOk) showToast('Relatório salvo e enviado para o painel.');
@@ -19702,23 +19773,161 @@ function _injetarPainel(){
             var resultado = await window._gerarCredencialPortal(_rComForce);
             if(resultado && resultado.cnpj && resultado.senha){
               var url = window._urlPortalV2(resultado.cnpj, resultado.senha);
-              // [FIX-v66-CLIPBOARD-FALLBACK] Tenta clipboard API; ao falhar, exibe campo readonly selecionável.
+              // [FIX-v90c-COMPARTILHAR] Modal de compartilhamento com destinos selecionáveis.
+              var _senha = resultado.senha;
+              var _cnpjFmt = r.cnpjCliente || resultado.cnpj;
+              var _nomeCliente = r.cliente || '';
+              var _numRat = r.numero || '';
+              var _telWa = String(r.whatsapp||r.telefone||'').replace(/\D/g,'');
+              if(_telWa && _telWa.length<=11) _telWa='55'+_telWa;
+              var _emailCliente = r.emailCliente || '';
+
+              // Textos prontos para cada canal
+              var _msgWa =
+                'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
+                'Segue o acesso ao Portal do Cliente referente à RAT *' + _numRat + '* — ' + _nomeCliente + '.\n\n' +
+                '📂 *Acesse o Portal:*\n' + url + '\n\n' +
+                '🔑 *Seus dados de acesso:*\n' +
+                '   👤 Usuário (CNPJ/CPF): ' + _cnpjFmt + '\n' +
+                '   🔑 Senha: *' + _senha + '* (válida por 30 dias)\n\n' +
+                'Qualquer dúvida estamos à disposição!';
+
+              var _assuntoEmail = 'Online-ES – Acesso ao Portal do Cliente (RAT ' + _numRat + ')';
+              var _corpoEmail = [
+                'Olá' + (_nomeCliente ? ', ' + _nomeCliente : '') + '!',
+                '',
+                'Segue o acesso ao Portal do Cliente referente ao Relatório Técnico RAT ' + _numRat + '.',
+                '',
+                '🔗 Link de acesso: ' + url,
+                '',
+                '🔑 Dados de acesso:',
+                '   Usuário (CNPJ/CPF): ' + _cnpjFmt,
+                '   Senha: ' + _senha + ' (válida por 30 dias)',
+                '',
+                'Atenciosamente,',
+                'Online-ES – Eletroeletrônica',
+                'www.onlinees.com.br'
+              ].join('\n');
+
+              var _textoClipboard =
+                'Portal do Cliente ONLINE-ES (RAT ' + _numRat + '):\n' +
+                url + '\n\n' +
+                'Usuário (CNPJ/CPF): ' + _cnpjFmt + '\n' +
+                'Senha: ' + _senha + ' (válida por 30 dias)';
+
+              // Copia para clipboard automaticamente
               var _clipOk = false;
-              try{ await navigator.clipboard.writeText(url); _clipOk = true; }catch(_){}
-              if(!_clipOk && typeof showToast === 'function'){
-                var _inp = document.createElement('input');
-                _inp.type='text'; _inp.readOnly=true; _inp.value=url;
-                _inp.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:90%;max-width:420px;z-index:12000;padding:8px 10px;border:2px solid #f97316;border-radius:8px;font-size:.8rem;background:#fff;color:#0f172a;';
-                document.body.appendChild(_inp);
-                _inp.select(); _inp.setSelectionRange(0,9999);
-                setTimeout(function(){ if(_inp.parentNode) _inp.parentNode.removeChild(_inp); },5000);
-              }
-              if(typeof showToast==='function'){
-                showToast('🔗 Link copiado! O cliente pode clicar e entrar diretamente (válido 30 dias).', 5000);
-              }
+              try{ await navigator.clipboard.writeText(_textoClipboard); _clipOk = true; }catch(_){}
+
+              // Modal de compartilhamento
+              var _ov = document.createElement('div');
+              _ov.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,.65);z-index:13000;display:flex;align-items:center;justify-content:center;padding:16px;';
+              var _epFn = typeof _ep==='function' ? _ep : function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+              _ov.innerHTML =
+                '<div style="background:#fff;border-radius:18px;padding:22px;max-width:460px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.35);font-family:inherit;max-height:90vh;overflow-y:auto;">' +
+                  '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
+                    '<h3 style="margin:0;font-size:.95rem;color:#0f172a;">🔗 Compartilhar acesso ao portal</h3>' +
+                    '<button id="_ov_fechar" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#94a3b8;line-height:1;">✕</button>' +
+                  '</div>' +
+                  // Info do cliente
+                  '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:14px;">' +
+                    '<div style="font-size:.7rem;color:#64748b;margin-bottom:6px;font-weight:600;">DADOS DO PORTAL</div>' +
+                    '<div style="font-size:.78rem;color:#0f172a;word-break:break-all;margin-bottom:6px;">🔗 ' + _epFn(url) + '</div>' +
+                    '<div style="display:flex;gap:12px;flex-wrap:wrap;">' +
+                      '<span style="font-size:.78rem;color:#0f172a;">👤 <strong>' + _epFn(_cnpjFmt) + '</strong></span>' +
+                      '<span style="font-size:.78rem;color:#15803d;">🔑 <strong style="font-family:monospace;letter-spacing:.06em;font-size:.88rem;">' + _epFn(_senha) + '</strong> <span style="color:#94a3b8;font-size:.68rem;">(30 dias)</span></span>' +
+                    '</div>' +
+                  '</div>' +
+                  // Botões de compartilhamento
+                  '<div style="font-size:.7rem;color:#64748b;font-weight:600;margin-bottom:8px;">COMPARTILHAR VIA</div>' +
+                  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
+                    // WhatsApp
+                    (_telWa ?
+                      '<button id="_ov_wa" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#dcfce7;border:1px solid #86efac;color:#15803d;font-size:.82rem;font-weight:600;cursor:pointer;"><i class="ri-whatsapp-line" style="font-size:1.1rem;"></i> WhatsApp</button>' :
+                      '<button disabled style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;color:#94a3b8;font-size:.82rem;cursor:not-allowed;"><i class="ri-whatsapp-line" style="font-size:1.1rem;"></i> WhatsApp</button>') +
+                    // E-mail
+                    (_emailCliente ?
+                      '<button id="_ov_email" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#eff6ff;border:1px solid #93c5fd;color:#1d4ed8;font-size:.82rem;font-weight:600;cursor:pointer;"><i class="ri-mail-send-line" style="font-size:1.1rem;"></i> E-mail</button>' :
+                      '<button disabled style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;color:#94a3b8;font-size:.82rem;cursor:not-allowed;"><i class="ri-mail-send-line" style="font-size:1.1rem;"></i> E-mail</button>') +
+                    // Web Share API (nativo)
+                    (navigator.share ?
+                      '<button id="_ov_share" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#faf5ff;border:1px solid #d8b4fe;color:#7c3aed;font-size:.82rem;font-weight:600;cursor:pointer;"><i class="ri-share-forward-line" style="font-size:1.1rem;"></i> Compartilhar</button>' :
+                      '') +
+                    // SMS
+                    '<button id="_ov_sms" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#fff7ed;border:1px solid #fdba74;color:#c2410c;font-size:.82rem;font-weight:600;cursor:pointer;"><i class="ri-message-2-line" style="font-size:1.1rem;"></i> SMS</button>' +
+                    // Telegram
+                    '<button id="_ov_tg" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#eff6ff;border:1px solid #93c5fd;color:#0369a1;font-size:.82rem;font-weight:600;cursor:pointer;"><i class="ri-telegram-line" style="font-size:1.1rem;"></i> Telegram</button>' +
+                    // Copiar
+                    '<button id="_ov_copy" style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;font-size:.82rem;font-weight:600;cursor:pointer;"><i class="ri-clipboard-line" style="font-size:1.1rem;"></i> ' + (_clipOk?'✅ Copiado':'📋 Copiar') + '</button>' +
+                  '</div>' +
+                  // Aviso sem contato
+                  (!_telWa && !_emailCliente ? '<p style="font-size:.72rem;color:#f59e0b;margin:0 0 10px;">⚠️ Sem WhatsApp ou e-mail nesta RAT — use Copiar ou Compartilhar para enviar manualmente.</p>' : '') +
+                  '<button id="_ov_fechar2" style="width:100%;padding:9px;border-radius:10px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;font-size:.8rem;cursor:pointer;">Fechar</button>' +
+                '</div>';
+
+              document.body.appendChild(_ov);
+
+              // [FIX-v90d-MODAL-ID] Usa querySelector no _ov em vez de getElementById
+              // para evitar conflito quando dois modais são abertos ao mesmo tempo
+              // (IDs duplicados no DOM — getElementById retornava o primeiro, não o correto).
+              var _ovEl = _ov.querySelector('div'); // div interna (card branco)
+
+              // Fechar
+              function _fecharOv(){ if(_ov.parentNode) _ov.parentNode.removeChild(_ov); }
+              _ov.querySelector('#_ov_fechar').onclick  = _fecharOv;
+              _ov.querySelector('#_ov_fechar2').onclick = _fecharOv;
+              _ov.addEventListener('click', function(ev){ if(ev.target===_ov) _fecharOv(); });
+
+              // WhatsApp
+              var _wa = _ov.querySelector('#_ov_wa');
+              if(_wa) _wa.onclick = function(){
+                window.open('https://wa.me/'+_telWa+'?text='+encodeURIComponent(_msgWa),'_blank','noopener,noreferrer');
+                _fecharOv();
+              };
+
+              // E-mail
+              var _em = _ov.querySelector('#_ov_email');
+              if(_em) _em.onclick = function(){
+                window.open('mailto:'+encodeURIComponent(_emailCliente)+'?subject='+encodeURIComponent(_assuntoEmail)+'&body='+encodeURIComponent(_corpoEmail),'_blank','noopener,noreferrer');
+                _fecharOv();
+              };
+
+              // Web Share API
+              var _sh = _ov.querySelector('#_ov_share');
+              if(_sh) _sh.onclick = async function(){
+                try{
+                  await navigator.share({ title: 'Acesso ao Portal ONLINE-ES', text: _textoClipboard, url: url });
+                  _fecharOv();
+                }catch(e){ if(e.name!=='AbortError') showToast('Compartilhamento cancelado.', 2000); }
+              };
+
+              // SMS
+              var _sms = _ov.querySelector('#_ov_sms');
+              if(_sms) _sms.onclick = function(){
+                var _numSms = _telWa || '';
+                window.open('sms:'+(_numSms?_numSms.replace(/^55/,''): '')+'?body='+encodeURIComponent(_textoClipboard),'_blank');
+                _fecharOv();
+              };
+
+              // Telegram
+              var _tg = _ov.querySelector('#_ov_tg');
+              if(_tg) _tg.onclick = function(){
+                window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent('🔑 Senha: '+_senha+' | 👤 Usuário: '+_cnpjFmt),'_blank','noopener,noreferrer');
+                _fecharOv();
+              };
+
+              // Copiar
+              var _cp = _ov.querySelector('#_ov_copy');
+              if(_cp) _cp.onclick = async function(){
+                try{ await navigator.clipboard.writeText(_textoClipboard); }catch(_){}
+                _cp.innerHTML = '<i class="ri-check-line"></i> Copiado!';
+                _cp.style.background='#dcfce7'; _cp.style.borderColor='#86efac'; _cp.style.color='#15803d';
+                setTimeout(_fecharOv, 1500);
+              };
+
               r._portalCnpj = resultado.cnpj;
               r.portalToken = 'cnpj:' + resultado.cnpj;
-              bg.innerHTML='<i class="ri-check-line"></i> Link copiado!';
+              bg.innerHTML='<i class="ri-check-line"></i> Link gerado!';
               setTimeout(function(){ bg.disabled=false; bg.innerHTML='<i class="ri-share-line"></i> Copiar link portal'; },3000);
             } else {
               bg.disabled=false; bg.innerHTML='<i class="ri-share-line"></i> Gerar link portal';
