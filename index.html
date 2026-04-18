@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v88
+  Correções v91:
+  - [FIX-v91-RASCUNHO-ID] BUG: notificação de rascunho aparecia repetidamente ao
+    mudar de tela mesmo sem rascunho real. Causa: _autoSaveRascunho salvava
+    _rascunhoData = new Date().toISOString() (timestamp sempre novo). verificarRascunho
+    usava esse timestamp como chave de deduplicação -> nunca batia com o valor salvo
+    no sessionStorage -> diálogo disparava toda vez que o usuário trocava de tela
+    (visibilitychange hidden -> autoSave -> timestamp novo -> pergunta de novo).
+    Fix: _autoSaveRascunho agora gera um ID estável (window._rascunhoIdEstavel) na
+    primeira save e reutiliza nas subsequentes. verificarRascunho usa esse ID estável
+    para deduplicação (com fallback para r.id e _rascunhoData legado).
+    _rascunhoIdEstavel é zerado ao salvar a RAT, ao limpar o formulário e ao
+    cancelar o diálogo — garantindo que um rascunho REAL (novo) ainda seja notificado.
   Correções v90d:
   - [FIX-v90d-MODAL-ID] Modal de compartilhamento usava getElementById com IDs fixos
     (_ov_wa, _ov_email, etc). Se dois modais fossem abertos ao mesmo tempo (ex: dois
@@ -9811,6 +9823,7 @@ if (logoBase64) {
       }
       ultimoRelatorioDoTecnico = novo;
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      try { window._rascunhoIdEstavel = null; } catch(e){} // [FIX-v91-RASCUNHO-ID]
       try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       // Salva diretamente no Firestore (fire-and-forget — localStorage já garantiu o dado)
@@ -9863,6 +9876,7 @@ if (logoBase64) {
       // [UX] Atualiza badge de pendentes
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
+      try { window._rascunhoIdEstavel = null; } catch(e){} // [FIX-v91-RASCUNHO-ID]
       try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
       try { if (typeof window._pararAutoSave === 'function') window._pararAutoSave(); } catch(e){}
       showToast('Sem internet. Relatório salvo localmente e será enviado ao Firestore quando a conexão voltar.');
@@ -10046,7 +10060,10 @@ if (logoBase64) {
       // se já foi perguntado nesta sessão (sessionStorage), não pergunta de novo.
       var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
       var _sessionKey = 'rascunho-perguntado-' + _loginAtual;
-      var _rascunhoId = r._rascunhoData || r.id || '';
+      // [FIX-v91-RASCUNHO-ID] Usa ID estável (_rascunhoIdEstavel) em vez de timestamp
+      // (_rascunhoData). Antes: timestamp mudava a cada auto-save -> _jaPerguintado nunca
+      // batia -> diálogo aparecia repetidamente ao mudar de tela.
+      var _rascunhoId = r._rascunhoIdEstavel || r.id || r._rascunhoData || '';
       var _jaPerguintado = sessionStorage.getItem(_sessionKey);
       if (_jaPerguintado === _rascunhoId) {
         // Já foi perguntado para este rascunho específico nesta sessão — não pergunta de novo
@@ -10230,6 +10247,13 @@ if (logoBase64) {
         rSem._rascunho = true;
         rSem._rascunhoData = new Date().toISOString();
         rSem._autoSave = true;
+        // [FIX-v91-RASCUNHO-ID] ID estável do rascunho: gerado uma vez e reutilizado
+        // nas saves subsequentes. Antes, _rascunhoData (timestamp) mudava a cada save,
+        // fazendo verificarRascunho achar que era um rascunho novo e perguntar de novo.
+        if (!window._rascunhoIdEstavel) {
+          window._rascunhoIdEstavel = 'rasc-' + Date.now().toString(36);
+        }
+        rSem._rascunhoIdEstavel = window._rascunhoIdEstavel;
         rSem.imgsEquip = []; rSem.imgsServico = []; rSem.imgsBaterias = [];
         rSem.vidsEquip = []; rSem.vidsServico = []; rSem.vidsBaterias = [];
         rSem.assinaturaCliente = null; rSem.assinaturaTecnicoImg = null;
@@ -11848,8 +11872,9 @@ if (logoBase64) {
       if (colEquipEst) colEquipEst.style.display = 'none';
       // Limpa estado de edição (evita deletar RAT original ao salvar nova)
       window._editandoRelatorioId = null;
-      // Apaga rascunho salvo
+      // Apaga rascunho salvo e reseta ID estável
       try { localStorage.removeItem(typeof STORAGE_RASCUNHO !== 'undefined' ? STORAGE_RASCUNHO : 'online-es-rascunho-v1'); } catch(e){}
+      try { window._rascunhoIdEstavel = null; } catch(e){} // [FIX-v91-RASCUNHO-ID]
     try { var _luL = window.usuarioLogado; var _lkL = _luL ? 'rascunho-perguntado-' + (_luL.username||_luL.usuario||'').toLowerCase() : null; if (_lkL) sessionStorage.removeItem(_lkL); } catch(e) {}
       // [FIX-v89-DOCTIPO] Reseta tipo de documento para CNPJ (padrão) ao limpar formulário.
       // Sem este fix, se o atendimento anterior usou CPF, o próximo abre com CPF selecionado
