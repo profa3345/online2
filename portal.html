@@ -1191,15 +1191,37 @@ async function fazerLogin(cnpjRaw,senhaRaw){
 }
 
 /* buscar RATs */
+/* Formata dígitos em CNPJ (XX.XXX.XXX/XXXX-XX) ou CPF (XXX.XXX.XXX-XX) */
+function _fmtCnpjPortal(v){
+  const d=String(v||'').replace(/\D/g,'');
+  if(d.length===14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');
+  if(d.length===11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+  return v; // retorna original se não conseguir formatar
+}
+
 async function buscarRats(cnpj){
+  // [FIX-v80-CNPJ] cnpj aqui já é só dígitos (normCnpj aplicado em fazerLogin)
+  // RATs novas (index.html v91c+) salvam cnpjCliente só com dígitos → match direto
+  // RATs antigas podem ter CNPJ com máscara → segunda query com formato mascarado
   const TO=ms=>new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms));
+  const cnpjMascarado=_fmtCnpjPortal(cnpj);
+  const cnpjsParaBuscar=[cnpj]; // sempre busca digits-only
+  if(cnpjMascarado!==cnpj) cnpjsParaBuscar.push(cnpjMascarado); // também busca com máscara (RATs antigas)
   try{
-    let snap;
-    try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).where('_deleted','==',false).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);}
-    // [FIX-v71-DELETED-FALLBACK] Caminho sem índice: usa _deleted !== true (alinhado com FIX-v63-DELETED-FALLBACK do index.html)
-    // undefined !== true → true, então RATs antigas sem o campo _deleted passam corretamente
-    catch(e){if(e.message==='timeout')throw e;snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',cnpj).limit(80).get(),TO(15000)]);}
-    const arr=[];snap.forEach(d=>{const r=d.data();r._id=d.id;if(r._deleted!==true)arr.push(r);});
+    const arr=[];
+    const idsVistos=new Set();
+    for(const c of cnpjsParaBuscar){
+      let snap;
+      try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',c).where('_deleted','==',false).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);}
+      // [FIX-v71-DELETED-FALLBACK] Caminho sem índice
+      catch(e){if(e.message==='timeout')throw e;snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',c).limit(80).get(),TO(15000)]);}
+      snap.forEach(d=>{
+        if(idsVistos.has(d.id))return; // evita duplicatas quando digits==masked
+        idsVistos.add(d.id);
+        const r=d.data();r._id=d.id;
+        if(r._deleted!==true)arr.push(r);
+      });
+    }
     arr.sort((a,b)=>(b.dataHoraIso||'').localeCompare(a.dataHoraIso||''));return arr.slice(0,50);
   }catch(e){console.warn('[Portal]',e.message);return null;}
 }

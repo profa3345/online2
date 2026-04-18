@@ -4483,6 +4483,12 @@ html[data-role="technician"] nav button {
       // Vídeos nunca sobem (muito grandes) — ficam como [local].
       var rFirestore = Object.assign({}, r);
 
+      // [FIX-v91c-CNPJ] Normaliza cnpjCliente para dígitos antes de salvar no Firestore
+      // Garante que RATs offline (salvas com máscara) também fiquem corretas ao sincronizar
+      if (rFirestore.cnpjCliente) {
+        rFirestore.cnpjCliente = String(rFirestore.cnpjCliente).replace(/\D/g,'');
+      }
+
       // [FIX-v67-SENHA-FS] Remove campos internos/sensíveis que NUNCA devem ir ao Firestore.
       // _portalSenha = senha do cliente em texto claro (Firestore deve ter apenas o hash).
       // _forcarRenovacaoSenha, _rascunho, _rascunhoCard, _pendente = flags internas de UI.
@@ -7484,7 +7490,8 @@ function autoFillCamposAtendimento(){
 
   // BUG FIX: limpa _ratPreSalvoId ao abrir novo atendimento para evitar que RAT pré-salva
   // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
-  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; window.mostrarTela('novo').then(function(){ try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){} }).catch(e=>console.warn('Erro ao abrir tela:', e)); };
+  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; window._rascunhoIdEstavel = null; // [FIX-v91b]
+  window.mostrarTela('novo').then(function(){ try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){} }).catch(e=>console.warn('Erro ao abrir tela:', e)); };
   mMeus.onclick = ()=>window.mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mPainel) mPainel.onclick = ()=>window.mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mCadastros) 
@@ -9523,7 +9530,10 @@ if (logoBase64) {
       cidade: (document.getElementById('aCidade') ? document.getElementById('aCidade').value : ''),
       cepCliente: (aCep && aCep.value) ? aCep.value.trim() : '',
       uf: (document.getElementById('aUF') ? document.getElementById('aUF').value : ''),
-      cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim() : '',
+      // [FIX-v91c-CNPJ] Normaliza para só dígitos — o portal busca com where('cnpjCliente','==',cnpj)
+      // onde cnpj = normCnpj = apenas dígitos. Salvar com máscara (34.567.889/0001-74)
+      // fazia todos os novos relatórios desaparecerem do portal do cliente.
+      cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim().replace(/\D/g,'') : '',
       docClienteTipo: (typeof tipoDocCliente !== 'undefined' ? tipoDocCliente : 'CNPJ'),
       emailCliente: (aEmailCliente && aEmailCliente.value) ? aEmailCliente.value.trim() : '',
       localizacao: (document.getElementById('aLocalizacao') ? document.getElementById('aLocalizacao').value : ''),
@@ -10084,6 +10094,9 @@ if (logoBase64) {
       const clienteRasc = r.cliente || r.clienteManual || 'sem cliente';
       if (!await showConfirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + ' (' + clienteRasc + '). Deseja restaurar?')) {
         localStorage.removeItem(STORAGE_RASCUNHO);
+        // [FIX-v91b-RASCUNHO] Zera ID estável ao cancelar: próximo auto-save gerará
+        // novo ID, evitando re-trigger imediato do diálogo.
+        try { window._rascunhoIdEstavel = null; } catch(e) {}
         try { sessionStorage.removeItem(_sessionKey); } catch(e) {}
         return;
       }
@@ -10231,6 +10244,9 @@ if (logoBase64) {
     function _autoSaveRascunho() {
       // Não salva rascunho durante edição de RAT existente (causaria confusão)
       if (window._editandoRelatorioId) return;
+      // [FIX-v91b-RASCUNHO] Só salva se a tela 'novo' estiver visível
+      var _telaNovo = document.getElementById('telaNovo');
+      if (!_telaNovo || _telaNovo.style.display === 'none' || _telaNovo.classList.contains('hidden')) return;
       // Só salva se o formulário tiver algum dado relevante preenchido
       var _diagEl = document.getElementById('cDiagnostico');
       var _cliSel = document.getElementById('aClienteSelect');
@@ -18683,8 +18699,10 @@ window._gerarCredencialPortal = async function(rat){
     // Coleta e-mails das últimas RATs do mesmo CNPJ
     var emails = [];
     try{
+      // [FIX-v91c-CNPJ] Usa CNPJ normalizado para buscar e-mails (mesma normalização do save)
+      var _cnpjNormCred = String(rat.cnpjCliente||'').replace(/\D/g,'');
       var rSnap = await db.collection('onlineEsRelatorios')
-        .where('cnpjCliente','==',rat.cnpjCliente)
+        .where('cnpjCliente','==',_cnpjNormCred)
         .orderBy('dataHoraIso','desc').limit(3).get();
       rSnap.forEach(function(d){
         var email = d.data().emailCliente;
