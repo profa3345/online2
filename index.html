@@ -1,6 +1,22 @@
 <!DOCTYPE html>
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v88
+  Correções v92:
+  - [FIX-v92-CLI-BLUR] BUG: RAT salva sem nome de empresa em TODOS os relatórios.
+    Causa: blur do campo de busca de clientes rodava IMEDIATAMENTE, antes do
+    touchstart/mousedown do item do dropdown completar. Isso limpava _select.value
+    antes de _selecionarCliente() setar o nome. Ao salvar, clienteNome = ''.
+    Fix: toda a lógica de validação/limpeza movida para dentro de setTimeout(250ms),
+    garantindo que _selecionarCliente() já rodou antes da validação.
+    Também adicionada guarda: se _select.value bate com _busca.value, não limpa.
+  - [FIX-v92-RASCUNHO] Diálogo de rascunho ainda aparecia (3 causas):
+    (A) autoSave disparava ao navegar para outras telas via visibilitychange.
+        Fix: _autoSaveRascunho verifica se telaNovo está visível antes de salvar.
+    (B) Cancelar o diálogo não zerava _rascunhoIdEstavel → próximo auto-save
+        reutilizava o mesmo ID sem sessionStorage → perguntava de novo.
+        Fix: cancelar também zera _rascunhoIdEstavel.
+    (C) ID estável de sessão anterior persistia ao abrir novo atendimento.
+        Fix: mNovo.onclick zera _rascunhoIdEstavel.
   Correções v91:
   - [FIX-v91-RASCUNHO-ID] BUG: notificação de rascunho aparecia repetidamente ao
     mudar de tela mesmo sem rascunho real. Causa: _autoSaveRascunho salvava
@@ -4483,11 +4499,10 @@ html[data-role="technician"] nav button {
       // Vídeos nunca sobem (muito grandes) — ficam como [local].
       var rFirestore = Object.assign({}, r);
 
-      // [FIX-v91c-CNPJ] Normaliza cnpjCliente para dígitos antes de salvar no Firestore
-      // Garante que RATs offline (salvas com máscara) também fiquem corretas ao sincronizar
-      if (rFirestore.cnpjCliente) {
-        rFirestore.cnpjCliente = String(rFirestore.cnpjCliente).replace(/\D/g,'');
-      }
+      // [FIX-v93] Garante _deleted:false explícito
+      if (typeof rFirestore._deleted === 'undefined') rFirestore._deleted = false;
+      // [FIX-v92-CNPJ] Normaliza cnpjCliente para dígitos antes de salvar
+      if (rFirestore.cnpjCliente) rFirestore.cnpjCliente = String(rFirestore.cnpjCliente).replace(/\D/g,'');
 
       // [FIX-v67-SENHA-FS] Remove campos internos/sensíveis que NUNCA devem ir ao Firestore.
       // _portalSenha = senha do cliente em texto claro (Firestore deve ter apenas o hash).
@@ -7490,7 +7505,8 @@ function autoFillCamposAtendimento(){
 
   // BUG FIX: limpa _ratPreSalvoId ao abrir novo atendimento para evitar que RAT pré-salva
   // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
-  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null; window._rascunhoIdEstavel = null; // [FIX-v91b]
+  mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null;
+  window._rascunhoIdEstavel = null; // [FIX-v92-RASCUNHO] reseta ao abrir Novo Atendimento
   window.mostrarTela('novo').then(function(){ try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){} }).catch(e=>console.warn('Erro ao abrir tela:', e)); };
   mMeus.onclick = ()=>window.mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mPainel) mPainel.onclick = ()=>window.mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
@@ -9513,6 +9529,7 @@ if (logoBase64) {
 
     return {
        id: (window._ratPreSalvoId || window._editandoRelatorioId || gerarId()),
+       _deleted: false, // [FIX-v93] campo explícito — Firestore não retorna docs sem o campo
        numero: aNumeroRat.value || '', // BUG FIX: não chama proximoNumeroRAT() aqui — evita queimar número; ensureNumeroRat() já garante o campo preenchido antes de salvar
        dataHoraBr: br || agoraBR(),
        dataHoraIso: iso,
@@ -9530,9 +9547,8 @@ if (logoBase64) {
       cidade: (document.getElementById('aCidade') ? document.getElementById('aCidade').value : ''),
       cepCliente: (aCep && aCep.value) ? aCep.value.trim() : '',
       uf: (document.getElementById('aUF') ? document.getElementById('aUF').value : ''),
-      // [FIX-v91c-CNPJ] Normaliza para só dígitos — o portal busca com where('cnpjCliente','==',cnpj)
-      // onde cnpj = normCnpj = apenas dígitos. Salvar com máscara (34.567.889/0001-74)
-      // fazia todos os novos relatórios desaparecerem do portal do cliente.
+      // [FIX-v92-CNPJ] Normaliza para só dígitos — portal busca com where('cnpjCliente','==',cnpj)
+      // onde cnpj=só dígitos. Salvar com máscara fazia RATs sumirem do portal.
       cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim().replace(/\D/g,'') : '',
       docClienteTipo: (typeof tipoDocCliente !== 'undefined' ? tipoDocCliente : 'CNPJ'),
       emailCliente: (aEmailCliente && aEmailCliente.value) ? aEmailCliente.value.trim() : '',
@@ -10074,10 +10090,19 @@ if (logoBase64) {
       // (_rascunhoData). Antes: timestamp mudava a cada auto-save -> _jaPerguintado nunca
       // batia -> diálogo aparecia repetidamente ao mudar de tela.
       var _rascunhoId = r._rascunhoIdEstavel || r.id || r._rascunhoData || '';
-      var _jaPerguintado = sessionStorage.getItem(_sessionKey);
-      if (_jaPerguintado === _rascunhoId) {
-        // Já foi perguntado para este rascunho específico nesta sessão — não pergunta de novo
+
+      // [FIX-v93-RASCUNHO] Deduplicação dupla: sessionStorage (mesma aba) +
+      // _jaPerguintado no localStorage (sobrevive reload/background no mobile).
+      // sessionStorage zera ao recarregar a página (quando o OS mata o app no bg)
+      // então sozinho não era suficiente para evitar o diálogo repetido.
+      if (r._jaPerguintado === true) {
+        // Já foi perguntado antes (sobreviveu ao reload) — não pergunta de novo.
+        // O rascunho só será limpo quando o usuário salvar ou limpar o formulário.
         return;
+      }
+      var _jaPerguintadoSess = sessionStorage.getItem(_sessionKey);
+      if (_jaPerguintadoSess === _rascunhoId) {
+        return; // já perguntou nesta sessão de aba
       }
 
       // [FIX-v43] Só restaura se o rascunho pertence ao usuário atual
@@ -10087,17 +10112,21 @@ if (logoBase64) {
         return;
       }
 
-      // Marca que já perguntou sobre este rascunho nesta sessão (antes de mostrar o diálogo)
+      // Marca no sessionStorage E no localStorage antes de mostrar o diálogo
       try { sessionStorage.setItem(_sessionKey, _rascunhoId); } catch(e) {}
+      // Persiste no localStorage: se a página recarregar, o diálogo não reaparece
+      try {
+        r._jaPerguintado = true;
+        localStorage.setItem(STORAGE_RASCUNHO, JSON.stringify(r));
+      } catch(e) {}
 
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
       const clienteRasc = r.cliente || r.clienteManual || 'sem cliente';
       if (!await showConfirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + ' (' + clienteRasc + '). Deseja restaurar?')) {
         localStorage.removeItem(STORAGE_RASCUNHO);
-        // [FIX-v91b-RASCUNHO] Zera ID estável ao cancelar: próximo auto-save gerará
-        // novo ID, evitando re-trigger imediato do diálogo.
+        // [FIX-v93-RASCUNHO] Zera ID estável. sessionStorage mantido intencionalmente
+        // para bloquear perguntas futuras se houver novo autoSave antes de navegar.
         try { window._rascunhoIdEstavel = null; } catch(e) {}
-        try { sessionStorage.removeItem(_sessionKey); } catch(e) {}
         return;
       }
 
@@ -10244,9 +10273,11 @@ if (logoBase64) {
     function _autoSaveRascunho() {
       // Não salva rascunho durante edição de RAT existente (causaria confusão)
       if (window._editandoRelatorioId) return;
-      // [FIX-v91b-RASCUNHO] Só salva se a tela 'novo' estiver visível
-      var _telaNovo = document.getElementById('telaNovo');
-      if (!_telaNovo || _telaNovo.style.display === 'none' || _telaNovo.classList.contains('hidden')) return;
+      // [FIX-v92-RASCUNHO] Só salva se a tela 'novo' estiver visível
+      // Evita auto-save ao navegar para Painel/Meus (visibilitychange), que
+      // causava diálogo de rascunho ao retornar para Novo Atendimento.
+      var _tnCheck = document.getElementById('telaNovo');
+      if (!_tnCheck || _tnCheck.style.display === 'none' || _tnCheck.classList.contains('hidden')) return;
       // Só salva se o formulário tiver algum dado relevante preenchido
       var _diagEl = document.getElementById('cDiagnostico');
       var _cliSel = document.getElementById('aClienteSelect');
@@ -10263,13 +10294,17 @@ if (logoBase64) {
         rSem._rascunho = true;
         rSem._rascunhoData = new Date().toISOString();
         rSem._autoSave = true;
-        // [FIX-v91-RASCUNHO-ID] ID estável do rascunho: gerado uma vez e reutilizado
-        // nas saves subsequentes. Antes, _rascunhoData (timestamp) mudava a cada save,
-        // fazendo verificarRascunho achar que era um rascunho novo e perguntar de novo.
+        // [FIX-v91-RASCUNHO-ID] ID estável
         if (!window._rascunhoIdEstavel) {
           window._rascunhoIdEstavel = 'rasc-' + Date.now().toString(36);
         }
         rSem._rascunhoIdEstavel = window._rascunhoIdEstavel;
+        // [FIX-v93-RASCUNHO] Preserva _jaPerguintado do rascunho anterior
+        // para que um reload não perca a flag e o diálogo reapareça.
+        try {
+          var _rawAnt = localStorage.getItem(STORAGE_RASCUNHO);
+          if (_rawAnt) { var _rAnt = JSON.parse(_rawAnt); if (_rAnt && _rAnt._jaPerguintado) rSem._jaPerguintado = true; }
+        } catch(e) {}
         rSem.imgsEquip = []; rSem.imgsServico = []; rSem.imgsBaterias = [];
         rSem.vidsEquip = []; rSem.vidsServico = []; rSem.vidsBaterias = [];
         rSem.assinaturaCliente = null; rSem.assinaturaTecnicoImg = null;
@@ -10418,17 +10453,26 @@ if (logoBase64) {
       }
     });
     _busca.addEventListener('blur', function() {
-      // Fecha com delay para deixar o click no item disparar
-      setTimeout(function() { _dropdown.style.display = 'none'; }, 180);
-      // [FIX-v86-CLI-BLUR] Comparação case-insensitive — antes 'Empresa ABC' vs 'empresa abc'
-      // falhava e limpava a seleção. Também usa _limparSelecaoCliente para limpar o feedback.
-      var lista = Array.isArray(window.clientes) ? window.clientes : [];
-      var valBusca = (_busca.value || '').trim().toLowerCase();
-      var match = lista.find(function(c) { return (c.nome||'').toLowerCase() === valBusca; });
-      if (!match && (_select.value || '').toLowerCase() !== valBusca) {
-        _limparSelecaoCliente();
-        _busca.value = ''; // limpa o campo também para não confundir
-      }
+      // [FIX-v92-CLI-BLUR] Toda a lógica de validação movida para DENTRO do timeout.
+      // Antes: limpeza corria IMEDIATAMENTE no blur, antes do touchstart/mousedown
+      // do item do dropdown completar — apagava _select.value antes de _selecionarCliente
+      // setar o nome. Resultado: RAT salva sem nome de empresa em todos os relatórios.
+      // Fix: espera 250ms (acima dos 180ms do dropdown) para que _selecionarCliente
+      // já tenha rodado, então valida com os valores finais.
+      setTimeout(function() {
+        _dropdown.style.display = 'none';
+        var lista = Array.isArray(window.clientes) ? window.clientes : [];
+        var valBusca = (_busca.value || '').trim().toLowerCase();
+        // Se _select.value está preenchido e bate com o campo de busca → seleção válida
+        if (_select.value && (_select.value || '').toLowerCase() === valBusca) return;
+        // Se _select.value está preenchido mas busca foi editada para algo inválido → mantém
+        if (_select.value && valBusca === '') return;
+        var match = lista.find(function(c) { return (c.nome||'').toLowerCase() === valBusca; });
+        if (!match && (_select.value || '').toLowerCase() !== valBusca) {
+          _limparSelecaoCliente();
+          _busca.value = '';
+        }
+      }, 250);
     });
     // Fecha dropdown ao clicar fora
     document.addEventListener('click', function(e) {
@@ -18699,10 +18743,8 @@ window._gerarCredencialPortal = async function(rat){
     // Coleta e-mails das últimas RATs do mesmo CNPJ
     var emails = [];
     try{
-      // [FIX-v91c-CNPJ] Usa CNPJ normalizado para buscar e-mails (mesma normalização do save)
-      var _cnpjNormCred = String(rat.cnpjCliente||'').replace(/\D/g,'');
       var rSnap = await db.collection('onlineEsRelatorios')
-        .where('cnpjCliente','==',_cnpjNormCred)
+        .where('cnpjCliente','==',rat.cnpjCliente)
         .orderBy('dataHoraIso','desc').limit(3).get();
       rSnap.forEach(function(d){
         var email = d.data().emailCliente;

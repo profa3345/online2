@@ -1,5 +1,14 @@
 <!DOCTYPE html>
-<!-- PORTAL DO CLIENTE — v80
+<!-- PORTAL DO CLIENTE — v81
+  Correções v81:
+  - [FIX-portal-v81-DELETED] BUG CRÍTICO: portal não exibia relatórios criados
+    após 17/04/2026. Causa: query usava where('_deleted','==',false) mas RATs
+    novas não têm o campo _deleted no documento Firestore — campo ausente é
+    tratado como diferente de false → zero resultados retornados.
+    Fix: removido where('_deleted','==',false) da query principal. Filtro
+    mantido no cliente: r._deleted !== true (undefined !== true = true,
+    RATs sem o campo passam; RATs deletadas com _deleted=true são filtradas).
+  Correções v80:
   Correções v80:
   - [FIX-portal-v80-PBKDF2] fazerLogin usava SHA-256 simples para verificar a senha,
     mas index.html v89 passou a salvar credenciais com PBKDF2/SHA-256 + salt (128 bits).
@@ -1212,11 +1221,16 @@ async function buscarRats(cnpj){
     const idsVistos=new Set();
     for(const c of cnpjsParaBuscar){
       let snap;
-      try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',c).where('_deleted','==',false).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);}
-      // [FIX-v71-DELETED-FALLBACK] Caminho sem índice
+      // [FIX-portal-v81-DELETED] Removido where('_deleted','==',false).
+      // RATs novas não têm o campo _deleted no doc — Firestore trata campo
+      // ausente como diferente de false → query retornava zero resultados
+      // para todos os relatórios criados após 17/04/2026.
+      // Fix: busca só por cnpjCliente+orderBy e filtra no cliente com !==true
+      // (undefined !== true = true → RATs sem o campo passam corretamente).
+      try{snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',c).orderBy('dataHoraIso','desc').limit(50).get(),TO(15000)]);}
       catch(e){if(e.message==='timeout')throw e;snap=await Promise.race([db.collection('onlineEsRelatorios').where('cnpjCliente','==',c).limit(80).get(),TO(15000)]);}
       snap.forEach(d=>{
-        if(idsVistos.has(d.id))return; // evita duplicatas quando digits==masked
+        if(idsVistos.has(d.id))return;
         idsVistos.add(d.id);
         const r=d.data();r._id=d.id;
         if(r._deleted!==true)arr.push(r);
