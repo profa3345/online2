@@ -10166,6 +10166,14 @@ if (logoBase64) {
       const r = JSON.parse(raw);
       if (!r || !r._rascunho) return;
 
+      // [FIX-v94-RASCUNHO-VAZIO] Ignora rascunho sem dados reais — evita oferecer
+      // restaurar um formulário vazio gravado pelo auto-save logo após o save da RAT.
+      var _temDadosReais = (r.cliente || r.clienteManual) && (r.diagnostico || r.problema || r.acoes);
+      if (!_temDadosReais) {
+        localStorage.removeItem(STORAGE_RASCUNHO);
+        return;
+      }
+
       // [FIX-RASCUNHO-UNICO] Rascunho do auto-save do atendimento em andamento:
       // se já foi perguntado nesta sessão (sessionStorage), não pergunta de novo.
       var _loginAtual = (window.usuarioLogado.username || window.usuarioLogado.usuario || '').toLowerCase();
@@ -10417,9 +10425,14 @@ if (logoBase64) {
     // [FIX-v39] Expõe para reiniciar após salvar — sem isso o auto-save fica morto
     // para toda a sessão após o primeiro save manual.
     window._iniciarAutoSave = function() {
-      window._ratJaSalva = false; // [FIX-v93-RATSALVA] novo atendimento pode gerar rascunho
       window._pararAutoSave(); // garante que não há timer duplicado
-      _autoSaveTimer = setInterval(_autoSaveRascunho, 30000);
+      // [FIX-v94-RATSALVA] Só libera o auto-save após o primeiro ciclo (30s).
+      // Antes: _ratJaSalva=false era setado imediatamente → visibilitychange
+      // disparava antes dos 30s e gravava rascunho com formulário vazio.
+      _autoSaveTimer = setInterval(function() {
+        window._ratJaSalva = false; // libera a partir do 1º tick (30s após o save)
+        _autoSaveRascunho();
+      }, 30000);
     };
 
     // [BUG-4] Auto-save imediato quando o app vai para background (visibilitychange).
