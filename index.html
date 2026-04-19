@@ -7003,7 +7003,7 @@ function autoFillCamposAtendimento(){
           // excluindo imagens/assinaturas base64 — o JSON completo pode ter MBs,
           // travando a thread principal e excedendo a quota do localStorage.
           try {
-            if (typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
+            if (!window._ratJaSalva && typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
               var _r = montarRelatorioAtual();
               if (_r && _r.cliente) {
                 var _rSemImg = Object.assign({}, _r);
@@ -7589,7 +7589,7 @@ function autoFillCamposAtendimento(){
     // [FIX-v39] Salva rascunho antes de deslogar sem imagens/assinaturas base64.
     // JSON completo com fotos pode ter MBs → trava a thread e excede quota do localStorage.
     try {
-      if (typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
+      if (!window._ratJaSalva && typeof montarRelatorioAtual === 'function' && document.getElementById('aNumeroRat') && document.getElementById('aNumeroRat').value) {
         var _rascunhoLogout = montarRelatorioAtual();
         if (_rascunhoLogout && _rascunhoLogout.cliente) {
           var _rLogSem = Object.assign({}, _rascunhoLogout);
@@ -10402,6 +10402,7 @@ if (logoBase64) {
     // [FIX-v39] Expõe para reiniciar após salvar — sem isso o auto-save fica morto
     // para toda a sessão após o primeiro save manual.
     window._iniciarAutoSave = function() {
+      window._ratJaSalva = false; // [FIX-v93-RATSALVA] novo atendimento pode gerar rascunho
       window._pararAutoSave(); // garante que não há timer duplicado
       _autoSaveTimer = setInterval(_autoSaveRascunho, 30000);
     };
