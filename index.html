@@ -2,6 +2,21 @@
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v88
   Correções v93:
+  - [FIX-v93-URL] Senha removida da URL do portal definitivamente.
+    _urlPortalV2 não inclui mais &s=SENHA. Links antigos com &s= ainda funcionam
+    (compatibilidade), mas a senha é apagada da URL imediatamente após leitura
+    via history.replaceState. Senha vai apenas no corpo do WhatsApp/e-mail.
+  - [FIX-v93-MAGIC] Validação de magic bytes nos uploads de foto/vídeo.
+    file.type depende da extensão e pode ser falsificado. Agora os primeiros
+    12 bytes do arquivo são verificados contra assinaturas reais de JPEG, PNG,
+    GIF, WebP, HEIC, MP4, MOV, WebM e AVI antes de processar o arquivo.
+  - [FIX-v93-SESS] Sessão do portal expira após 2 horas de inatividade.
+    _renderListaRats e _renderDetalheRat verificam loginEm antes de renderizar.
+    loginEm é renovado a cada navegação — expira só por inatividade real.
+  - [FIX-v93-PORTAL-BF] Brute force do portal agora persiste no Firestore
+    (coleção onlineEsBF, chave prefixada com 'portal_') além do sessionStorage.
+    _loginPortal verifica o Firestore antes de processar tentativas — fechar
+    e reabrir a aba não mais zera o bloqueio de 15 minutos.
   - [FIX-v93-RATSALVA] BUG: badge "Rascunho" aparecia em RATs já salvas.
     Causa: visibilitychange e pagehide disparavam _autoSaveRascunho() após o save,
     recriando o rascunho no localStorage antes de renderMeus() carregar a lista do
@@ -12223,6 +12238,27 @@ if (logoBase64) {
     // Calcula tamanho já em preview
     if (container) container.querySelectorAll('.preview-item').forEach(function(el){ totalSize += parseInt(el.dataset.filesize || '0'); });
     
+
+    // [FIX-v93-MAGIC] Valida magic bytes reais — file.type depende da extensão, não do conteúdo.
+    function _validarMagicBytes(file, callback) {
+      var rb = new FileReader();
+      rb.onload = function(e) {
+        var b = new Uint8Array(e.target.result);
+        var ok =
+          (b[0]===0xFF && b[1]===0xD8 && b[2]===0xFF) ||
+          (b[0]===0x89 && b[1]===0x50 && b[2]===0x4E && b[3]===0x47) ||
+          (b[0]===0x47 && b[1]===0x49 && b[2]===0x46) ||
+          (b[0]===0x52 && b[1]===0x49 && b[2]===0x46 && b[3]===0x46 && b[8]===0x57 && b[9]===0x45 && b[10]===0x42 && b[11]===0x50) ||
+          (b[4]===0x66 && b[5]===0x74 && b[6]===0x79 && b[7]===0x70) ||
+          (b[4]===0x6D && b[5]===0x6F && b[6]===0x6F && b[7]===0x76) ||
+          (b[0]===0x1A && b[1]===0x45 && b[2]===0xDF && b[3]===0xA3) ||
+          (b[0]===0x52 && b[1]===0x49 && b[2]===0x46 && b[3]===0x46 && b[8]===0x41 && b[9]===0x56 && b[10]===0x49);
+        callback(ok);
+      };
+      rb.onerror = function(){ callback(false); };
+      rb.readAsArrayBuffer(file.slice(0, 12));
+    }
+
     files.forEach(file=>{
       // Limite por arquivo (imagem ou vídeo)
       var isVideo = file.type.startsWith('video/');
@@ -12233,6 +12269,12 @@ if (logoBase64) {
         showToast('⚠️ ' + (isVideo ? 'Vídeo' : 'Imagem') + ' "' + file.name + '" tem ' + tamanhoMB + 'MB — limite é ' + limiteMsg + '.');
         return;
       }
+      // [FIX-v93-MAGIC] Valida magic bytes antes de processar
+      _validarMagicBytes(file, function(magicOk) {
+        if (!magicOk) {
+          showToast('⚠️ Arquivo "' + file.name + '" não é uma imagem ou vídeo válido e foi rejeitado.', 4000);
+          return;
+        }
       const reader = new FileReader();
       reader.onload = (ev)=>{
         const div=document.createElement('div'); div.className='preview-item';
@@ -12263,6 +12305,7 @@ if (logoBase64) {
         }
       };
       reader.readAsDataURL(file);
+      }); // fecha _validarMagicBytes callback [FIX-v93-MAGIC]
     });
     // Reseta o input para permitir selecionar o mesmo arquivo novamente
     try { input.value = ''; } catch(e) {}
@@ -18858,18 +18901,13 @@ window._gerarCredencialPortal = async function(rat){
    O portal mostra o CNPJ pré-preenchido e o cliente digita a senha.
 ──────────────────────────────────────────────────────────── */
 window._urlPortalV2 = function(cnpj, senha){
-  // [FIX-v87-PORTAL-URL] Inclui senha como parâmetro &s= quando fornecida —
-  // permite login automático ao cliente clicar no link sem precisar digitar a senha.
-  // A senha já é enviada no corpo da mensagem (WhatsApp/e-mail) por segurança;
-  // incluir na URL do "Copiar link" é conveniente e equivalente ao que já era feito
-  // via _urlPortal() legado. O portal.html lê ?s= e faz login automático.
+  // [FIX-v93-URL] Senha REMOVIDA da URL definitivamente — já vai no corpo do WhatsApp/e-mail.
+  // Incluir &s= no link expõe a senha no histórico do browser, logs de servidor
+  // e cabeçalho Referer. O cliente digita a senha recebida na mensagem.
+  // (parâmetro 'senha' mantido na assinatura para compatibilidade, mas ignorado)
   var base = window.location.href.split('/').slice(0, -1).join('/');
   var cnpjNorm = typeof _normCnpj === 'function' ? _normCnpj(cnpj) : String(cnpj||'').replace(/\D/g,'');
-  var url = base + '/portal.html?cnpj=' + cnpjNorm;
-  if (senha && String(senha).trim()) {
-    url += '&s=' + encodeURIComponent(String(senha).trim());
-  }
-  return url;
+  return base + '/portal.html?cnpj=' + cnpjNorm;
 };
 
 /* Mantém _urlPortal para compatibilidade (alguns botões ainda usam).
@@ -19100,6 +19138,48 @@ function _portalCheckBF(cnpj){
   }catch(e){}
   return { blocked: false };
 }
+
+// [FIX-v93-PORTAL-BF] Verifica bloqueio no Firestore (persiste entre sessões/abas)
+async function _portalCheckBFServer(cnpj){
+  try{
+    var cfg = window.firebaseConfig || {};
+    if(!cfg.projectId || !cfg.apiKey) return null;
+    var key = 'portal_' + String(cnpj).replace(/\D/g,'').slice(0,14);
+    var url = 'https://firestore.googleapis.com/v1/projects/' + cfg.projectId +
+              '/databases/(default)/documents/onlineEsBF/' + encodeURIComponent(key) +
+              '?key=' + cfg.apiKey;
+    var resp = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined });
+    if(!resp.ok) return null;
+    var json = await resp.json();
+    if(!json.fields) return null;
+    var lockedUntil = Number(json.fields.lockedUntil ? (json.fields.lockedUntil.integerValue || 0) : 0);
+    var count = Number(json.fields.count ? (json.fields.count.integerValue || 0) : 0);
+    return { lockedUntil, count };
+  }catch(e){ return null; }
+}
+
+// [FIX-v93-PORTAL-BF] Salva bloqueio no Firestore
+function _portalSaveBFServer(cnpj, entry){
+  try{
+    var cfg = window.firebaseConfig || {};
+    if(!cfg.projectId || !cfg.apiKey) return;
+    var key = 'portal_' + String(cnpj).replace(/\D/g,'').slice(0,14);
+    var url = 'https://firestore.googleapis.com/v1/projects/' + cfg.projectId +
+              '/databases/(default)/documents/onlineEsBF/' + encodeURIComponent(key) +
+              '?key=' + cfg.apiKey +
+              '&updateMask.fieldPaths=lockedUntil&updateMask.fieldPaths=count&updateMask.fieldPaths=lastAttempt';
+    fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: {
+        lockedUntil: { integerValue: String(entry.lockedUntil || 0) },
+        count:       { integerValue: String(entry.count || 0) },
+        lastAttempt: { integerValue: String(entry.lastAttempt || Date.now()) }
+      }})
+    });
+  }catch(e){}
+}
+
 function _portalRegisterFail(cnpj){
   try{
     var d = JSON.parse(sessionStorage.getItem(_PORTAL_BF_KEY) || '{}');
@@ -19111,6 +19191,8 @@ function _portalRegisterFail(cnpj){
       d[cnpj].count = 0;
     }
     sessionStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
+    // [FIX-v93-PORTAL-BF] Persiste no Firestore para bloquear entre sessões
+    _portalSaveBFServer(cnpj, d[cnpj]);
   }catch(e){}
 }
 function _portalClearBF(cnpj){
@@ -19125,9 +19207,22 @@ async function _loginPortal(cnpjInput, senhaInput){
   var cnpj = _normCnpj(cnpjInput);
   if(cnpj.length < 8) return { ok: false, msg: 'CNPJ ou CPF inválido.' };
 
-  // [FIX-v63-PORTAL-BF] Verifica bloqueio de brute force antes de qualquer acesso ao Firestore
+  // [FIX-v63-PORTAL-BF] Verifica bloqueio local (sessionStorage) — resposta imediata
   var _bfCheck = _portalCheckBF(cnpj);
   if(_bfCheck.blocked) return { ok: false, msg: _bfCheck.msg };
+
+  // [FIX-v93-PORTAL-BF] Verifica bloqueio no Firestore (persiste entre sessões)
+  try{
+    var _bfServer = await _portalCheckBFServer(cnpj);
+    if(_bfServer && _bfServer.lockedUntil > Date.now()){
+      var _mins = Math.ceil((_bfServer.lockedUntil - Date.now()) / 60000);
+      // Sincroniza bloqueio server no sessionStorage local
+      var _dBf = JSON.parse(sessionStorage.getItem(_PORTAL_BF_KEY) || '{}');
+      _dBf[cnpj] = { lockedUntil: _bfServer.lockedUntil, count: 0 };
+      try{ sessionStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(_dBf)); }catch(e){}
+      return { ok: false, msg: 'Muitas tentativas. Tente novamente em ' + _mins + ' minuto(s).' };
+    }
+  }catch(e){}
 
   // [FIX-PORTAL-TELA-AZUL] Garante auth anônimo ANTES de acessar o Firestore.
   // Sem isso a regra "if request.auth != null" bloqueia silenciosamente e o
@@ -19323,6 +19418,13 @@ function _renderLogin(opts){
     // Apenas pré-preenche o CNPJ e foca no campo de senha com instrução visual.
     var _urlParams = new URLSearchParams(window.location.search);
     var _senhaParam = opts.senha || _urlParams.get('s') || null; // mantém compatibilidade legada
+    // [FIX-v93-URL] Remove &s= da URL imediatamente — senha não deve ficar no histórico do browser
+    if(_urlParams.get('s')){
+      try{
+        var _urlSemSenha = window.location.href.replace(/[&?]s=[^&]*/,'').replace(/\?&/,'?').replace(/[?&]$/,'');
+        window.history.replaceState({},'',_urlSemSenha || window.location.pathname);
+      }catch(e){}
+    }
     if(_senhaParam && /^\d{6}$/.test(_senhaParam)){
       // Fluxo legado (link antigo com &s=): preenche e faz auto-login
       senhaInput.value = _senhaParam;
@@ -19674,6 +19776,12 @@ function _renderEsqueciSenha(){
 ──────────────────────────────────────────────────────────── */
 async function _renderListaRats(){
   if(!_portalSessao){ _renderLogin(); return; }
+  // [FIX-v93-SESS] Expira sessão após 2 horas de inatividade
+  if(_portalSessao.loginEm && (new Date() - _portalSessao.loginEm) > 2 * 60 * 60 * 1000){
+    _portalSessao = null;
+    _renderLogin({ info: 'ℹ️ Sua sessão expirou por inatividade. Faça login novamente.' });
+    return;
+  }
   var el = document.getElementById('pv2Conteudo');
   if(!el) return;
 
@@ -19693,6 +19801,9 @@ async function _renderListaRats(){
       '<h2><i class="ri-file-list-3-line" style="color:#f97316;"></i> Seus Relatórios de Atendimento</h2>' +
       '<div id="pv2ListaRats" class="pv2-loading"><i class="ri-loader-4-line"></i> Buscando relatórios...</div>' +
     '</div>';
+
+  // [FIX-v93-SESS] Renova timestamp ao navegar — sessão expira só por inatividade real
+  if(_portalSessao) _portalSessao.loginEm = new Date();
 
   var btnSair = document.getElementById('pv2BtnSair');
   if(btnSair) btnSair.addEventListener('click', function(){
@@ -19789,6 +19900,12 @@ async function _renderListaRats(){
 async function _renderDetalheRat(rat, todasRats){
   var el = document.getElementById('pv2Conteudo');
   if(!el) return;
+  // [FIX-v93-SESS] Expira sessão após 2 horas
+  if(!_portalSessao || (new Date() - _portalSessao.loginEm) > 2 * 60 * 60 * 1000){
+    _portalSessao = null;
+    _renderLogin({ info: 'ℹ️ Sua sessão expirou por inatividade. Faça login novamente.' });
+    return;
+  }
 
   var sc = _sc(rat.status);
   el.innerHTML =
