@@ -19846,10 +19846,10 @@ async function _renderListaRats(){
   }catch(eRats){
     var listaElErr = document.getElementById('pv2ListaRats');
     if(listaElErr){
-      // [FIX-v59] Mensagem específica para timeout vs erro genérico
-      // [FIX-v66-PORTAL-SESSION] Detecta sessão expirada e exibe botão de login
-      var _isTimeout = eRats && eRats.message === 'timeout';
+      var _isTimeout    = eRats && eRats.message === 'timeout';
       var _isPermission = eRats && (eRats.code === 'permission-denied' || (eRats.message && eRats.message.includes('permission')));
+      // [FIX-v94-PORTAL-ERR] Detecta índice ausente no Firestore
+      var _isMissingIndex = eRats && (eRats.code === 'failed-precondition' || (eRats.message && eRats.message.toLowerCase().includes('index')));
       var _errContent;
       if(_isPermission){
         _errContent =
@@ -19857,6 +19857,12 @@ async function _renderListaRats(){
           '🔒 Sua sessão expirou. Por favor, faça login novamente.<br>' +
           '<button onclick="_portalSessao=null;_renderLogin();" style="margin-top:10px;padding:8px 18px;background:#f97316;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;">' +
           '<i class="ri-login-box-line"></i> Fazer login novamente</button>' +
+          '</div>';
+      } else if(_isMissingIndex){
+        _errContent =
+          '<div class="pv2-err" style="display:block;margin:0;text-align:center;">' +
+          '⚙️ Configuração pendente no servidor. Aguarde alguns minutos e ' +
+          '<button onclick="_renderListaRats()" style="background:none;border:none;color:#1d4ed8;cursor:pointer;font-weight:600;padding:0;">tente novamente</button>.' +
           '</div>';
       } else {
         _errContent =
