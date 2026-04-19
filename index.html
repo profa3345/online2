@@ -10077,6 +10077,27 @@ if (logoBase64) {
     try {
       // [FIX-v43] Só verifica após login — não exibe diálogo na tela de login
       if (!window.usuarioLogado) return;
+
+      // [FIX-v94-RASCUNHO] Se a tela 'novo' está visível E já tem conteúdo
+      // preenchido, NÃO mostrar o diálogo — o rascunho é a própria RAT sendo
+      // editada agora. O diálogo só faz sentido quando o form está vazio
+      // (usuário acabou de abrir a tela e há um rascunho de sessão anterior).
+      try {
+        var _tnAtiva = document.getElementById('telaNovo');
+        if (_tnAtiva && _tnAtiva.style.display !== 'none') {
+          var _diagAtiva  = document.getElementById('cDiagnostico');
+          var _cliAtiva   = document.getElementById('aClienteSelect');
+          var _cliMAtiva  = document.getElementById('aClienteManual');
+          var _acoesAtiva = document.getElementById('cAcoes');
+          var _formTemDados =
+            (_diagAtiva  && _diagAtiva.value.trim())  ||
+            (_cliAtiva   && _cliAtiva.value)          ||
+            (_cliMAtiva  && _cliMAtiva.style.display !== 'none' && _cliMAtiva.value.trim()) ||
+            (_acoesAtiva && _acoesAtiva.value.trim());
+          if (_formTemDados) return; // usuário já está preenchendo — não interromper
+        }
+      } catch(e) {}
+
       const raw = localStorage.getItem(STORAGE_RASCUNHO);
       if (!raw) return;
       const r = JSON.parse(raw);
