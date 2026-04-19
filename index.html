@@ -1,6 +1,32 @@
 <!DOCTYPE html>
 <!--
   ONLINE-ES — VERSÃO FINAL PREMIUM — v88
+  Correções v93:
+  - [FIX-v93-RATSALVA] BUG: badge "Rascunho" aparecia em RATs já salvas.
+    Causa: visibilitychange e pagehide disparavam _autoSaveRascunho() após o save,
+    recriando o rascunho no localStorage antes de renderMeus() carregar a lista do
+    Firestore. Como o rascunho tinha um id que ainda não estava em todos[], era
+    injetado como card separado com badge Rascunho.
+    Fix: flag window._ratJaSalva bloqueia _autoSaveRascunho() após save bem-sucedido.
+    Flag é resetada em mNovo.onclick e limparFormularioNovoAtendimento().
+  - [FIX-v93-CLI-EMPTY] BUG: nome da empresa sumia após seleção.
+    Causa: blur do campo de busca rodava com window.clientes ainda vazio (Firestore
+    carregando assincronamente). lista.find() retornava undefined, limpando _select.value
+    mesmo com seleção válida.
+    Fix: se lista.length === 0, o setTimeout do blur retorna sem limpar nada.
+  - [FIX-v93-CLI-TRIM] .trim() adicionado na comparação de nome no blur do cliente,
+    evitando falso-negativo por espaços extras nos dados do Firestore.
+  - [FIX-v93-LOG] console.log removidos ou substituídos por logInfo() nos fluxos de
+    sync (usuários, clientes, equipamentos, relatórios). UID do Firebase, contagens de
+    registros, username de migração de senha e validade de sessão do portal não
+    aparecem mais no DevTools em produção.
+  - [FIX-v93-LIMIT] Supervisor/admin recebe toast de aviso quando o painel exibe
+    apenas as 200 RATs mais recentes (limite de sync do Firestore), evitando que RATs
+    mais antigas passem despercebidas sem aviso.
+  - [FIX-v93-STATUSCLASS] Função _safeStatusClass() por whitelist substitui todos os
+    ternários inline de classe CSS de status (status-ok/warn/bad) em renderLista,
+    renderMeus, busca global e "Carregar mais". Impede injeção de atributos CSS caso
+    r.status venha corrompido do Firestore.
   Correções v92:
   - [FIX-v92-CLI-BLUR] BUG: RAT salva sem nome de empresa em TODOS os relatórios.
     Causa: blur do campo de busca de clientes rodava IMEDIATAMENTE, antes do
@@ -3711,6 +3737,16 @@ html[data-role="technician"] nav button {
   }
   window.esc = esc;
 
+  // [FIX-v93-STATUSCLASS] Sanitiza classe CSS de status por whitelist.
+  // Impede injeção de atributos caso r.status venha corrompido do Firestore.
+  function _safeStatusClass(status) {
+    if (status === 'Concluído') return 'status-ok';
+    if (status && status.includes('pendência')) return 'status-warn';
+    if (status === 'Não concluído') return 'status-bad';
+    return 'status-bad'; // fallback seguro
+  }
+  window._safeStatusClass = _safeStatusClass;
+
   // ===== [LAZY] Carregador sob demanda de jsPDF =====
   // jsPDF (~350KB) só é carregado quando o usuário clica em "Gerar PDF" pela primeira vez.
   // Nas chamadas seguintes a Promise já está resolvida — custo zero.
@@ -4067,7 +4103,7 @@ html[data-role="technician"] nav button {
             // O controle de sessão do app (usuarioLogado) continua gerenciado pelo login próprio.
             if (fbUser) {
               // Token renovado automaticamente pelo Firebase SDK
-              console.log('[Auth] Token Firebase renovado. UID:', fbUser.uid);
+              // [FIX-v93-LOG] UID removido do log — dado sensível não deve aparecer no DevTools
             } else {
               // [FIX-AUTH] currentUser null é ESPERADO — app usa autenticação própria,
               // não Firebase Auth. Com a correção [FIX-AUTH] o SDK é usado diretamente
@@ -4295,7 +4331,7 @@ html[data-role="technician"] nav button {
         });
         localStorage.setItem(STORAGE_USERS, JSON.stringify(localUsers));
         window.usuarios = localUsers;
-        console.log("syncUsuariosFromFirestore:", lista.length, "perfis sincronizados.");
+        if (typeof logInfo === 'function') logInfo('syncUsuariosFromFirestore: perfis sincronizados.'); // [FIX-v93-LOG]
         try {
           if (window.usuarioLogado && (window.usuarioLogado.role === 'admin' || window.usuarioLogado.role === 'supervisor')) {
             if (typeof renderUsuarios === 'function') renderUsuarios();
@@ -4360,7 +4396,7 @@ html[data-role="technician"] nav button {
       if (typeof renderClientes === 'function') renderClientes();
       if (typeof popularSelectClientes === 'function') popularSelectClientes();
       if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
-      console.log("syncClientesFromFirestore:", lista.length, "clientes sincronizados.");
+      if (typeof logInfo === 'function') logInfo('syncClientesFromFirestore: clientes sincronizados.'); // [FIX-v93-LOG]
     } catch(e) { console.error("Erro em syncClientesFromFirestore:", e); }
   }
   window.syncClientesFromFirestore = syncClientesFromFirestore;
@@ -4403,7 +4439,7 @@ html[data-role="technician"] nav button {
       try { equipamentos = lista; } catch(e) {}
       if (typeof renderEquipamentos === 'function') renderEquipamentos();
       if (typeof popularSelectEquipamentosEstoque === 'function') popularSelectEquipamentosEstoque();
-      console.log("syncEquipamentosFromFirestore:", lista.length, "equipamentos sincronizados.");
+      if (typeof logInfo === 'function') logInfo('syncEquipamentosFromFirestore: equipamentos sincronizados.'); // [FIX-v93-LOG]
     } catch(e) { console.error("Erro em syncEquipamentosFromFirestore:", e); }
   }
   window.syncEquipamentosFromFirestore = syncEquipamentosFromFirestore;
@@ -4437,6 +4473,15 @@ html[data-role="technician"] nav button {
           d._firestoreId = docRef.id;
           firestoreRats.push(d);
         });
+        // [FIX-v93-LIMIT] Avisa supervisor/admin se o limite de sync foi atingido
+        // (RATs mais antigas podem não estar visíveis no painel)
+        if (!_isTecnico && firestoreRats.length >= _LIMIT_SYNC) {
+          try {
+            if (typeof showToast === 'function') {
+              showToast('⚠️ Exibindo as ' + _LIMIT_SYNC + ' RATs mais recentes. RATs mais antigas podem não aparecer no painel — use a busca para localizá-las.', 7000);
+            }
+          } catch(e) {}
+        }
       } else {
         // Fallback REST: passa pageSize limitado
         const docs = await _fetchColecaoREST('onlineEsRelatorios', _LIMIT_SYNC);
@@ -4476,7 +4521,7 @@ html[data-role="technician"] nav button {
         console.warn('[Storage] localStorage cheio — RATs mais antigas podem não ter sido salvas:', eQ);
         if (typeof showToast === 'function') showToast('⚠️ Armazenamento local cheio. Faça backup pelo painel.', 6000);
       }
-      console.log("syncRelatoriosFromFirestore:", firestoreRats.length, "do Firestore,", soPendentes.length, "só locais.");
+      if (typeof logInfo === 'function') logInfo('syncRelatoriosFromFirestore: sync concluído.'); // [FIX-v93-LOG]
       return merged;
     } catch(e) {
       console.error("Erro em syncRelatoriosFromFirestore:", e);
@@ -5135,7 +5180,7 @@ html[data-role="technician"] nav button {
             delete _semSenha._salt;
             salvarUsuarioNoFirestore(_semSenha);
           }
-          console.log('[SEC] Senha de "' + userObj.username + '" migrada de SHA-256 para PBKDF2.');
+          // [FIX-v93-LOG] Username removido do log de migração de senha
         } catch(eUpgrade) {
           console.warn('[SEC] Falha ao migrar senha para PBKDF2:', eUpgrade);
         }
@@ -7507,6 +7552,7 @@ function autoFillCamposAtendimento(){
   // por email/whatsapp seja sobrescrita por um atendimento completamente diferente
   mNovo.onclick = ()=>{ window._editandoRelatorioId = null; window._ratPreSalvoId = null;
   window._rascunhoIdEstavel = null; // [FIX-v92-RASCUNHO] reseta ao abrir Novo Atendimento
+  window._ratJaSalva = false; // [FIX-v93-RATSALVA] permite auto-save no novo atendimento
   window.mostrarTela('novo').then(function(){ try { if (typeof window._irParaStep === 'function') window._irParaStep(1); } catch(e){} }).catch(e=>console.warn('Erro ao abrir tela:', e)); };
   mMeus.onclick = ()=>window.mostrarTela('meus').catch(e=>console.warn('Erro ao abrir tela:', e));
   if (mPainel) mPainel.onclick = ()=>window.mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
@@ -7824,7 +7870,7 @@ function autoFillCamposAtendimento(){
     var _listaFrag = document.createDocumentFragment();
     data.slice(0, _LISTA_LIMIT).forEach(r=>{
       const div=document.createElement('div');
-      const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
+      const statusClass = _safeStatusClass(r.status); // [FIX-v93-STATUSCLASS]
       const temImg=(r.imgsEquip&&r.imgsEquip.length)||(r.imgsServico&&r.imgsServico.length)||(r.imgsBaterias&&r.imgsBaterias.length);
       const temVid=(r.vidsEquip&&r.vidsEquip.length)||(r.vidsServico&&r.vidsServico.length)||(r.vidsBaterias&&r.vidsBaterias.length);
       div.className='relatorio-card relatorio-card-item'+(r.visto?' visto':'');
@@ -7873,7 +7919,7 @@ function autoFillCamposAtendimento(){
         data.slice(_LISTA_LIMIT).forEach(function(r) {
           var div3 = document.createElement('div');
           div3.className = 'relatorio-card relatorio-card-item' + (r.visto ? ' visto' : '');
-          var sc3 = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
+          var sc3 = _safeStatusClass(r.status); // [FIX-v93-STATUSCLASS]
           div3.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
             '<div><strong>' + esc(r.numero) + ' · ' + esc(r.cliente) + '</strong>' +
             '<div><small>' + esc(r.dataHoraBr || isoToBR(r.dataHoraIso) || '') + '</small></div>' +
@@ -9848,6 +9894,7 @@ if (logoBase64) {
         } else { throw eQuota; }
       }
       ultimoRelatorioDoTecnico = novo;
+      window._ratJaSalva = true; // [FIX-v93-RATSALVA] impede auto-save de recriar rascunho após save
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { window._rascunhoIdEstavel = null; } catch(e){} // [FIX-v91-RASCUNHO-ID]
       try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
@@ -9901,6 +9948,7 @@ if (logoBase64) {
       pendentes.push(novo); savePendentes(pendentes);
       // [UX] Atualiza badge de pendentes
       try { if (typeof window._atualizarBadgePendentes === 'function') window._atualizarBadgePendentes(); } catch(e){}
+      window._ratJaSalva = true; // [FIX-v93-RATSALVA] impede auto-save de recriar rascunho após save
       try { localStorage.removeItem(STORAGE_RASCUNHO); } catch(e){}
       try { window._rascunhoIdEstavel = null; } catch(e){} // [FIX-v91-RASCUNHO-ID]
       try { var _luS = window.usuarioLogado; var _lkS = _luS ? 'rascunho-perguntado-' + (_luS.username||_luS.usuario||'').toLowerCase() : null; if (_lkS) sessionStorage.removeItem(_lkS); } catch(e) {}
@@ -10292,6 +10340,8 @@ if (logoBase64) {
   (function() {
     var _autoSaveTimer = null;
     function _autoSaveRascunho() {
+      // [FIX-v93-RATSALVA] Não salva rascunho se a RAT já foi salva nesta sessão
+      if (window._ratJaSalva) return;
       // Não salva rascunho durante edição de RAT existente (causaria confusão)
       if (window._editandoRelatorioId) return;
       // [FIX-v92-RASCUNHO] Só salva se a tela 'novo' estiver visível
@@ -10483,12 +10533,16 @@ if (logoBase64) {
       setTimeout(function() {
         _dropdown.style.display = 'none';
         var lista = Array.isArray(window.clientes) ? window.clientes : [];
+        // [FIX-v93-CLI-EMPTY] Se lista de clientes ainda não carregou (Firestore assíncrono),
+        // não limpa a seleção — evita apagar nome válido enquanto dados chegam.
+        if (!lista.length) return;
         var valBusca = (_busca.value || '').trim().toLowerCase();
         // Se _select.value está preenchido e bate com o campo de busca → seleção válida
         if (_select.value && (_select.value || '').toLowerCase() === valBusca) return;
         // Se _select.value está preenchido mas busca foi editada para algo inválido → mantém
         if (_select.value && valBusca === '') return;
-        var match = lista.find(function(c) { return (c.nome||'').toLowerCase() === valBusca; });
+        // [FIX-v93-CLI-TRIM] Usa .trim() na comparação para evitar falso-negativo por espaços
+        var match = lista.find(function(c) { return (c.nome||'').trim().toLowerCase() === valBusca; });
         if (!match && (_select.value || '').toLowerCase() !== valBusca) {
           _limparSelecaoCliente();
           _busca.value = '';
@@ -11956,6 +12010,7 @@ if (logoBase64) {
       // Apaga rascunho salvo e reseta ID estável
       try { localStorage.removeItem(typeof STORAGE_RASCUNHO !== 'undefined' ? STORAGE_RASCUNHO : 'online-es-rascunho-v1'); } catch(e){}
       try { window._rascunhoIdEstavel = null; } catch(e){} // [FIX-v91-RASCUNHO-ID]
+      try { window._ratJaSalva = false; } catch(e){} // [FIX-v93-RATSALVA] permite auto-save no próximo atendimento
     try { var _luL = window.usuarioLogado; var _lkL = _luL ? 'rascunho-perguntado-' + (_luL.username||_luL.usuario||'').toLowerCase() : null; if (_lkL) sessionStorage.removeItem(_lkL); } catch(e) {}
       // [FIX-v89-DOCTIPO] Reseta tipo de documento para CNPJ (padrão) ao limpar formulário.
       // Sem este fix, se o atendimento anterior usou CPF, o próximo abre com CPF selecionado
@@ -13118,7 +13173,7 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     var _buscaFrag = document.createDocumentFragment();
     lista.slice(0, 50).forEach(r=>{
       const card=document.createElement('div');
-      const statusClass = r.status==='Concluído' ? 'status-ok' : (r.status && r.status.includes('pendência') ? 'status-warn' : 'status-bad');
+      const statusClass = _safeStatusClass(r.status); // [FIX-v93-STATUSCLASS]
       card.className='relatorio-card'+(r.visto?' visto':'');
       card.innerHTML=`
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
@@ -14865,9 +14920,7 @@ async function renderMeus(){
         } catch(e){}
       }
       var status = (r.status || r.cStatus || 'Concluído');
-      var spanStatusClass = 'status-ok';
-      if(status === 'Concluído com pendência') spanStatusClass = 'status-warn';
-      if(status === 'Não concluído') spanStatusClass = 'status-bad';
+      var spanStatusClass = _safeStatusClass(status); // [FIX-v93-STATUSCLASS]
       // BUG FIX: usa window.esc() para escaping completo (proteção contra &, ", ' além de < >)
       var _e = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
       var numEsc = _e(titulo);
@@ -14912,7 +14965,7 @@ async function renderMeus(){
           var card2 = document.createElement('div');
           card2.className = 'relatorio-card';
           var st = r.status || 'Concluído';
-          var sc2 = st === 'Concluído' ? 'status-ok' : (st.includes('pendência') ? 'status-warn' : 'status-bad');
+          var sc2 = _safeStatusClass(st); // [FIX-v93-STATUSCLASS]
           var _e2 = (typeof window.esc === 'function') ? window.esc : function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
           var db2 = r.dataHoraBr || r.dataHoraBR || r.dataBr || '';
           card2.innerHTML =
@@ -15211,7 +15264,7 @@ async function _renderMeusComCache() {
     var card = document.createElement('div');
     card.className = 'relatorio-card';
     var status = r.status || 'Concluído';
-    var sc = status === 'Concluído' ? 'status-ok' : (status.includes('pendência') ? 'status-warn' : 'status-bad');
+    var sc = _safeStatusClass(status); // [FIX-v93-STATUSCLASS]
     var dataBr = r.dataHoraBr || r.dataHoraBR || r.dataBr || '';
     if (dataBr && dataBr.indexOf('T') > -1) { try { var d = new Date(dataBr); if (!isNaN(d)) dataBr = d.toLocaleString('pt-BR'); } catch(e){} }
     card.innerHTML =
@@ -18749,7 +18802,7 @@ window._gerarCredencialPortal = async function(rat){
           cred = Object.assign({}, cred, updates);
         }
 
-        console.log('[Portal v2] Senha ainda válida (' + Math.floor(faltaDias) + ' dias restantes) — não renovada.');
+        // [FIX-v93-LOG] Detalhes de validade de senha removidos do log público
         return { cnpj: cnpj, senha: null, credencial: cred, nova: false };
       }
     }
