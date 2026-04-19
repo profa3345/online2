@@ -10152,11 +10152,20 @@ if (logoBase64) {
           var _cliAtiva   = document.getElementById('aClienteSelect');
           var _cliMAtiva  = document.getElementById('aClienteManual');
           var _acoesAtiva = document.getElementById('cAcoes');
+          // [FIX-v94b] Incluir campos dos outros steps — se qualquer campo relevante
+          // tiver valor, o formulário está sendo preenchido e não deve ser interrompido.
+          var _equipAtiva = document.getElementById('bEquipamento');
+          var _probAtiva  = document.getElementById('cProblema');
+          var _numAtiva   = document.getElementById('aNumeroRat');
           var _formTemDados =
             (_diagAtiva  && _diagAtiva.value.trim())  ||
             (_cliAtiva   && _cliAtiva.value)          ||
             (_cliMAtiva  && _cliMAtiva.style.display !== 'none' && _cliMAtiva.value.trim()) ||
-            (_acoesAtiva && _acoesAtiva.value.trim());
+            (_acoesAtiva && _acoesAtiva.value.trim()) ||
+            (_equipAtiva && _equipAtiva.value.trim()) ||
+            (_probAtiva  && _probAtiva.value.trim())  ||
+            // Se o formulário já tem número RAT bloqueado, está em uso
+            (window._ratNumeroBloqueado === true);
           if (_formTemDados) return; // usuário já está preenchendo — não interromper
         }
       } catch(e) {}
@@ -10172,6 +10181,20 @@ if (logoBase64) {
       if (!_temDadosReais) {
         localStorage.removeItem(STORAGE_RASCUNHO);
         return;
+      }
+
+      // [FIX-v94b-RASCUNHO-OBSOLETO] Se o número da RAT do rascunho já existe nos
+      // relatórios salvos, o rascunho é obsoleto (RAT já foi salva) — descarta silenciosamente.
+      if (r.numero) {
+        try {
+          var _salvos = window.relatorios || (typeof loadLocalReports === 'function' ? loadLocalReports() : []) || [];
+          var _jaExiste = _salvos.some(function(x) { return x.numero === r.numero && !x._deleted; });
+          if (_jaExiste) {
+            localStorage.removeItem(STORAGE_RASCUNHO);
+            try { window._rascunhoIdEstavel = null; } catch(e) {}
+            return;
+          }
+        } catch(e) {}
       }
 
       // [FIX-RASCUNHO-UNICO] Rascunho do auto-save do atendimento em andamento:
