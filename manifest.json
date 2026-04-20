@@ -46,6 +46,51 @@
       "url": "./index.html?protocolo=%s"
     }
   ],
+  "share_target": {
+    "action": "./index.html",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "arquivo",
+          "accept": ["image/jpeg", "image/png", "application/pdf"]
+        }
+      ]
+    }
+  },
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "widgets": [
+    {
+      "name": "ONLINE-ES",
+      "short_name": "RATs",
+      "description": "Acesso rápido aos Relatórios de Atendimento",
+      "tag": "onlinees-widget",
+      "ms_ac_template": "widgets/template.json",
+      "data": "widgets/data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "icons/screenshot-mobile.png",
+          "sizes": "390x844",
+          "label": "Widget ONLINE-ES"
+        }
+      ],
+      "icons": [
+        {
+          "src": "icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ],
+      "auth": false,
+      "update": 86400
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-72x72.png",
