@@ -1,1 +1,11 @@
-
+{
+  "web_apps": [
+    {
+      "manifest": "https://onlinees.vercel.app/manifest.json",
+      "details": {
+        "paths": ["/*"],
+        "exclude_paths": []
+      }
+    }
+  ]
+}
