@@ -8836,7 +8836,11 @@ document.getElementById('btnAddCliente').onclick=()=>{
           var sinal = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
           var cor = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#94a3b8';
           _trendEl.style.display = 'inline-flex';
-          _trendEl.innerHTML = '<span style="color:'+cor+'">'+sinal+' '+Math.abs(diff)+' vs ontem</span>';
+          var _sp = document.createElement('span');
+          _sp.style.color = cor;
+          _sp.textContent = sinal + ' ' + Math.abs(diff) + ' vs ontem';
+          _trendEl.innerHTML = '';
+          _trendEl.appendChild(_sp);
         } else { _trendEl.style.display = 'none'; }
       }
       if (dConcluidosHoje)  dConcluidosHoje.textContent  = rHoje.filter(function(r){return r.status==='Concluído';}).length;
@@ -18680,10 +18684,11 @@ async function _portalVerificarSenha(plain, cred){
 
 /* ── Gerar senha aleatória de 6 dígitos ─────────────────── */
 function _gerarSenha6(){
-  var arr = new Uint8Array(4);
+  // [SEC] Aumentado para 8 chars alfanuméricos — espaço de 2,8 trilhões de combinações
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  var arr = new Uint8Array(8);
   crypto.getRandomValues(arr);
-  var n = (arr[0]<<24|arr[1]<<16|arr[2]<<8|arr[3]) >>> 0;
-  return String(100000 + (n % 900000));
+  return Array.from(arr).map(function(b){ return chars[b % chars.length]; }).join('');
 }
 
 /* ── Normaliza CNPJ ou CPF (apenas dígitos) ─────────────── */

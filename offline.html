@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Sem conexão — ONLINE-ES</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:'Poppins',system-ui,sans-serif;
+      background:#0f172a;
+      color:#e2e8f0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .card{
+      background:#1e293b;
+      border:1px solid #334155;
+      border-radius:16px;
+      padding:40px 32px;
+      max-width:400px;
+      width:100%;
+      text-align:center;
+    }
+    .logo{
+      width:120px;
+      height:auto;
+      margin:0 auto 24px;
+      display:block;
+      background:#fff;
+      border-radius:12px;
+      padding:12px;
+    }
+    .icon{
+      font-size:48px;
+      margin-bottom:16px;
+      display:block;
+    }
+    h1{
+      font-size:1.25rem;
+      font-weight:600;
+      color:#f1f5f9;
+      margin-bottom:8px;
+    }
+    p{
+      font-size:.9rem;
+      color:#94a3b8;
+      line-height:1.6;
+      margin-bottom:24px;
+    }
+    .btn{
+      display:inline-block;
+      background:#f97316;
+      color:#fff;
+      border:none;
+      border-radius:999px;
+      padding:12px 28px;
+      font-size:.9rem;
+      font-weight:600;
+      cursor:pointer;
+      transition:opacity .15s;
+    }
+    .btn:hover{opacity:.85}
+    .status{
+      margin-top:20px;
+      font-size:.78rem;
+      color:#64748b;
+    }
+    .dot{
+      display:inline-block;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:#ef4444;
+      margin-right:6px;
+      vertical-align:middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="icons/apple-touch-icon.png" alt="ONLINE-ES" onerror="this.style.display='none'"/>
+    <span class="icon">📡</span>
+    <h1>Você está offline</h1>
+    <p>Não foi possível conectar ao servidor.<br>Verifique sua conexão com a internet e tente novamente.</p>
+    <button class="btn" onclick="tentarNovamente()">Tentar novamente</button>
+    <div class="status">
+      <span class="dot"></span>Sem conexão com a internet
+    </div>
+  </div>
+  <script>
+    function tentarNovamente(){
+      if(navigator.onLine){
+        window.location.href = './index.html';
+      } else {
+        var btn = document.querySelector('.btn');
+        btn.textContent = 'Ainda sem conexão...';
+        setTimeout(function(){ btn.textContent = 'Tentar novamente'; }, 2000);
+      }
+    }
+    window.addEventListener('online', function(){
+      window.location.href = './index.html';
+    });
+  </script>
+</body>
+</html>
