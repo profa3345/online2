@@ -588,6 +588,8 @@
   <meta charset="UTF-8" />
   <title>ONLINE-ES – Relatórios de Atendimento ao Cliente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+
   <!-- [FIX-v59-TELA-AZUL] Detecta ?portal= / ?rat= IMEDIATAMENTE no <head>,
        antes de qualquer script ou CSS carregar, e aplica fundo claro no <html>
        para que o cliente nunca veja a tela azul/preta do app interno. -->
@@ -657,13 +659,18 @@
     object-src 'none';
     base-uri 'self';
   " />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#f97316" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="ONLINE ES" />
+  <meta name="apple-mobile-web-app-title" content="ONLINE-ES" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="msapplication-TileColor" content="#0f172a" />
+  <meta name="msapplication-TileImage" content="icons/icon-144x144.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png" />
   <!-- [FIX-v87-MANIFEST] PWA manifest adicionado — resolve erro PWABuilder "did not find a Web Manifest" -->
-  <link rel="manifest" href="/manifest.json" />
+  <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- [B-03] Plus Jakarta Sans removida — fonte consolidada em Poppins (carregada no body). -->
