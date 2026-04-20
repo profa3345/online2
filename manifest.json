@@ -6,7 +6,7 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
+  "display_override": ["window-controls-overlay", "tabbed", "standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#f97316",
@@ -175,6 +175,9 @@
       "label": "ONLINE-ES – Visão desktop"
     }
   ],
+  "note_taking": {
+    "new_note_url": "./index.html#novo"
+  },
   "shortcuts": [
     {
       "name": "Novo Atendimento",
