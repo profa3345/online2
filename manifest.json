@@ -22,7 +22,29 @@
     }
   ],
   "scope_extensions": [
-    { "origin": "https://onlinees.vercel.app" }
+    { "origin": "https://onlinees.vercel.app" },
+    { "origin": "https://*.onlinees.vercel.app" }
+  ],
+  "launch_handler": {
+    "client_mode": ["focus-existing", "auto"]
+  },
+  "file_handlers": [
+    {
+      "action": "./index.html",
+      "accept": {
+        "application/pdf": [".pdf"],
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/png": [".png"]
+      },
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }],
+      "launch_type": "single-client"
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+onlinees",
+      "url": "./index.html?protocolo=%s"
+    }
   ],
   "icons": [
     {
