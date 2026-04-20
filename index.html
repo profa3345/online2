@@ -17114,160 +17114,18 @@ async function fazerLogin(){
 </script>
 
 <script>
-// ===== SERVICE WORKER INLINE =====
-// Registra SW via blob para não precisar de arquivo sw.js separado
-(function() {
-  if (!('serviceWorker' in navigator)) return;
-
-  // [FIX-v55c] SW_VERSION incrementado a cada deploy para forçar activate
-  // e limpar cache antigo nos dispositivos dos técnicos.
-  var SW_VERSION = 'onlinees-v11';
-  var CACHE_ASSETS = [
-    'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
-    'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
-    'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
-    'https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css',
-  ];
-
-  var swCode = `
-    var CACHE = 'onlinees-v11';
-    var CACHE_FONTS = 'onlinees-fonts-v1';
-
-    // Assets CDN — pré-cacheados no install
-    var ASSETS_CDN = [
-      "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
-      "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js",
-      "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js",
-      "https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
-    ];
-
-    // ── Install: pré-cacheia assets CDN ──────────────────────────────
-    self.addEventListener('install', function(e) {
-      e.waitUntil(
-        caches.open(CACHE).then(function(cache) {
-          return Promise.all(ASSETS_CDN.map(function(url) {
-            return fetch(new Request(url, { mode: 'no-cors' }))
-              .then(function(resp) { return cache.put(url, resp); })
-              .catch(function() {}); // falha silenciosa por asset — não bloqueia install
-          }));
-        }).then(function() { return self.skipWaiting(); })
-      );
-    });
-
-    // ── Activate: limpa caches antigos ────────────────────────────────
-    self.addEventListener('activate', function(e) {
-      e.waitUntil(
-        caches.keys().then(function(keys) {
-          return Promise.all(keys
-            .filter(function(k) { return k !== CACHE && k !== CACHE_FONTS; })
-            .map(function(k) { return caches.delete(k); }));
-        }).then(function() { return self.clients.claim(); })
-      );
-    });
-
-    // ── Fetch: estratégias por tipo de recurso ────────────────────────
-    self.addEventListener('fetch', function(e) {
-      var url = e.request.url;
-      var method = e.request.method;
-
-      // Não intercepta: Firebase APIs, métodos não-GET
-      if (method !== 'GET') return;
-      if (url.includes('firestore.googleapis.com') ||
-          url.includes('identitytoolkit.googleapis.com') ||
-          url.includes('firebase.googleapis.com') ||
-          url.includes('googleapis.com/v1') ||
-          url.includes('firebaseio.com')) return;
-
-      // ── Fontes Google: Cache-First (raramente mudam) ──
-      if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
-        e.respondWith(
-          caches.open(CACHE_FONTS).then(function(cache) {
-            return cache.match(e.request).then(function(cached) {
-              if (cached) return cached;
-              return fetch(e.request).then(function(resp) {
-                if (resp && resp.status === 200) cache.put(e.request, resp.clone());
-                return resp;
-              }).catch(function() { return cached || new Response('', { status: 503 }); });
-            });
-          })
-        );
-        return;
-      }
-
-      // ── Assets CDN (Firebase, remixicon): Cache-First ──
-      var isCdnAsset = ASSETS_CDN.some(function(a) { return url.startsWith(a.split('?')[0]); });
-      if (isCdnAsset) {
-        e.respondWith(
-          caches.match(e.request).then(function(cached) {
-            if (cached) return cached;
-            return fetch(e.request).then(function(resp) {
-              if (resp && resp.status === 200) {
-                var clone = resp.clone();
-                caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
-              }
-              return resp;
-            }).catch(function() { return new Response('', { status: 503 }); });
-          })
-        );
-        return;
-      }
-
-      // ── App Shell (index.html / navegação): Network-First com fallback cache ──
-      if (e.request.mode === 'navigate' ||
-          url.includes('index.html') ||
-          (!url.includes('.') && !url.includes('?rat='))) {
-        e.respondWith(
-          fetch(e.request).then(function(resp) {
-            if (resp && resp.status === 200) {
-              var clone = resp.clone();
-              caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
-            }
-            return resp;
-          }).catch(function() {
-            return caches.match(e.request)
-              .then(function(c) { return c || caches.match('/') || caches.match('/index.html'); });
-          })
-        );
-        return;
-      }
-
-      // ── Demais recursos: Network-First ──
-      e.respondWith(
-        fetch(e.request).then(function(resp) {
-          if (resp && resp.status === 200) {
-            var clone = resp.clone();
-            caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
-          }
-          return resp;
-        }).catch(function() {
-          return caches.match(e.request).then(function(c) { return c || new Response('', { status: 503 }); });
-        })
-      );
-    });
-  `;
-
-  // Registra o SW via blob URL
-  try {
-    var blob = new Blob([swCode], { type: 'application/javascript' });
-    var swUrl = URL.createObjectURL(blob);
-    navigator.serviceWorker.register(swUrl)
-      .then(function(reg) {
-        URL.revokeObjectURL(swUrl);
-        console.log('✅ Service Worker registrado (PWA offline ativo).');
-        caches.open('onlinees-v11').then(function(cache) {
-          cache.add(window.location.href).catch(function(){});
-          cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
-        });
-
-        // [FIX-v55c] Detecta atualização disponível e avisa o usuário para recarregar.
-        // Sem isso, o SW antigo continua ativo mesmo após deploy — bugs "corrigidos" voltam.
-        reg.addEventListener('updatefound', function() {
+// ===== SERVICE WORKER EXTERNO =====
+// Registra sw.js — detectável pelo PWABuilder e browsers
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(function (reg) {
+        console.log('[SW] Registrado com sucesso. Scope:', reg.scope);
+        reg.addEventListener('updatefound', function () {
           var newWorker = reg.installing;
           if (!newWorker) return;
-          newWorker.addEventListener('statechange', function() {
+          newWorker.addEventListener('statechange', function () {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Há uma nova versão instalada aguardando ativação
-              // Mostra banner de atualização não intrusivo
               try {
                 var _banner = document.createElement('div');
                 _banner.id = 'swUpdateBanner';
@@ -17276,29 +17134,17 @@ async function fazerLogin(){
                   '<span><i class="ri-refresh-line" style="margin-right:6px;"></i>Nova versão disponível.</span>' +
                   '<button onclick="window.location.reload()" style="background:#f97316;border:none;color:#fff;padding:7px 16px;border-radius:999px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">Atualizar agora</button>';
                 document.body.appendChild(_banner);
-              } catch(eBanner) {}
+              } catch(e) {}
             }
           });
         });
-
-        // Verifica se já há uma atualização pendente ao registrar
         reg.update().catch(function(){});
       })
-      .catch(function(err) {
-        URL.revokeObjectURL(swUrl);
-        try {
-          var swDataUrl = 'data:application/javascript;charset=utf-8,' + encodeURIComponent(swCode);
-          navigator.serviceWorker.register(swDataUrl)
-            .then(function() { console.log('✅ Service Worker registrado (data URL).'); })
-            .catch(function() { console.log('ℹ️ Service Worker indisponível (normal em file://, modo privado ou 1ª carga) — app funciona normalmente sem cache PWA.'); });
-        } catch(e2) {
-          console.log('ℹ️ Service Worker não suportado neste ambiente.');
-        }
+      .catch(function (err) {
+        console.warn('[SW] Falha ao registrar:', err);
       });
-  } catch(e) {
-    console.log('ℹ️ Service Worker não suportado neste browser.');
-  }
-})();
+  });
+}
 </script>
 
 <!-- ══════════════════ MODAL CÂMERA ══════════════════ -->
