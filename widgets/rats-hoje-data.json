@@ -1,0 +1,32 @@
+{
+  "totalHoje": 7,
+  "concluidos": 5,
+  "pendentes": 2,
+  "atualizadoEm": "08:47",
+  "ultimasRats": [
+    {
+      "numero": "RAT-0313",
+      "cliente": "CESAN",
+      "status": "✔ Concluído",
+      "statusCor": "Good"
+    },
+    {
+      "numero": "RAT-0312",
+      "cliente": "Pref. Vitória",
+      "status": "⏳ Andamento",
+      "statusCor": "Warning"
+    },
+    {
+      "numero": "RAT-0311",
+      "cliente": "TJ-ES",
+      "status": "✔ Concluído",
+      "statusCor": "Good"
+    },
+    {
+      "numero": "RAT-0310",
+      "cliente": "SEGER",
+      "status": "⚠ Pendente",
+      "statusCor": "Attention"
+    }
+  ]
+}

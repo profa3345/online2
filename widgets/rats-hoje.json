@@ -1,1 +1,216 @@
-
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "speak": "Resumo dos atendimentos de hoje",
+  "body": [
+    {
+      "type": "Container",
+      "style": "emphasis",
+      "bleed": true,
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "Image",
+                  "url": "https://onlinees.vercel.app/icons/icon-72x72.png",
+                  "size": "Small",
+                  "style": "Person"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "ONLINE-ES",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "color": "Accent"
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "Atendimentos de hoje",
+                  "spacing": "None",
+                  "isSubtle": true,
+                  "size": "Small"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "separator": true,
+      "spacing": "Medium",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${totalHoje}",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "horizontalAlignment": "Center",
+              "color": "Accent"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Total hoje",
+              "horizontalAlignment": "Center",
+              "isSubtle": true,
+              "size": "Small",
+              "spacing": "None"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "separator": true,
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${concluidos}",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "horizontalAlignment": "Center",
+              "color": "Good"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Concluídos",
+              "horizontalAlignment": "Center",
+              "isSubtle": true,
+              "size": "Small",
+              "spacing": "None"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "separator": true,
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${pendentes}",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "horizontalAlignment": "Center",
+              "color": "Warning"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Pendentes",
+              "horizontalAlignment": "Center",
+              "isSubtle": true,
+              "size": "Small",
+              "spacing": "None"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Últimas RATs",
+          "weight": "Bolder",
+          "size": "Small",
+          "spacing": "Small"
+        },
+        {
+          "type": "Table",
+          "gridStyle": "default",
+          "firstRowAsHeader": false,
+          "showGridLines": false,
+          "columns": [
+            { "width": 2 },
+            { "width": 3 },
+            { "width": 2 }
+          ],
+          "rows": {
+            "$data": "${ultimasRats}",
+            "type": "TableRow",
+            "cells": [
+              {
+                "type": "TableCell",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${numero}",
+                    "size": "Small",
+                    "weight": "Bolder",
+                    "color": "Accent",
+                    "wrap": false
+                  }
+                ]
+              },
+              {
+                "type": "TableCell",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${cliente}",
+                    "size": "Small",
+                    "wrap": true
+                  }
+                ]
+              },
+              {
+                "type": "TableCell",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${status}",
+                    "size": "Small",
+                    "color": "${statusCor}",
+                    "horizontalAlignment": "Right",
+                    "wrap": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "Atualizado às ${atualizadoEm}",
+      "isSubtle": true,
+      "size": "Small",
+      "horizontalAlignment": "Right",
+      "spacing": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Novo Atendimento",
+      "url": "https://onlinees.vercel.app/index.html#novo",
+      "style": "positive"
+    },
+    {
+      "type": "Action.OpenUrl",
+      "title": "Ver todos",
+      "url": "https://onlinees.vercel.app/index.html#meus"
+    }
+  ]
+}
