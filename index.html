@@ -17155,7 +17155,42 @@ async function fazerLogin(){
       console.log('ℹ️ Service Worker indisponível:', err.message);
     });
 
-  // ── Background Sync: reenvio de RATs offline ─────────────────────
+  // ── Push Notifications ────────────────────────────────────────────
+  // Solicita permissão e registra subscription quando o usuário aceitar.
+  // A VAPID public key deve ser substituída pela chave real do seu servidor.
+  var VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+
+  window._registrarPushNotifications = function() {
+    if (!('PushManager' in window)) return;
+    navigator.serviceWorker.ready.then(function(reg) {
+      reg.pushManager.getSubscription().then(function(existing) {
+        if (existing) return; // já inscrito
+        Notification.requestPermission().then(function(permission) {
+          if (permission !== 'granted') return;
+          reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+          }).then(function(subscription) {
+            // Envia a subscription para o seu backend salvar
+            console.log('✅ Push subscription registrada:', JSON.stringify(subscription));
+            // fetch('/api/push-subscribe', { method:'POST', body: JSON.stringify(subscription),
+            //   headers:{'Content-Type':'application/json'} });
+          }).catch(function(err) {
+            console.warn('Push subscription falhou:', err);
+          });
+        });
+      });
+    });
+  };
+
+  function _urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - base64String.length % 4) % 4);
+    var base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw     = atob(base64);
+    var output  = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) { output[i] = raw.charCodeAt(i); }
+    return output;
+  }
   // Chamado pelo app sempre que uma RAT falhar ao salvar por falta de rede.
   window._registrarSyncRats = function() {
     navigator.serviceWorker.ready.then(function(reg) {

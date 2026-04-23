@@ -126,6 +126,61 @@ self.addEventListener('fetch', function(e) {
   );
 });
 
+// ── Push Notifications ──────────────────────────────────────
+// Recebe notificações push enviadas pelo servidor mesmo com
+// o app fechado. Payload esperado (JSON):
+//   { title, body, url, tag, icon }
+self.addEventListener('push', function(e) {
+  var data = {};
+  try { data = e.data ? e.data.json() : {}; } catch(err) {}
+
+  var title   = data.title || 'ONLINE-ES';
+  var options = {
+    body:    data.body  || 'Você tem uma nova notificação.',
+    icon:    data.icon  || '/icons/icon-192x192.png',
+    badge:   '/icons/icon-96x96.png',
+    tag:     data.tag   || 'onlinees-notif',
+    data:    { url: data.url || '/' },
+    vibrate: [200, 100, 200],
+    renotify: true,
+    actions: [
+      { action: 'ver',    title: 'Ver agora' },
+      { action: 'fechar', title: 'Fechar'    }
+    ]
+  };
+
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Clique na notificação — abre ou foca a aba do app
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close();
+
+  if (e.action === 'fechar') return;
+
+  var targetUrl = (e.notification.data && e.notification.data.url)
+    ? e.notification.data.url
+    : '/';
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(function(clients) {
+        // Se já há uma aba aberta, foca ela e navega
+        for (var i = 0; i < clients.length; i++) {
+          if ('focus' in clients[i]) {
+            clients[i].focus();
+            clients[i].navigate(targetUrl);
+            return;
+          }
+        }
+        // Senão, abre nova aba
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+  );
+});
+
 // ── Background Sync: reenvio de RATs salvas offline ────────
 // Disparado automaticamente pelo browser quando a conexão é
 // restaurada após uma tentativa de salvar com falha de rede.
