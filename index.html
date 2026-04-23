@@ -588,8 +588,6 @@
   <meta charset="UTF-8" />
   <title>ONLINE-ES – Relatórios de Atendimento ao Cliente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-
-
   <!-- [FIX-v59-TELA-AZUL] Detecta ?portal= / ?rat= IMEDIATAMENTE no <head>,
        antes de qualquer script ou CSS carregar, e aplica fundo claro no <html>
        para que o cliente nunca veja a tela azul/preta do app interno. -->
@@ -659,18 +657,13 @@
     object-src 'none';
     base-uri 'self';
   " />
-  <meta name="theme-color" content="#f97316" />
+  <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="ONLINE-ES" />
+  <meta name="apple-mobile-web-app-title" content="ONLINE ES" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="msapplication-TileColor" content="#0f172a" />
-  <meta name="msapplication-TileImage" content="icons/icon-144x144.png" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png" />
   <!-- [FIX-v87-MANIFEST] PWA manifest adicionado — resolve erro PWABuilder "did not find a Web Manifest" -->
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="/manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- [B-03] Plus Jakarta Sans removida — fonte consolidada em Poppins (carregada no body). -->
@@ -8836,11 +8829,7 @@ document.getElementById('btnAddCliente').onclick=()=>{
           var sinal = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
           var cor = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#94a3b8';
           _trendEl.style.display = 'inline-flex';
-          var _sp = document.createElement('span');
-          _sp.style.color = cor;
-          _sp.textContent = sinal + ' ' + Math.abs(diff) + ' vs ontem';
-          _trendEl.innerHTML = '';
-          _trendEl.appendChild(_sp);
+          _trendEl.innerHTML = '<span style="color:'+cor+'">'+sinal+' '+Math.abs(diff)+' vs ontem</span>';
         } else { _trendEl.style.display = 'none'; }
       }
       if (dConcluidosHoje)  dConcluidosHoje.textContent  = rHoje.filter(function(r){return r.status==='Concluído';}).length;
@@ -17118,37 +17107,42 @@ async function fazerLogin(){
 </script>
 
 <script>
-// ===== SERVICE WORKER EXTERNO =====
-// Registra sw.js — detectável pelo PWABuilder e browsers
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./sw.js', { scope: './' })
-      .then(function (reg) {
-        console.log('[SW] Registrado com sucesso. Scope:', reg.scope);
-        reg.addEventListener('updatefound', function () {
-          var newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', function () {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              try {
-                var _banner = document.createElement('div');
-                _banner.id = 'swUpdateBanner';
-                _banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#114f91;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:Poppins,system-ui,sans-serif;font-size:.82rem;box-shadow:0 -4px 20px rgba(0,0,0,.3);';
-                _banner.innerHTML =
-                  '<span><i class="ri-refresh-line" style="margin-right:6px;"></i>Nova versão disponível.</span>' +
-                  '<button onclick="window.location.reload()" style="background:#f97316;border:none;color:#fff;padding:7px 16px;border-radius:999px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">Atualizar agora</button>';
-                document.body.appendChild(_banner);
-              } catch(e) {}
-            }
-          });
-        });
-        reg.update().catch(function(){});
-      })
-      .catch(function (err) {
-        console.warn('[SW] Falha ao registrar:', err);
+// ===== SERVICE WORKER — arquivo externo sw.js =====
+// [v94] Migrado de blob URL para arquivo externo para compatibilidade
+// com PWABuilder, Lighthouse e lojas de aplicativos.
+(function() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('./sw.js', { scope: './' })
+    .then(function(reg) {
+      console.log('✅ Service Worker registrado (PWA offline ativo).');
+      caches.open('onlinees-v11').then(function(cache) {
+        cache.add(window.location.href).catch(function(){});
+        cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
       });
-  });
-}
+      // Detecta atualização disponível e avisa o usuário para recarregar
+      reg.addEventListener('updatefound', function() {
+        var newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', function() {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            try {
+              var _banner = document.createElement('div');
+              _banner.id = 'swUpdateBanner';
+              _banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#114f91;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:Poppins,system-ui,sans-serif;font-size:.82rem;box-shadow:0 -4px 20px rgba(0,0,0,.3);';
+              _banner.innerHTML =
+                '<span><i class="ri-refresh-line" style="margin-right:6px;"></i>Nova versão disponível.</span>' +
+                '<button onclick="window.location.reload()" style="background:#f97316;border:none;color:#fff;padding:7px 16px;border-radius:999px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">Atualizar agora</button>';
+              document.body.appendChild(_banner);
+            } catch(eBanner) {}
+          }
+        });
+      });
+      reg.update().catch(function(){});
+    })
+    .catch(function(err) {
+      console.log('ℹ️ Service Worker indisponível:', err.message);
+    });
+})();
 </script>
 
 <!-- ══════════════════ MODAL CÂMERA ══════════════════ -->
@@ -18684,11 +18678,10 @@ async function _portalVerificarSenha(plain, cred){
 
 /* ── Gerar senha aleatória de 6 dígitos ─────────────────── */
 function _gerarSenha6(){
-  // [SEC] Aumentado para 8 chars alfanuméricos — espaço de 2,8 trilhões de combinações
-  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  var arr = new Uint8Array(8);
+  var arr = new Uint8Array(4);
   crypto.getRandomValues(arr);
-  return Array.from(arr).map(function(b){ return chars[b % chars.length]; }).join('');
+  var n = (arr[0]<<24|arr[1]<<16|arr[2]<<8|arr[3]) >>> 0;
+  return String(100000 + (n % 900000));
 }
 
 /* ── Normaliza CNPJ ou CPF (apenas dígitos) ─────────────── */

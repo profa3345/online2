@@ -1,134 +1,123 @@
-/* ============================================================
-   ONLINE-ES – Service Worker PWA  v3.0
-   ✅ Periodic Background Sync
-   ✅ Offline fallback page
-   ✅ Background Sync
-   ✅ Push Notifications
-   ============================================================ */
+// ============================================================
+//  ONLINE-ES — Service Worker v11
+//  Estratégias de cache:
+//    • Fontes Google       → Cache-First
+//    • Assets CDN          → Cache-First
+//    • App Shell (navigate)→ Network-First + fallback cache
+//    • Demais recursos     → Network-First + fallback cache
+// ============================================================
 
-const CACHE_NAME   = 'onlinees-v3';
-const CACHE_FONTS  = 'onlinees-fonts-v1';
-const OFFLINE_URL  = './offline.html';
+var CACHE       = 'onlinees-v11';
+var CACHE_FONTS = 'onlinees-fonts-v1';
 
-const PRECACHE = [
-  './index.html',
-  './portal.html',
-  './offline.html',
-  './manifest.json',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png',
-  './icons/icon-384x384.png',
-  './icons/apple-touch-icon.png',
-  './icons/favicon-32x32.png',
-  './icons/screenshot-mobile.png',
-  './icons/screenshot-desktop.png',
+var ASSETS_CDN = [
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
+  'https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css'
 ];
 
-const BYPASS = [
-  'firestore.googleapis.com','firebase.googleapis.com',
-  'identitytoolkit.googleapis.com','securetoken.googleapis.com',
-  'googleapis.com','viacep.com.br','wa.me','api.whatsapp.com','telegram.me',
-];
-const CDN_CACHE = [
-  'fonts.googleapis.com','fonts.gstatic.com',
-  'cdn.jsdelivr.net','cdnjs.cloudflare.com','gstatic.com',
-];
-
-function isBypass(url) { return BYPASS.some(d => url.includes(d)); }
-function isCDN(url)    { return CDN_CACHE.some(d => url.includes(d)); }
-
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      cache.addAll(PRECACHE).catch(err => console.warn('[SW] Pré-cache parcial:', err))
-    )
+// ── Install: pré-cacheia assets CDN ────────────────────────
+self.addEventListener('install', function(e) {
+  e.waitUntil(
+    caches.open(CACHE).then(function(cache) {
+      return Promise.all(ASSETS_CDN.map(function(url) {
+        return fetch(new Request(url, { mode: 'no-cors' }))
+          .then(function(resp) { return cache.put(url, resp); })
+          .catch(function() {}); // falha silenciosa — não bloqueia install
+      }));
+    }).then(function() { return self.skipWaiting(); })
   );
-  self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME && k !== CACHE_FONTS).map(k => caches.delete(k)))
-    )
+// ── Activate: limpa caches antigos ─────────────────────────
+self.addEventListener('activate', function(e) {
+  e.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(keys
+        .filter(function(k) { return k !== CACHE && k !== CACHE_FONTS; })
+        .map(function(k) { return caches.delete(k); }));
+    }).then(function() { return self.clients.claim(); })
   );
-  self.clients.claim();
-  self.registration.periodicSync?.register('sync-rats', { minInterval: 24 * 60 * 60 * 1000 }).catch(() => {});
 });
 
-self.addEventListener('fetch', event => {
-  const { request } = event;
-  const url = request.url;
-  if (isBypass(url)) return;
+// ── Fetch: estratégias por tipo de recurso ──────────────────
+self.addEventListener('fetch', function(e) {
+  var url    = e.request.url;
+  var method = e.request.method;
 
-  if (isCDN(url)) {
-    const cn = url.includes('fonts') ? CACHE_FONTS : CACHE_NAME;
-    event.respondWith(
-      caches.open(cn).then(cache =>
-        cache.match(request).then(cached => {
-          const net = fetch(request).then(res => {
-            if (res && res.status === 200) cache.put(request, res.clone());
-            return res;
-          }).catch(() => cached || new Response('', { status: 204 }));
-          return cached || net;
-        })
-      )
+  // Não intercepta: Firebase APIs, métodos não-GET
+  if (method !== 'GET') return;
+  if (url.includes('firestore.googleapis.com')      ||
+      url.includes('identitytoolkit.googleapis.com') ||
+      url.includes('firebase.googleapis.com')        ||
+      url.includes('googleapis.com/v1')              ||
+      url.includes('firebaseio.com')) return;
+
+  // ── Fontes Google: Cache-First ──
+  if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
+    e.respondWith(
+      caches.open(CACHE_FONTS).then(function(cache) {
+        return cache.match(e.request).then(function(cached) {
+          if (cached) return cached;
+          return fetch(e.request).then(function(resp) {
+            if (resp && resp.status === 200) cache.put(e.request, resp.clone());
+            return resp;
+          }).catch(function() { return new Response('', { status: 503 }); });
+        });
+      })
     );
     return;
   }
 
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then(res => { caches.open(CACHE_NAME).then(c => c.put(request, res.clone())); return res; })
-        .catch(() => caches.match(request).then(c => c || caches.match(OFFLINE_URL)))
+  // ── Assets CDN (Firebase, remixicon): Cache-First ──
+  var isCdnAsset = ASSETS_CDN.some(function(a) { return url.startsWith(a.split('?')[0]); });
+  if (isCdnAsset) {
+    e.respondWith(
+      caches.match(e.request).then(function(cached) {
+        if (cached) return cached;
+        return fetch(e.request).then(function(resp) {
+          if (resp && resp.status === 200) {
+            var clone = resp.clone();
+            caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+          }
+          return resp;
+        }).catch(function() { return new Response('', { status: 503 }); });
+      })
     );
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) return cached;
-      return fetch(request).then(res => {
-        if (!res || res.status !== 200 || res.type === 'opaque') return res;
-        caches.open(CACHE_NAME).then(c => c.put(request, res.clone()));
-        return res;
-      }).catch(() => new Response('', { status: 204 }));
+  // ── App Shell (index.html / navegação): Network-First com fallback cache ──
+  if (e.request.mode === 'navigate' ||
+      url.includes('index.html')    ||
+      (!url.includes('.') && !url.includes('?rat='))) {
+    e.respondWith(
+      fetch(e.request).then(function(resp) {
+        if (resp && resp.status === 200) {
+          var clone = resp.clone();
+          caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+        }
+        return resp;
+      }).catch(function() {
+        return caches.match(e.request)
+          .then(function(c) { return c || caches.match('/') || caches.match('/index.html'); });
+      })
+    );
+    return;
+  }
+
+  // ── Demais recursos: Network-First ──
+  e.respondWith(
+    fetch(e.request).then(function(resp) {
+      if (resp && resp.status === 200) {
+        var clone = resp.clone();
+        caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+      }
+      return resp;
+    }).catch(function() {
+      return caches.match(e.request)
+        .then(function(c) { return c || new Response('', { status: 503 }); });
     })
   );
-});
-
-self.addEventListener('periodicsync', event => {
-  if (event.tag === 'sync-rats') {
-    event.waitUntil(
-      self.clients.matchAll().then(clients =>
-        clients.forEach(c => c.postMessage({ type: 'PERIODIC_SYNC' }))
-      )
-    );
-  }
-});
-
-self.addEventListener('sync', event => {
-  if (event.tag === 'sync-rats') {
-    event.waitUntil(
-      self.clients.matchAll().then(clients =>
-        clients.forEach(c => c.postMessage({ type: 'BACKGROUND_SYNC' }))
-      )
-    );
-  }
-});
-
-self.addEventListener('push', event => {
-  if (!event.data) return;
-  const data = event.data.json();
-  self.registration.showNotification(data.title || 'ONLINE-ES', {
-    body: data.body || '', icon: './icons/icon-192x192.png',
-    badge: './icons/icon-96x96.png', vibrate: [200, 100, 200],
-    data: { url: data.url || './' },
-  });
-});
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data.url || './'));
 });
