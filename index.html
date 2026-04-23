@@ -17138,10 +17138,49 @@ async function fazerLogin(){
         });
       });
       reg.update().catch(function(){});
+
+      // ── Periodic Background Sync ──────────────────────────────────
+      // Registra sincronização periódica do widget (a cada 15 min no mínimo).
+      if ('periodicSync' in reg) {
+        navigator.permissions.query({ name: 'periodic-background-sync' })
+          .then(function(status) {
+            if (status.state === 'granted') {
+              reg.periodicSync.register('periodic-sync-rats', { minInterval: 15 * 60 * 1000 })
+                .catch(function() {});
+            }
+          }).catch(function() {});
+      }
     })
     .catch(function(err) {
       console.log('ℹ️ Service Worker indisponível:', err.message);
     });
+
+  // ── Background Sync: reenvio de RATs offline ─────────────────────
+  // Chamado pelo app sempre que uma RAT falhar ao salvar por falta de rede.
+  window._registrarSyncRats = function() {
+    navigator.serviceWorker.ready.then(function(reg) {
+      if ('sync' in reg) {
+        reg.sync.register('sync-rats').catch(function() {});
+      }
+    });
+  };
+
+  // ── Listener de mensagens do Service Worker ───────────────────────
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    if (!event.data) return;
+    if (event.data.type === 'SYNC_RATS_PENDENTES') {
+      // SW voltou online — dispara sync manual via Firestore SDK
+      if (typeof window._sincronizarRatsPendentes === 'function') {
+        window._sincronizarRatsPendentes();
+      }
+    }
+    if (event.data.type === 'PERIODIC_SYNC_WIDGET') {
+      // Atualiza dados do widget com o resumo do dia
+      if (typeof window._atualizarWidgetRats === 'function') {
+        window._atualizarWidgetRats();
+      }
+    }
+  });
 })();
 </script>
 

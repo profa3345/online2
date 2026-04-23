@@ -1,10 +1,14 @@
 // ============================================================
 //  ONLINE-ES — Service Worker v11
 //  Estratégias de cache:
-//    • Fontes Google       → Cache-First
-//    • Assets CDN          → Cache-First
-//    • App Shell (navigate)→ Network-First + fallback cache
-//    • Demais recursos     → Network-First + fallback cache
+//    • Fontes Google        → Cache-First
+//    • Assets CDN           → Cache-First
+//    • App Shell (navigate) → Network-First + fallback cache
+//    • Demais recursos      → Network-First + fallback cache
+//  Background Sync:
+//    • sync-rats            → reenvio de RATs salvas offline
+//  Periodic Background Sync:
+//    • periodic-sync-rats   → atualização periódica do widget
 // ============================================================
 
 var CACHE       = 'onlinees-v11';
@@ -121,3 +125,54 @@ self.addEventListener('fetch', function(e) {
     })
   );
 });
+
+// ── Background Sync: reenvio de RATs salvas offline ────────
+// Disparado automaticamente pelo browser quando a conexão é
+// restaurada após uma tentativa de salvar com falha de rede.
+self.addEventListener('sync', function(e) {
+  if (e.tag === 'sync-rats') {
+    e.waitUntil(syncRatsPendentes());
+  }
+});
+
+function syncRatsPendentes() {
+  // Abre o canal de mensagem com o cliente (aba do app) para
+  // que o app execute o sync real via Firestore SDK.
+  return self.clients.matchAll({ type: 'window' }).then(function(clients) {
+    clients.forEach(function(client) {
+      client.postMessage({ type: 'SYNC_RATS_PENDENTES' });
+    });
+  });
+}
+
+// ── Periodic Background Sync: atualiza dados do widget ─────
+// Intervalo mínimo: 15 minutos (definido no manifest via "update": 900).
+// O browser decide o intervalo real com base no uso do app.
+self.addEventListener('periodicsync', function(e) {
+  if (e.tag === 'periodic-sync-rats') {
+    e.waitUntil(atualizarDadosWidget());
+  }
+});
+
+function atualizarDadosWidget() {
+  // Notifica o app para atualizar os dados do widget via
+  // navigator.widgets.updateByTag('rats-hoje', data)
+  return self.clients.matchAll({ type: 'window' }).then(function(clients) {
+    if (clients.length > 0) {
+      // App está aberto — delega a atualização para ele
+      clients.forEach(function(client) {
+        client.postMessage({ type: 'PERIODIC_SYNC_WIDGET' });
+      });
+    } else {
+      // App fechado — tenta buscar dados via cache e atualizar widget
+      return caches.open(CACHE).then(function(cache) {
+        return cache.match('/widgets/rats-hoje-data.json').then(function(resp) {
+          if (resp) {
+            // Dados em cache disponíveis — widget já tem conteúdo válido
+            return Promise.resolve();
+          }
+        });
+      });
+    }
+  });
+}
