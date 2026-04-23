@@ -12,6 +12,7 @@
   "background_color": "#0f172a",
   "theme_color": "#f97316",
   "lang": "pt-BR",
+  "dir": "ltr",
   "categories": ["business", "productivity"],
   "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "prefer_related_applications": false,
@@ -22,20 +23,57 @@
       "id": "com.onlinees.relatorios"
     }
   ],
+  "scope_extensions": [
+    { "origin": "https://onlinees.vercel.app" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Atendimento",
+      "short_name": "Novo",
+      "description": "Abrir formulário de novo atendimento técnico",
+      "url": "./index.html#novo",
+      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Meus Atendimentos",
+      "short_name": "Meus RATs",
+      "description": "Ver lista de atendimentos do técnico",
+      "url": "./index.html#meus",
+      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Painel Supervisor",
+      "short_name": "Painel",
+      "description": "Acessar o painel do supervisor",
+      "url": "./index.html#painel",
+      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./index.html",
+      "accept": {
+        "application/pdf": [".pdf"]
+      }
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "screenshots": [
     {
-      "src": "screenshots/screenshot-wide.png",
+      "src": "https://onlinees.vercel.app/screenshots/screenshot-wide.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "ONLINE-ES – Tela principal (desktop)"
+      "label": "ONLINE-ES – Painel de Atendimentos (desktop)"
     },
     {
-      "src": "screenshots/screenshot-narrow.png",
+      "src": "https://onlinees.vercel.app/screenshots/screenshot-narrow.png",
       "sizes": "750x1334",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "ONLINE-ES – Tela principal (mobile)"
+      "label": "ONLINE-ES – Novo Atendimento (mobile)"
     }
   ],
   "icons": [
