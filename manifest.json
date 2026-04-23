@@ -60,6 +60,50 @@
   "launch_handler": {
     "client_mode": "focus-existing"
   },
+  "protocol_handlers": [
+    {
+      "protocol": "web+onlinees",
+      "url": "./index.html?protocol=%s"
+    },
+    {
+      "protocol": "mailto",
+      "url": "./index.html?mailto=%s"
+    }
+  ],
+  "share_target": {
+    "action": "./index.html",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "ONLINE-ES Resumo",
+      "short_name": "RATs Hoje",
+      "description": "Resumo dos atendimentos do dia",
+      "tag": "rats-hoje",
+      "template": "generic-template",
+      "ms_ac_template": "widgets/rats-hoje.json",
+      "data": "widgets/rats-hoje-data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "https://onlinees.vercel.app/screenshots/screenshot-narrow.png",
+          "sizes": "750x1334",
+          "label": "Widget ONLINE-ES"
+        }
+      ],
+      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }],
+      "auth": false,
+      "update": 900
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
   "screenshots": [
     {
       "src": "https://onlinees.vercel.app/screenshots/screenshot-wide.png",
