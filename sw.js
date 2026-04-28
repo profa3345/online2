@@ -1,8 +1,9 @@
 // ============================================================
-//  ONLINE-ES — Service Worker v11
+//  ONLINE-ES — Service Worker v12
 //  Estratégias de cache:
 //    • Fontes Google        → Cache-First
 //    • Assets CDN           → Cache-First
+//    • /.well-known/        → NUNCA interceptado (Digital Asset Links TWA)
 //    • App Shell (navigate) → Network-First + fallback cache
 //    • Demais recursos      → Network-First + fallback cache
 //  Background Sync:
@@ -11,7 +12,7 @@
 //    • periodic-sync-rats   → atualização periódica do widget
 // ============================================================
 
-var CACHE       = 'onlinees-v11';
+var CACHE       = 'onlinees-v12';
 var CACHE_FONTS = 'onlinees-fonts-v1';
 
 var ASSETS_CDN = [
@@ -91,6 +92,11 @@ self.addEventListener('fetch', function(e) {
     );
     return;
   }
+
+  // ── Nunca interceptar /.well-known/ — Android/Chrome valida Digital Asset Links
+  // diretamente no servidor. Se o SW interceptar e retornar do cache ou 503,
+  // a verificação TWA falha e o app abre no browser em vez do app nativo. ──
+  if (url.includes('/.well-known/')) return;
 
   // ── App Shell (index.html / navegação): Network-First com fallback cache ──
   if (e.request.mode === 'navigate' ||

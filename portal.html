@@ -1672,7 +1672,6 @@ async function renderLista(){
       <button class="filter-chip active" data-status="todos">Todos</button>
       <button class="filter-chip" data-status="Concluído">Concluído</button>
       <button class="filter-chip" data-status="Concluído com pendência">Com pendência</button>
-      <button class="filter-chip" data-status="Pendente">Pendente</button>
       <button class="filter-chip" data-status="Não concluído">Não concluído</button>
     </div>
     <div class="section-label anim-2"><i class="ri-file-list-3-line"></i> Relatórios</div>
@@ -1772,11 +1771,12 @@ function renderDetalhe(r){
       ${campo('Equipamento', r.equipamento)}
       ${campo('Nº de Série', r.serie)}
       ${campo('Potência / kVA', r.kva)}
+      ${campo('Tipo de serviço', r.tipo)}
       ${campo('Problema informado', r.problema)}
       ${campo('Diagnóstico', r.diagnostico)}
       ${campo('Serviço realizado', r.servico||r.acoes)}
       ${campo('Peças utilizadas', r.pecas)}
-      ${campo('Observações', r.observacoes)}
+      ${campo('Observações', r.observacoes||r.bateriasObs)}
       ${(()=>{
         // Galeria de fotos inline
         const allImgs=[].concat(r.imgsEquip||[]).concat(r.imgsServico||[]).concat(r.imgsBaterias||[])

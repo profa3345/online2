@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.onlinees.relatorios",
+      "sha256_cert_fingerprints": [
+        "C1:B5:88:57:75:2B:68:6E:6C:CF:91:B2:28:16:7B:29:00:AC:F1:6B:35:AB:E6:D7:F1:2B:09:B1:3F:B4:CE:E5"
+      ]
+    }
+  }
+]

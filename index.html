@@ -1,6 +1,32 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v88
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v94
+  Correções v95:
+  - [FIX-v95-GPS-OPT] Localização tornada 100% opcional — técnico nunca fica preso.
+    Problemas anteriores: (1) botão sem feedback visual durante busca — parecia travado;
+    (2) sem botão de cancelar — técnico ficava preso esperando timeout de 15s;
+    (3) sem botão "Pular" visível — fluxo parecia bloqueado se GPS negado/lento;
+    (4) mensagens de erro não indicavam caminho claro para continuar.
+    Fix: spinner no botão durante busca + toque para cancelar + botão "Pular" aparece
+    imediatamente ao iniciar busca + timeout manual de 12s com mensagem acionável +
+    mensagens de erro específicas por código com instrução explícita de como continuar.
+  - [FIX-v95-WHATSAPPS] whatsapps nunca era salvo em onlineEsPortalClientes — portal
+    do cliente nunca exibia o botão "Guardar no WhatsApp". Fix: coletado das últimas
+    3 RATs e da RAT atual, salvo no cred junto com emails. Atualizado também no path
+    de senha ainda válida (updates parciais).
+  Correções v94 (segurança):
+  - [FIX-v94-SENHA-LOCAL] _portalSenha NUNCA mais é atribuída ao objeto r/rat.
+    Atribuição+delete era race condition: exceção entre os dois persistia senha
+    em texto claro no Firestore/backup. Fix: variáveis locais _senhaMsgEmail/_senhaMsgWa.
+  - [FIX-v94-RESTORE-SENHA] Restore via Firestore agora aplica o mesmo saneamento
+    do restore via arquivo: delete _portalSenha, delete _forcarRenovacaoSenha, escape HTML.
+  - [FIX-v94-EMSG] e.message truncado a 120 chars e HTML removido antes de exibir
+    em toasts. Helper _safeErrMsg() adicionado e aplicado em todos os pontos.
+  - [FIX-v94-OFFLINE-PRIV] Backup, restore e exclusão de RAT bloqueados quando
+    !navigator.onLine — offline, o role vem apenas do localStorage (manipulável).
+  - [FIX-v94-CLI-FLAG] Race condition no blur do campo de busca de cliente: flag
+    _acabouDeSelecionar impede limpeza de seleção recém-feita em dispositivos lentos.
+  - [FIX-v94-CLI-TRIM] .trim() ausente em _select.value nas comparações do blur.
   Correções v93:
   - [FIX-v93-URL] Senha removida da URL do portal definitivamente.
     _urlPortalV2 não inclui mais &s=SENHA. Links antigos com &s= ainda funcionam
@@ -2702,6 +2728,7 @@ html[data-role="technician"] nav button {
               <select id="cStatus" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
                 <option value="Concluído">Concluído</option>
                 <option value="Concluído com pendência">Concluído com pendência</option>
+                <option value="Pendente">Pendente</option>
                 <option value="Não concluído">Não concluído</option>
               </select>
             </div>
@@ -6282,6 +6309,15 @@ function autoFillCamposAtendimento(){
   })();
   function showToast(msg, duration){ window.showToast(msg, duration); }
 
+  // [FIX-v94-EMSG] Trunca e.message para evitar vazar stack interno nos toasts.
+  // Limita a 120 chars e remove qualquer tag HTML — e.message pode vir de rejeições
+  // do Firestore/SDK com conteúdo longo ou indesejado.
+  function _safeErrMsg(e) {
+    var msg = (e && (e.message || String(e))) || 'Erro desconhecido';
+    msg = msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return msg.length > 120 ? msg.slice(0, 120) + '…' : msg;
+  }
+
   // [X-03] showConfirm — substitui confirm() nativo (bloqueante, suprimido em PWA standalone iOS/Android).
   // Retorna Promise<boolean>. Uso: if (!await showConfirm('Mensagem?')) return;
   function showConfirm(msg) {
@@ -7959,7 +7995,9 @@ function autoFillCamposAtendimento(){
             if(!tok && typeof window._gerarTokenPortal==='function') try{ tok=await window._gerarTokenPortal(r); }catch(e){}
             var pUrl = null;
             if(tok && typeof window._urlPortal==='function') pUrl = window._urlPortal(tok, r);
-            var _si = r._portalSenha ? '\n🔑 Senha: *'+r._portalSenha+'* (válida 30 dias)\n (Usuário: CNPJ/CPF — '+(r.cnpjCliente||'')+')' : '';
+            // [FIX-v94-SENHA-LOCAL] r._portalSenha nunca mais é persistida no objeto r.
+            // O link já contém a senha embutida via _urlPortal — não há senha para mostrar aqui.
+            var _si = '';
             var msg = pUrl
               ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente:\n'+pUrl+_si+'\n\nQualquer dúvida estamos à disposição!'
               : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o Relatório Técnico de Atendimento RAT *'+(r.numero||'')+'* do cliente *'+(r.cliente||'')+'*.\n\nQualquer dúvida estamos à disposição!';
@@ -8012,6 +8050,8 @@ function autoFillCamposAtendimento(){
     listaRelatorios.querySelectorAll('[data-deletar-rat]').forEach(btn => {
       btn.onclick = () => {
         if (!isSupervisorOrAdmin(usuarioLogado)) { showToast('Sem permissão.'); return; }
+        // [FIX-v94-OFFLINE-PRIV] Exclusão exige conexão — role offline (localStorage) é manipulável.
+        if (!navigator.onLine) { showToast('⚠️ Conexão necessária para excluir RATs.', 4000); return; }
         const id = btn.getAttribute('data-deletar-rat');
         const r = relatorios.find(x => x.id === id);
         if (!r) return;
@@ -8212,7 +8252,7 @@ function autoFillCamposAtendimento(){
         let token = r.portalToken;
         if (!token && typeof window._gerarTokenPortal === 'function') {
           btnVP.disabled = true; btnVP.textContent = '⏳';
-          try { token = await window._gerarTokenPortal(r); } catch(e) { showToast('Erro ao gerar token: ' + e.message); btnVP.disabled = false; btnVP.innerHTML = '<i class="ri-eye-line"></i> Ver portal'; return; }
+          try { token = await window._gerarTokenPortal(r); } catch(e) { showToast('Erro ao gerar token: ' + _safeErrMsg(e)); btnVP.disabled = false; btnVP.innerHTML = '<i class="ri-eye-line"></i> Ver portal'; return; }
           btnVP.disabled = false; btnVP.innerHTML = '<i class="ri-eye-line"></i> Ver portal';
         }
         if (token && typeof window._urlPortal === 'function') {
@@ -11814,16 +11854,14 @@ if (logoBase64) {
           r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
           var _credEmail = await window._gerarCredencialPortal(r);
           if (_credEmail && _credEmail.cnpj) {
-            r._portalCnpj  = _credEmail.cnpj;
-            r._portalSenha = _credEmail.senha || null; // [FIX-v64]
-            portalUrl      = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj, _credEmail.senha || null) : null;
+            // [FIX-v94-SENHA-LOCAL] _portalSenha NUNCA é atribuída ao objeto r —
+            // usa variável local para evitar que uma exceção entre a atribuição e o
+            // delete persista a senha em texto claro no Firestore ou no backup.
+            r._portalCnpj        = _credEmail.cnpj;
+            var _senhaMsgEmail   = _credEmail.senha || null;
+            portalUrl            = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj, _senhaMsgEmail) : null;
             if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) {
-              // [FIX-v68-SENHA-FS2] Remove _portalSenha antes de salvar — a função
-              // salvarRelatorioNoFirestore já faz isso internamente via _CAMPOS_INTERNOS,
-              // mas garantimos aqui também para paths secundários.
-              var _rEmailSave = Object.assign({}, r);
-              delete _rEmailSave._portalSenha;
-              salvarRelatorioNoFirestore(_rEmailSave).catch(function(){});
+              salvarRelatorioNoFirestore(r).catch(function(){});
             }
           }
         } catch(eP) { console.warn('[E-mail] Falha ao gerar credencial portal:', eP); }
@@ -11850,10 +11888,11 @@ if (logoBase64) {
         _linhasEmail.push('🔗 Acesse o Portal do Cliente para visualizar e baixar o PDF:');
         _linhasEmail.push(portalUrl);
         _linhasEmail.push('');
-        _linhasEmail.push('🔑 Seus dados de acesso ao portal:');
-        _linhasEmail.push('   👤 Usuário (CNPJ/CPF): ' + (r.cnpjCliente || ''));
-        if (r._portalSenha) {
-          _linhasEmail.push('   🔑 Senha: ' + r._portalSenha + ' (válida por 30 dias)');
+        if (r._portalCnpj) {
+          _linhasEmail.push('   👤 Usuário (CNPJ/CPF): ' + (r.cnpjCliente || ''));
+        }
+        if (_senhaMsgEmail) {
+          _linhasEmail.push('   🔑 Senha: ' + _senhaMsgEmail + ' (válida por 30 dias)');
           _linhasEmail.push('ℹ️ Guarde esta senha — você precisará dela para entrar no portal.');
         } else {
           _linhasEmail.push('   🔑 Use a senha recebida anteriormente.');
@@ -11935,15 +11974,12 @@ if (logoBase64) {
         r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
         var _credWa = await window._gerarCredencialPortal(r);
         if (_credWa && _credWa.cnpj) {
-          r._portalCnpj  = _credWa.cnpj;
-          r._portalSenha = _credWa.senha || null; // [FIX-v64]
-          portalUrlWa    = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj, _credWa.senha || null) : null;
-          // Atualiza também no Firestore e localmente
-          // [FIX-v68-SENHA-FS2] Remove _portalSenha antes de salvar no Firestore.
+          // [FIX-v94-SENHA-LOCAL] _portalSenha NUNCA é atribuída ao objeto r
+          r._portalCnpj        = _credWa.cnpj;
+          var _senhaMsgWa      = _credWa.senha || null;
+          portalUrlWa          = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj, _senhaMsgWa) : null;
           if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) {
-            var _rWaSave = Object.assign({}, r);
-            delete _rWaSave._portalSenha;
-            salvarRelatorioNoFirestore(_rWaSave).catch(function(){});
+            salvarRelatorioNoFirestore(r).catch(function(){});
           }
         }
       } catch(eP) { console.warn('[WhatsApp] Falha ao gerar credencial portal:', eP); }
@@ -11963,9 +11999,9 @@ if (logoBase64) {
         'Segue o Relatório Técnico de Atendimento RAT *' + (r.numero||'') + '* — ' + (r.cliente||'') + '.\n\n' +
         '📂 *Acesse o Portal do Cliente:*\n' + portalUrlWa + '\n\n' +
         '🔑 *Seus dados de acesso:*\n' +
-        '   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') + '\n' +
-        (r._portalSenha
-          ? '   🔑 Senha: *' + r._portalSenha + '* (válida por 30 dias)'
+        (r._portalCnpj ? '   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') + '\n' : '') +
+        (_senhaMsgWa
+          ? '   🔑 Senha: *' + _senhaMsgWa + '* (válida por 30 dias)'
           : '   🔑 Use a senha já recebida anteriormente.') + '\n\n' +
         'Qualquer dúvida estamos à disposição!';
     } else if (portalUrlWa) {
@@ -12442,26 +12478,101 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     inp.click();
   }
 
-  // GPS
-  btnPegarGps.addEventListener('click', ()=>{
-    if (!navigator.geolocation){ showToast('⚠️ Este dispositivo/navegador não suporta geolocalização.', 4000); return; }
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const lat=pos.coords.latitude.toFixed(6); const lon=pos.coords.longitude.toFixed(6);
-      const coord = lat+', '+lon; const link=`https://www.google.com/maps?q=${lat},${lon}`;
-      aLocalizacao.value=coord; aCoord.value=coord; aLinkMaps.value=link;
-      // Fix 7: exibe botão "Ver no Maps" ao lado do campo
-      var btnVerMaps = document.getElementById('btnVerMaps');
-      if (btnVerMaps) { btnVerMaps.href = link; btnVerMaps.style.display = 'inline-flex'; }
-      showToast('Localização capturada.');
-      try { logInfo('Localização GPS capturada', { coordenadas: coord }); } catch(e){}
-    }, err=>{
-      // BUG FIX: mensagem específica por código de erro + timeout aumentado para 15s
-      var msg = 'Não foi possível obter a localização.';
-      if (err.code === 1) msg = 'Permissão de localização negada. Verifique as configurações do navegador.';
-      else if (err.code === 2) msg = 'GPS indisponível. Verifique se a localização está ativada no dispositivo.';
-      else if (err.code === 3) msg = 'Tempo limite excedido. Tente novamente em campo aberto.';
-      showToast('⚠️ ' + msg, 5000);
-    }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+  // ── GPS — Localização opcional ─────────────────────────────────────────────
+  // [FIX-v95-GPS-OPT] Localização é 100% opcional — o técnico pode pular sem consequência.
+  // Melhorias: spinner no botão durante busca, toque para cancelar, botão "Pular" imediato.
+  var _gpsBuscando = false;
+
+  function _gpsMostrarBotaoPular() {
+    var pularBtn = document.getElementById('btnPularGps');
+    if (!pularBtn) {
+      pularBtn = document.createElement('button');
+      pularBtn.id = 'btnPularGps';
+      pularBtn.type = 'button';
+      pularBtn.className = 'btn';
+      pularBtn.style.cssText = 'width:100%;justify-content:center;margin-top:6px;background:transparent;color:#64748b;border:1px dashed rgba(148,163,184,.5);font-size:.8rem;';
+      pularBtn.innerHTML = '<i class="ri-arrow-right-line"></i> Pular localização';
+      pularBtn.onclick = function() {
+        _gpsCancelar();
+        showToast('📍 Localização pulada — campo ficará em branco.', 3000);
+      };
+      btnPegarGps.parentElement.appendChild(pularBtn);
+    }
+    pularBtn.style.display = '';
+  }
+
+  function _gpsCancelar() {
+    _gpsBuscando = false;
+    btnPegarGps.innerHTML = '<i class="ri-map-pin-line"></i> Pegar localização';
+  }
+
+  btnPegarGps.addEventListener('click', function() {
+    // Segundo clique durante busca = cancelar
+    if (_gpsBuscando) {
+      _gpsCancelar();
+      showToast('Busca de localização cancelada.', 2500);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      showToast('⚠️ Este dispositivo não suporta geolocalização. Pule ou preencha o endereço manualmente.', 5000);
+      _gpsMostrarBotaoPular();
+      return;
+    }
+
+    _gpsBuscando = true;
+    btnPegarGps.innerHTML = '<i class="ri-loader-4-line"></i> Buscando… (toque para cancelar)';
+
+    // Mostra "Pular" imediatamente — técnico nunca fica preso esperando
+    _gpsMostrarBotaoPular();
+
+    // Timeout manual de 12s para feedback antes do browser atingir 15s
+    var _timeoutGps = setTimeout(function() {
+      if (!_gpsBuscando) return;
+      _gpsCancelar();
+      showToast('⏱️ GPS demorou muito. Pule ou preencha o endereço manualmente.', 5000);
+    }, 12000);
+
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        clearTimeout(_timeoutGps);
+        if (!_gpsBuscando) return; // cancelado enquanto GPS ainda respondia
+        _gpsCancelar();
+
+        var lat   = pos.coords.latitude.toFixed(6);
+        var lon   = pos.coords.longitude.toFixed(6);
+        var coord = lat + ', ' + lon;
+        var link  = 'https://www.google.com/maps?q=' + lat + ',' + lon;
+
+        aLocalizacao.value = coord;
+        aCoord.value       = coord;
+        aLinkMaps.value    = link;
+
+        var btnVerMaps = document.getElementById('btnVerMaps');
+        if (btnVerMaps) { btnVerMaps.href = link; btnVerMaps.style.display = 'inline-flex'; }
+
+        showToast('📍 Localização capturada!', 3000);
+        try { logInfo('Localização GPS capturada', { coordenadas: coord }); } catch(e) {}
+
+        // Oculta botão Pular após sucesso
+        var pularBtn = document.getElementById('btnPularGps');
+        if (pularBtn) pularBtn.style.display = 'none';
+      },
+      function(err) {
+        clearTimeout(_timeoutGps);
+        if (!_gpsBuscando) return;
+        _gpsCancelar();
+
+        var msg = '';
+        if (err.code === 1)      msg = '🔒 Permissão negada. Verifique as configurações do navegador ou pule e preencha o endereço manualmente.';
+        else if (err.code === 2) msg = '📡 GPS indisponível no momento. Pule ou preencha o endereço manualmente.';
+        else if (err.code === 3) msg = '⏱️ Tempo esgotado. Tente ao ar livre ou pule e preencha o endereço manualmente.';
+        else                     msg = '⚠️ Não foi possível obter a localização. Pule ou preencha manualmente.';
+
+        showToast(msg, 6000);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
   });
 
   // 
@@ -13520,6 +13631,11 @@ function aplicarPermissoesConfiguracoes(){
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(_backupUrl); }, 1000); // [Y-05]
   }
  document.getElementById('btnBackup')?.addEventListener('click', async ()=>{
+  // [FIX-v94-OFFLINE-PRIV] Ações privilegiadas exigem conexão — role offline (localStorage) é manipulável.
+  if (!navigator.onLine) {
+    showToast('⚠️ Conexão necessária para gerar backup (validação de permissão online).', 4000);
+    return;
+  }
   if (!isSupervisorOrAdmin()) {
     showToast('⚠️ Você não tem permissão para FAZER BACKUP. Perfis permitidos: Supervisor e Administrador.', 4000);
     return;
@@ -13882,9 +13998,20 @@ function aplicarPermissoesConfiguracoes(){
               var _arr = JSON.parse(v);
               if (Array.isArray(_arr)) {
                 _arr = _arr.map(function(obj) {
-                  if (obj && typeof obj === 'object' && obj.id !== undefined) {
+                  if (!obj || typeof obj !== 'object') return obj;
+                  // [FIX-v94-RESTORE-SENHA] Remove senha em texto claro — backups antigos podem conter _portalSenha
+                  delete obj._portalSenha;
+                  delete obj._forcarRenovacaoSenha;
+                  // Sanitiza ID
+                  if (obj.id !== undefined) {
                     obj.id = String(obj.id).replace(/[^a-zA-Z0-9_-]/g, '');
                   }
+                  // Escapa < e > em strings para neutralizar HTML injection
+                  Object.keys(obj).forEach(function(fk) {
+                    if (typeof obj[fk] === 'string') {
+                      obj[fk] = obj[fk].replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    }
+                  });
                   return obj;
                 });
                 v = JSON.stringify(_arr);
@@ -13901,13 +14028,19 @@ function aplicarPermissoesConfiguracoes(){
 
     } catch(e) {
       console.error('Erro ao restaurar backup:', e);
-      showToast('❌ Falha ao restaurar: ' + (e.message || e), 5000);
+      showToast('❌ Falha ao restaurar: ' + _safeErrMsg(e), 5000);
     }
   }
 
   document.getElementById('btnListarBackups')?.addEventListener('click', listarBackupsFirebase);
 
   document.getElementById('inputRestore')?.addEventListener('change', async (e)=>{
+   // [FIX-v94-OFFLINE-PRIV] Restore exige conexão — role offline (localStorage) é manipulável.
+   if (!navigator.onLine) {
+    showToast('⚠️ Conexão necessária para restaurar backup (validação de permissão online).', 4000);
+    e.target.value='';
+    return;
+   }
    if (!isAdmin()) {
   showToast('⚠️ Você não tem permissão para RESTAURAR BACKUP. Perfil necessário: Administrador.', 4000);
   e.target.value='';
@@ -17039,7 +17172,7 @@ async function fazerLogin(){
         if (typeof window.atualizarDashboard === 'function') try { window.atualizarDashboard(); } catch(e){}
       } catch(err){
         console.error('Erro ao salvar relatório:', err);
-        showToast('❌ Erro ao salvar: ' + err.message, 4000);
+        showToast('❌ Erro ao salvar: ' + _safeErrMsg(err), 4000);
       }
     });
 
@@ -17060,7 +17193,7 @@ async function fazerLogin(){
         localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rascunhoSem));
         // [FIX-v77-TOAST-DIRECT] Usa showToast/uxToast em vez de #toast direto — visual consistente
         showToast('📝 Rascunho salvo! Continue depois.', 3000);
-      } catch(err){ showToast('❌ Erro ao salvar rascunho: ' + err.message, 4000); }
+      } catch(err){ showToast('❌ Erro ao salvar rascunho: ' + _safeErrMsg(err), 4000); }
     });
 
     // Gerar PDF
@@ -17115,7 +17248,7 @@ async function fazerLogin(){
   navigator.serviceWorker.register('./sw.js', { scope: './' })
     .then(function(reg) {
       console.log('✅ Service Worker registrado (PWA offline ativo).');
-      caches.open('onlinees-v11').then(function(cache) {
+      caches.open('onlinees-v12').then(function(cache) {
         cache.add(window.location.href).catch(function(){});
         cache.add('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap').catch(function(){});
       });
@@ -18427,7 +18560,7 @@ async function fazerLogin(){
         if (typeof showToast==='function') showToast('✅ Logs de monitoramento apagados.');
         if (typeof logInfo==='function') logInfo('Logs de monitoramento apagados pelo admin', {});
       } catch(e) {
-        if (typeof showToast==='function') showToast('❌ Erro ao apagar logs: '+(e.message||e), 4000);
+        if (typeof showToast==='function') showToast('❌ Erro ao apagar logs: '+_safeErrMsg(e), 4000);
       }
     });
   });
@@ -18802,6 +18935,14 @@ window._gerarCredencialPortal = async function(rat){
           updates.emails = emailsExist.slice(0, 5);
         }
 
+        // [FIX-v95-WHATSAPPS] Atualiza whatsapps também (era ignorado neste path)
+        var whatsExist = Array.isArray(cred.whatsapps) ? cred.whatsapps.slice() : [];
+        var ratW = (rat.whatsapp || rat.telefone || '').replace(/\D/g,'');
+        if(ratW && ratW.length >= 10 && !whatsExist.includes(ratW)){
+          whatsExist.unshift(ratW);
+          updates.whatsapps = whatsExist.slice(0, 5);
+        }
+
         if(Object.keys(updates).length){
           await colRef.doc(docId).update(updates);
           cred = Object.assign({}, cred, updates);
@@ -18819,20 +18960,32 @@ window._gerarCredencialPortal = async function(rat){
     var hash = await _portalHashSenha(senhaPlain, senhaSalt);
     var expiraEm = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
 
-    // Coleta e-mails das últimas RATs do mesmo CNPJ
-    var emails = [];
+    // [FIX-v95-WHATSAPPS] Coleta e-mails E whatsapps das últimas RATs do mesmo CNPJ.
+    // O portal exibe botões "Guardar no WhatsApp" via cred.whatsapps — sem salvar esse
+    // campo o botão nunca aparecia (cred.whatsapps era sempre undefined → []).
+    var emails = [], whatsapps = [];
     try{
       var rSnap = await db.collection('onlineEsRelatorios')
         .where('cnpjCliente','==',rat.cnpjCliente)
         .orderBy('dataHoraIso','desc').limit(3).get();
       rSnap.forEach(function(d){
-        var email = d.data().emailCliente;
-        if(email && !emails.includes(email.trim())) emails.push(email.trim());
+        var rd = d.data();
+        var email = rd.emailCliente;
+        if(email && email.trim() && !emails.includes(email.trim()))
+          emails.push(email.trim());
+        var w = (rd.whatsapp || rd.telefone || '').replace(/\D/g,'');
+        if(w && w.length >= 10 && !whatsapps.includes(w))
+          whatsapps.push(w);
       });
     }catch(e){}
-    if(rat.emailCliente && !emails.includes(rat.emailCliente.trim()))
+    // Inclui contatos da RAT atual (pode ser mais recente que as do Firestore)
+    if(rat.emailCliente && rat.emailCliente.trim() && !emails.includes(rat.emailCliente.trim()))
       emails.unshift(rat.emailCliente.trim());
-    emails = emails.slice(0,5);
+    var ratWhats = (rat.whatsapp || rat.telefone || '').replace(/\D/g,'');
+    if(ratWhats && ratWhats.length >= 10 && !whatsapps.includes(ratWhats))
+      whatsapps.unshift(ratWhats);
+    emails     = emails.slice(0, 5);
+    whatsapps  = whatsapps.slice(0, 5);
 
     cred = {
       cnpj: cnpj,
@@ -18842,6 +18995,7 @@ window._gerarCredencialPortal = async function(rat){
       criadaEm: agora.toISOString(),
       expiradoEm: expiraEm,
       emails: emails,
+      whatsapps: whatsapps, // [FIX-v95-WHATSAPPS] salvo para exibir botões no portal
       ativo: true
     };
     await colRef.doc(docId).set(cred, { merge: true });
@@ -18900,8 +19054,9 @@ window._gerarTokenPortal = async function(rat){
     if(resultado && resultado.cnpj){
       // Salva cnpj no objeto rat para uso em _urlPortalV2
       rat._portalCnpj = resultado.cnpj;
-      rat._portalSenha = resultado.senha || null; // [FIX-v64]
-      // Mantém portalToken preenchido para não quebrar código que o verifica
+      // [FIX-v94-SENHA-LOCAL] _portalSenha NÃO é atribuída ao objeto rat — a senha
+      // fica apenas em resultado.senha (escopo local desta função).
+      // Chamadores que precisam da senha devem lê-la de resultado diretamente.
       rat.portalToken = 'cnpj:' + resultado.cnpj;
       rat.portalTokenCriado = resultado.credencial.criadaEm;
       return resultado.cnpj; // retorna cnpj como "token"
@@ -20623,7 +20778,7 @@ function _ppSetupBtnPdf(){
       }else{ throw new Error('Módulo PDF não carregado.'); }
     }catch(e){
       btn.disabled=false; btn.innerHTML='<i class="ri-file-pdf-line"></i> Baixar PDF (visualização do cliente)';
-      if(typeof showToast==='function') showToast('Erro ao gerar PDF: '+(e.message||e), 4000);
+      if(typeof showToast==='function') showToast('Erro ao gerar PDF: '+_safeErrMsg(e), 4000);
     }
   });
 }
