@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v94
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v96
+  - [FIX-v96-CLI-BLUR] BUG: nome da empresa era apagado após seleção quando o usuário
+    rolava a tela, fechava o teclado mobile ou clicava em outro campo após selecionar.
+    A lógica anterior tentava revalidar o campo no blur comparando _select.value com
+    _busca.value, mas em vários cenários (scroll, teclado fechando, foco perdido em mobile)
+    _busca.value ficava temporariamente divergente do _select.value, fazendo a condição
+    disparar _limparSelecaoCliente() indevidamente. Fix: se _select.value já está
+    preenchido, o blur nunca limpa — a limpeza só ocorre quando o campo de busca tem
+    texto que não corresponde a nenhum cliente E o select ainda está vazio.
   Correções v95:
   - [FIX-v95-GPS-OPT] Localização tornada 100% opcional — técnico nunca fica preso.
     Problemas anteriores: (1) botão sem feedback visual durante busca — parecia travado;
@@ -10624,18 +10632,22 @@ if (logoBase64) {
       // já tenha rodado, então valida com os valores finais.
       setTimeout(function() {
         _dropdown.style.display = 'none';
+        // [FIX-v96-CLI-BLUR] Se _select.value já está preenchido (cliente foi selecionado),
+        // NUNCA limpar — independente do estado do campo de busca. O blur pode ser disparado
+        // por scroll, teclado mobile fechando, ou foco em outro campo, e nesses casos
+        // _busca.value pode estar temporariamente diferente sem que o usuário tenha
+        // desfeito a seleção. A limpeza só deve ocorrer quando o campo de busca foi
+        // editado manualmente para um valor que NÃO corresponde a nenhum cliente.
+        if (_select.value) return;
         var lista = Array.isArray(window.clientes) ? window.clientes : [];
-        // [FIX-v93-CLI-EMPTY] Se lista de clientes ainda não carregou (Firestore assíncrono),
-        // não limpa a seleção — evita apagar nome válido enquanto dados chegam.
+        // Se lista ainda não carregou (Firestore assíncrono), não limpa.
         if (!lista.length) return;
         var valBusca = (_busca.value || '').trim().toLowerCase();
-        // Se _select.value está preenchido e bate com o campo de busca → seleção válida
-        if (_select.value && (_select.value || '').toLowerCase() === valBusca) return;
-        // Se _select.value está preenchido mas busca foi editada para algo inválido → mantém
-        if (_select.value && valBusca === '') return;
-        // [FIX-v93-CLI-TRIM] Usa .trim() na comparação para evitar falso-negativo por espaços
+        // Campo vazio → sem seleção, sem limpeza necessária
+        if (!valBusca) return;
+        // Só limpa se o usuário digitou algo que não existe na lista
         var match = lista.find(function(c) { return (c.nome||'').trim().toLowerCase() === valBusca; });
-        if (!match && (_select.value || '').toLowerCase() !== valBusca) {
+        if (!match) {
           _limparSelecaoCliente();
           _busca.value = '';
         }
