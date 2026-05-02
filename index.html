@@ -1,15 +1,27 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v96
-  - [FIX-v96-CLI-BLUR] BUG: nome da empresa era apagado após seleção quando o usuário
-    rolava a tela, fechava o teclado mobile ou clicava em outro campo após selecionar.
-    A lógica anterior tentava revalidar o campo no blur comparando _select.value com
-    _busca.value, mas em vários cenários (scroll, teclado fechando, foco perdido em mobile)
-    _busca.value ficava temporariamente divergente do _select.value, fazendo a condição
-    disparar _limparSelecaoCliente() indevidamente. Fix: se _select.value já está
-    preenchido, o blur nunca limpa — a limpeza só ocorre quando o campo de busca tem
-    texto que não corresponde a nenhum cliente E o select ainda está vazio.
-  Correções v95:
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v97
+  - [FIX-v97-SENHA-FLOWS] BUG: senha não era incluída nas mensagens de WhatsApp/E-mail
+    enviadas pelos fluxos "Carregar mais" (lista supervisor), "Meus Atendimentos" e
+    busca global. Causa: esses fluxos usavam _gerarTokenPortal() que descartava
+    resultado.senha e dependia de r._portalSenha (sempre null desde v94 por segurança).
+    Fix: todos os fluxos migrados para _gerarCredencialPortal() com _forcarRenovacaoSenha=true,
+    lendo a senha da variável local retornada. Fluxos afetados: data-whats3/email3 (lista),
+    data-busca-whats/email (busca), data-meus-whats/email (Meus Atendimentos e Carregar mais).
+  - [FIX-v97-CLI-POP] BUG: nome da empresa sumia no resumo (step 5) quando
+    popularSelectClientes() era chamado pelo sync do Firestore após a seleção.
+    Causa: popularSelectClientes() usa innerHTML= para reconstruir as options —
+    isso apaga o .value do <select> mesmo que a option exista na nova lista.
+    O wrapper anterior só restaurava _busca.value mas não _select.value.
+    Fix: wrapper agora salva o valor selecionado ANTES de chamar popularSelectClientes()
+    e restaura _select.value após a reconstrução das options.
+  - [FIX-v97-INSTALL] Botão "Instalar" adicionado ao topbar.
+    Android/Chrome/Edge: captura beforeinstallprompt e dispara prompt nativo.
+    iOS Safari: exibe modal com instruções passo a passo para "Adicionar à Tela de Início".
+    O app é uma PWA — após instalado, atualiza automaticamente sempre que o sistema
+    web for atualizado (service worker controla o ciclo de vida).
+    Botão oculto automaticamente se já instalado (display-mode: standalone).
+  Correções v96:
   - [FIX-v95-GPS-OPT] Localização tornada 100% opcional — técnico nunca fica preso.
     Problemas anteriores: (1) botão sem feedback visual durante busca — parecia travado;
     (2) sem botão de cancelar — técnico ficava preso esperando timeout de 15s;
@@ -2399,6 +2411,11 @@ html[data-role="technician"] nav button {
       <div class="topbar-right">
         <span class="badge-online" id="badgeOnline">● Online</span>
         <span id="badgePendentes" style="display:none;background:rgba(249,115,22,.18);color:#f97316;border:1px solid rgba(249,115,22,.4);font-size:.6rem;border-radius:999px;padding:3px 9px;font-weight:700;cursor:pointer;" title="RATs aguardando envio"></span>
+        <!-- [FIX-v97-INSTALL] Botão instalar app — aparece somente quando o browser permite -->
+        <button id="btnInstalarApp" title="Instalar aplicativo no celular"
+          style="display:none;align-items:center;gap:5px;font-size:.7rem;font-weight:700;padding:5px 10px;border-radius:999px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(249,115,22,.4);">
+          <i class="ri-smartphone-line"></i> Instalar
+        </button>
       </div>
     </div>
 
@@ -7999,15 +8016,28 @@ function autoFillCamposAtendimento(){
           if(_e3) _e3.onclick = function(){ editarRelatorio(r); };
           var _w3 = div3.querySelector('[data-whats3]');
           if(_w3) _w3.onclick = async function(){
-            var tok = r.portalToken;
-            if(!tok && typeof window._gerarTokenPortal==='function') try{ tok=await window._gerarTokenPortal(r); }catch(e){}
-            var pUrl = null;
-            if(tok && typeof window._urlPortal==='function') pUrl = window._urlPortal(tok, r);
-            // [FIX-v94-SENHA-LOCAL] r._portalSenha nunca mais é persistida no objeto r.
-            // O link já contém a senha embutida via _urlPortal — não há senha para mostrar aqui.
-            var _si = '';
+            // [FIX-v97-SENHA-WA3] Usa _gerarCredencialPortal diretamente com _forcarRenovacaoSenha
+            // para obter a senha gerada e incluí-la na mensagem. _gerarTokenPortal descartava
+            // resultado.senha — cliente recebia link sem senha.
+            var pUrl = null; var _senhaW3 = null;
+            if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 &&
+               window.location.protocol!=='file:' && typeof window._gerarCredencialPortal==='function'){
+              try{
+                r._forcarRenovacaoSenha = true;
+                var _cW3 = await window._gerarCredencialPortal(r);
+                if(_cW3 && _cW3.cnpj){
+                  r._portalCnpj = _cW3.cnpj;
+                  _senhaW3 = _cW3.senha || null;
+                  pUrl = window._urlPortalV2 ? window._urlPortalV2(_cW3.cnpj, _senhaW3) : null;
+                }
+              }catch(e){}
+            }
+            var _si = r._portalCnpj
+              ? ('\n\n🔑 *Seus dados de acesso:*\n   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') +
+                 '\n   🔑 Senha: *' + (_senhaW3||'use a senha já recebida') + '*' + (_senhaW3?' (válida por 30 dias)':''))
+              : '';
             var msg = pUrl
-              ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente:\n'+pUrl+_si+'\n\nQualquer dúvida estamos à disposição!'
+              ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico RAT *'+(r.numero||'')+'* — '+(r.cliente||'')+'.\n\n📂 Acesse o Portal do Cliente:\n'+pUrl+_si+'\n\nQualquer dúvida estamos à disposição!'
               : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o Relatório Técnico de Atendimento RAT *'+(r.numero||'')+'* do cliente *'+(r.cliente||'')+'*.\n\nQualquer dúvida estamos à disposição!';
             var num = String(r.whatsapp||r.telefone||'').replace(/\D/g,'');
             if(num.length<=11) num='55'+num;
@@ -8015,13 +8045,30 @@ function autoFillCamposAtendimento(){
           };
           var _em3 = div3.querySelector('[data-email3]');
           if(_em3) _em3.onclick = async function(){
-            var pUrl2 = null;
-            var tok2 = r.portalToken;
-            if(!tok2 && typeof window._gerarTokenPortal==='function') try{ tok2=await window._gerarTokenPortal(r); }catch(e){}
-            if(tok2 && typeof window._urlPortal==='function') pUrl2 = window._urlPortal(tok2, r);
+            // [FIX-v97-SENHA-EMAIL3] Mesmo fix do WhatsApp: usa _gerarCredencialPortal para obter senha.
+            var pUrl2 = null; var _senhaE3 = null;
+            if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 &&
+               window.location.protocol!=='file:' && typeof window._gerarCredencialPortal==='function'){
+              try{
+                r._forcarRenovacaoSenha = true;
+                var _cE3 = await window._gerarCredencialPortal(r);
+                if(_cE3 && _cE3.cnpj){
+                  r._portalCnpj = _cE3.cnpj;
+                  _senhaE3 = _cE3.senha || null;
+                  pUrl2 = window._urlPortalV2 ? window._urlPortalV2(_cE3.cnpj, _senhaE3) : null;
+                }
+              }catch(e){}
+            }
             var subj = 'ONLINE-ES – Relatório Técnico RAT '+(r.numero||'');
-            var body = ['Olá, '+(r.cliente||'')+'!','','Segue o Relatório Técnico RAT '+(r.numero||'')+'.',''].concat(pUrl2?['📂 Acesse o Portal do Cliente para baixar o relatório:',pUrl2,'']:['Atenciosamente,','ONLINE-ES Eletroeletrônica']).join('\n');
-            window.open('mailto:'+encodeURIComponent(r.emailCliente||'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body),'_blank','noopener,noreferrer');
+            var linhasE3 = ['Olá, '+(r.cliente||'')+'!','','Segue o Relatório Técnico RAT '+(r.numero||'')+'.',''];
+            if(pUrl2){
+              linhasE3.push('📂 Acesse o Portal do Cliente para baixar o relatório:',pUrl2,'');
+              linhasE3.push('👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''));
+              linhasE3.push(_senhaE3?('🔑 Senha: '+_senhaE3+' (válida por 30 dias)'):'🔑 Use a senha recebida anteriormente.');
+            } else {
+              linhasE3.push('Atenciosamente,','ONLINE-ES Eletroeletrônica');
+            }
+            window.open('mailto:'+encodeURIComponent(r.emailCliente||'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(linhasE3.join('\n')),'_blank','noopener,noreferrer');
           };
           // [FIX-v60] Handler Excluir no Carregar mais supervisor/web
           var _excl3 = div3.querySelector('[data-excluir3]');
@@ -10664,9 +10711,16 @@ if (logoBase64) {
     // (ex: ao carregar dados do Firestore)
     var _origPopular = window.popularSelectClientes;
     window.popularSelectClientes = function() {
+      // [FIX-v97-CLI-POP] Salva o valor selecionado ANTES de popularSelectClientes() reconstruir
+      // as options — innerHTML reset apaga _select.value mesmo quando a option existe na lista.
+      var _valAntes = _select.value || _busca.value || '';
       if (typeof _origPopular === 'function') _origPopular.apply(this, arguments);
-      // Mantém o valor selecionado visível no campo de busca
-      if (_select.value && !_busca.value) _busca.value = _select.value;
+      // Restaura a seleção após a reconstrução das options
+      if (_valAntes) {
+        _select.value = _valAntes;
+        // Se não encontrou a option exata (nome mudou), não sobrescreve _busca
+        if (_select.value) _busca.value = _select.value;
+      }
     };
 
     // Ao editar RAT: sincroniza o campo de busca com o valor do select
@@ -13407,17 +13461,22 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     // WhatsApp com link do portal
     listaBusca.querySelectorAll('[data-busca-whats]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-busca-whats'); const r=relatorios.find(x=>x.id===id); if(!r) return;
-      // [FIX-FILE] Bloqueia quando aberto localmente
       if(window.location.protocol==='file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.',5000); return; }
       var num=((r.whatsapp||r.telefone||'').replace(/\D/g,'')).trim();
       if(num.length<=11) num='55'+num;
-      var pUrl=null;
-      if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
-        try{ showToast('🔗 Gerando link...',2000); const tok=await window._gerarTokenPortal(r); if(tok&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok, r); }catch(e){}
+      // [FIX-v97-BUSCA-WA] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
+      var pUrl=null; var _senhaBW=null;
+      if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
+        try{
+          showToast('🔗 Gerando link...',2000);
+          r._forcarRenovacaoSenha=true;
+          var _cBW=await window._gerarCredencialPortal(r);
+          if(_cBW&&_cBW.cnpj){ r._portalCnpj=_cBW.cnpj; _senhaBW=_cBW.senha||null; pUrl=window._urlPortalV2?window._urlPortalV2(_cBW.cnpj,_senhaBW):null; }
+        }catch(e){}
       }
-      var _senhaInfoBusca = r._portalSenha
-        ? '\n🔑 Senha de acesso: *' + r._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r.cnpjCliente||'') + ')'
-        : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
+      var _senhaInfoBusca = pUrl
+        ? '\n🔑 *Seus dados de acesso:*\n   👤 Usuário: '+(r.cnpjCliente||'')+'\n   🔑 Senha: *'+(_senhaBW||'use a senha já recebida')+'*'+(_senhaBW?' (válida por 30 dias)':'')
+        : '';
       const msg=pUrl
         ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n'+pUrl+_senhaInfoBusca+'\n\nQualquer dúvida estamos à disposição!'
         : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *'+(r.numero||'')+'* – '+(r.cliente||'')+'.';
@@ -13426,18 +13485,24 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
     // E-mail com link do portal
     listaBusca.querySelectorAll('[data-busca-email]').forEach(b=> b.onclick=async ()=>{
       const id=b.getAttribute('data-busca-email'); const r=relatorios.find(x=>x.id===id); if(!r) return;
-      // [FIX-FILE] Bloqueia quando aberto localmente
       if(window.location.protocol==='file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.',5000); return; }
       const email=(r.emailCliente||'').trim(); if(!email) return;
-      var pUrl=null;
-      if(window.location.protocol!=='file:'&&typeof window._gerarTokenPortal==='function'){
-        try{ showToast('🔗 Gerando link...',2000); const tok=await window._gerarTokenPortal(r); if(tok&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok, r); }catch(e){}
+      // [FIX-v97-BUSCA-EMAIL] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
+      var pUrl=null; var _senhaBE=null;
+      if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
+        try{
+          showToast('🔗 Gerando link...',2000);
+          r._forcarRenovacaoSenha=true;
+          var _cBE=await window._gerarCredencialPortal(r);
+          if(_cBE&&_cBE.cnpj){ r._portalCnpj=_cBE.cnpj; _senhaBE=_cBE.senha||null; pUrl=window._urlPortalV2?window._urlPortalV2(_cBE.cnpj,_senhaBE):null; }
+        }catch(e){}
       }
       const assunto='Online-ES – Relatório Técnico de Atendimento nº '+(r.numero||'');
       const linhas=['Olá'+(r.nomeAssinaturaCliente?', '+r.nomeAssinaturaCliente:'')+'!','','Segue o Relatório Técnico referente à visita da Online-ES'+(r.cliente?' na empresa '+r.cliente:'')+'.',''
         ,'• Relatório nº: '+(r.numero||''),'• Data: '+(r.dataHoraBr||r.dataHoraBR||''),'• Técnico: '+(r.tecnico||''),''
         ,...(pUrl?['🔗 Acesse e baixe seu Relatório Técnico (disponível por 30 dias):',pUrl,
-          ...(r._portalSenha?['👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),'🔑 Senha de acesso: '+r._portalSenha+' (válida por 30 dias)']:['👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida']),
+          '👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),
+          _senhaBE?'🔑 Senha: '+_senhaBE+' (válida por 30 dias)':'🔑 Use a senha já recebida anteriormente.',
           '']:[])
         ,'Fico à disposição.','','Atenciosamente,','Online-ES – Eletroeletrônica'];
       window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(assunto)+'&body='+encodeURIComponent(linhas.join('\n')),'_blank','noopener,noreferrer');
@@ -15217,12 +15282,16 @@ async function renderMeus(){
             var num=(rr.whatsapp||rr.telefone||'').replace(/\D/g,'');
             if(!num){showToast('⚠️ WhatsApp não informado.',3000);return;}
             if(num.length<=11) num='55'+num;
-            var pUrl=null;
-            if(window.location.protocol!=='file:' && typeof window._gerarTokenPortal==='function'){
-              try{ showToast('🔗 Gerando link...',2000); var tok2=await window._gerarTokenPortal(rr); if(tok2&&typeof window._urlPortal==='function') pUrl=window._urlPortal(tok2,rr); }catch(e){}
+            // [FIX-v97-MEUS2-WA] Usa _gerarCredencialPortal para obter senha na mensagem.
+            var pUrl=null; var _sW2=null;
+            if(rr.cnpjCliente&&String(rr.cnpjCliente).replace(/\D/g,'').length>=8&&
+               window.location.protocol!=='file:'&&typeof window._gerarCredencialPortal==='function'){
+              try{ showToast('🔗 Gerando link...',2000); rr._forcarRenovacaoSenha=true;
+                var _cW2=await window._gerarCredencialPortal(rr);
+                if(_cW2&&_cW2.cnpj){ rr._portalCnpj=_cW2.cnpj; _sW2=_cW2.senha||null; pUrl=window._urlPortalV2?window._urlPortalV2(_cW2.cnpj,_sW2):null; }
+              }catch(e){}
             }
-            var _si2=rr._portalSenha?'\n🔑 Senha: *'+rr._portalSenha+'* (válida 30 dias)\n    (Usuário: CNPJ/CPF — '+(rr.cnpjCliente||'')+')'
-              :'\n🔑 Use seu CNPJ/CPF e a senha já recebida.';
+            var _si2=pUrl?('\n🔑 *Seus dados de acesso:*\n   👤 Usuário: '+(rr.cnpjCliente||'')+'\n   🔑 Senha: *'+(_sW2||'use a senha já recebida')+'*'+(_sW2?' (válida por 30 dias)':'')):'';
             var msg2=pUrl?'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o RAT *'+(rr.numero||'')+'*.\n\n📂 Portal do Cliente:\n'+pUrl+_si2+'\n\nQualquer dúvida estamos à disposição!'
               :'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. Segue o RAT *'+(rr.numero||'')+'* – '+(rr.cliente||'')+'.';
             window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg2),'_blank','noopener,noreferrer');
@@ -15234,16 +15303,22 @@ async function renderMeus(){
             var rr=filtrados.find(function(x){return x.id===r.id;}); if(!rr) return;
             var email=(rr.emailCliente||'').trim();
             if(!email){showToast('⚠️ E-mail não informado.',3000);return;}
-            var pUrl2=null;
-            if(window.location.protocol!=='file:' && typeof window._gerarTokenPortal==='function'){
-              try{ showToast('🔗 Gerando link...',2000); var tok3=await window._gerarTokenPortal(rr); if(tok3&&typeof window._urlPortal==='function') pUrl2=window._urlPortal(tok3,rr); }catch(e){}
+            // [FIX-v97-MEUS2-EMAIL] Usa _gerarCredencialPortal para obter senha na mensagem.
+            var pUrl2=null; var _sE2=null;
+            if(rr.cnpjCliente&&String(rr.cnpjCliente).replace(/\D/g,'').length>=8&&
+               window.location.protocol!=='file:'&&typeof window._gerarCredencialPortal==='function'){
+              try{ showToast('🔗 Gerando link...',2000); rr._forcarRenovacaoSenha=true;
+                var _cE2=await window._gerarCredencialPortal(rr);
+                if(_cE2&&_cE2.cnpj){ rr._portalCnpj=_cE2.cnpj; _sE2=_cE2.senha||null; pUrl2=window._urlPortalV2?window._urlPortalV2(_cE2.cnpj,_sE2):null; }
+              }catch(e){}
             }
             var assunto2='Online-ES – Relatório Técnico nº '+(rr.numero||'');
             var linhas2=['Olá'+(rr.nomeAssinaturaCliente?', '+rr.nomeAssinaturaCliente:'')+'!','',
               'Segue o Relatório Técnico RAT Nº '+(rr.numero||'')+'.','• Cliente: '+(rr.cliente||''),
               '• Data: '+(rr.dataHoraBr||rr.dataHoraBR||''),'• Técnico: '+(rr.tecnico||''),''];
-            if(pUrl2){ linhas2.push('🔗 Acesse o Portal do Cliente:',pUrl2);
-              if(rr._portalSenha){ linhas2.push('👤 Usuário (CNPJ/CPF): '+(rr.cnpjCliente||''),'🔑 Senha: '+rr._portalSenha+' (válida 30 dias)'); } }
+            if(pUrl2){ linhas2.push('🔗 Acesse o Portal do Cliente:',pUrl2,
+              '👤 Usuário (CNPJ/CPF): '+(rr.cnpjCliente||''),
+              _sE2?'🔑 Senha: '+_sE2+' (válida 30 dias)':'🔑 Use a senha recebida anteriormente.'); }
             linhas2.push('','Atenciosamente,','Online-ES – Eletroeletrônica','www.onlinees.com.br');
             window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(assunto2)+'&body='+encodeURIComponent(linhas2.join('\n')),'_blank','noopener,noreferrer');
             showToast('✅ E-mail aberto!'+(pUrl2?' Link e senha incluídos.':''),5000);
@@ -15292,17 +15367,22 @@ async function renderMeus(){
         if(!r2) return;
         var email = (r2.emailCliente || '').trim();
         if(!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
-        // Gera/reutiliza token do portal
-        var portalUrl = null;
-        if(window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+        // [FIX-v97-MEUS-EMAIL] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
+        var portalUrl = null; var _sME = null;
+        if(r2.cnpjCliente && String(r2.cnpjCliente).replace(/\D/g,'').length>=8 &&
+           window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function'){
           try {
             showToast('🔗 Gerando link...', 2000);
-            var tok = await window._gerarTokenPortal(r2);
-            if(tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
-            if(tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
-              salvarRelatorioNoFirestore(r2).catch(function(){});
+            r2._forcarRenovacaoSenha = true;
+            var _cME = await window._gerarCredencialPortal(r2);
+            if(_cME && _cME.cnpj){
+              r2._portalCnpj = _cME.cnpj; _sME = _cME.senha || null;
+              portalUrl = window._urlPortalV2 ? window._urlPortalV2(_cME.cnpj, _sME) : null;
+              if(typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
+                salvarRelatorioNoFirestore(r2).catch(function(){});
+              }
             }
-          } catch(eP){ console.warn('[Meus/Email] Falha ao gerar token:', eP); }
+          } catch(eP){ console.warn('[Meus/Email] Falha ao gerar credencial:', eP); }
         }
         var numero  = r2.numero  || '';
         var cliente = r2.cliente || '';
@@ -15322,12 +15402,8 @@ async function renderMeus(){
         if(portalUrl){
           linhas.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
           linhas.push(portalUrl);
-          if(r2._portalSenha){
-            linhas.push('👤 Usuário (CNPJ/CPF): ' + (r2.cnpjCliente || ''));
-            linhas.push('🔑 Senha de acesso: ' + r2._portalSenha + ' (válida por 30 dias)');
-          } else {
-            linhas.push('👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente');
-          }
+          linhas.push('👤 Usuário (CNPJ/CPF): ' + (r2.cnpjCliente || ''));
+          linhas.push(_sME ? '🔑 Senha: ' + _sME + ' (válida por 30 dias)' : '🔑 Use a senha recebida anteriormente.');
         }
         linhas.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
         var corpo = linhas.join('\n');
@@ -15345,32 +15421,34 @@ async function renderMeus(){
         var id = btn.getAttribute('data-meus-whats');
         var r2 = filtrados.find(function(x){ return x.id===id; });
         if(!r2) return;
-        // [FIX-FILE] Bloqueia quando aberto localmente
         if(window.location.protocol === 'file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000); return; }
         var num = r2.whatsapp || r2.telefone || '';
         num = num.replace(/\D/g,'');
         if(!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         if(num.length <= 11) num = '55' + num;
 
-        // Gera/reutiliza token do portal para incluir o link na mensagem
-        var portalUrl = null;
-        if(window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+        // [FIX-v97-MEUS-WA] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
+        var portalUrl = null; var _sMW = null;
+        if(r2.cnpjCliente && String(r2.cnpjCliente).replace(/\D/g,'').length>=8 &&
+           typeof window._gerarCredencialPortal === 'function'){
           try {
             showToast('🔗 Gerando link...', 2000);
-            var tok = await window._gerarTokenPortal(r2);
-            if(tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
-            // Persiste token no Firestore caso ainda não esteja salvo
-            if(tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
-              salvarRelatorioNoFirestore(r2).catch(function(){});
+            r2._forcarRenovacaoSenha = true;
+            var _cMW = await window._gerarCredencialPortal(r2);
+            if(_cMW && _cMW.cnpj){
+              r2._portalCnpj = _cMW.cnpj; _sMW = _cMW.senha || null;
+              portalUrl = window._urlPortalV2 ? window._urlPortalV2(_cMW.cnpj, _sMW) : null;
+              if(typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine){
+                salvarRelatorioNoFirestore(r2).catch(function(){});
+              }
             }
-          } catch(eP){ console.warn('[Meus/WhatsApp] Falha ao gerar token:', eP); }
+          } catch(eP){ console.warn('[Meus/WhatsApp] Falha ao gerar credencial:', eP); }
         }
 
         var msg;
         if(portalUrl){
-          var _senhaInfo2 = r2._portalSenha
-            ? '\n🔑 Senha de acesso: *' + r2._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r2.cnpjCliente||'') + ')'
-            : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
+          var _senhaInfo2 = '\n🔑 *Seus dados de acesso:*\n   👤 Usuário: ' + (r2.cnpjCliente||'') +
+            '\n   🔑 Senha: *' + (_sMW || 'use a senha já recebida') + '*' + (_sMW ? ' (válida por 30 dias)' : '');
           msg = 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\n' +
                 'Segue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n' +
                 '📂 Acesse o Portal do Cliente para baixar seu relatório:\n' + portalUrl +
@@ -17349,18 +17427,104 @@ async function fazerLogin(){
   navigator.serviceWorker.addEventListener('message', function(event) {
     if (!event.data) return;
     if (event.data.type === 'SYNC_RATS_PENDENTES') {
-      // SW voltou online — dispara sync manual via Firestore SDK
       if (typeof window._sincronizarRatsPendentes === 'function') {
         window._sincronizarRatsPendentes();
       }
     }
     if (event.data.type === 'PERIODIC_SYNC_WIDGET') {
-      // Atualiza dados do widget com o resumo do dia
       if (typeof window._atualizarWidgetRats === 'function') {
         window._atualizarWidgetRats();
       }
     }
   });
+})();
+
+// ===== [FIX-v97-INSTALL] PWA Install Button =====
+// Captura o evento beforeinstallprompt (Android/Chrome/Edge) e exibe o botão Instalar.
+// Em iOS (Safari) o beforeinstallprompt não existe — exibe instrução manual via modal.
+(function(){
+  var _deferredPrompt = null;
+  var _btnInstalar = null;
+
+  function _getBtn(){ return _btnInstalar || (_btnInstalar = document.getElementById('btnInstalarApp')); }
+
+  function _mostrarBotao(){
+    var b = _getBtn(); if(b){ b.style.display='inline-flex'; }
+  }
+
+  function _ocultarBotao(){
+    var b = _getBtn(); if(b){ b.style.display='none'; }
+  }
+
+  // Android / Chrome / Edge: captura o prompt nativo
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    _deferredPrompt = e;
+    // Só mostra se ainda não está instalado como PWA
+    if(window.matchMedia('(display-mode: standalone)').matches) return;
+    _mostrarBotao();
+  });
+
+  // Quando instalação for concluída, oculta o botão
+  window.addEventListener('appinstalled', function(){
+    _ocultarBotao();
+    _deferredPrompt = null;
+    if(typeof showToast==='function') showToast('✅ Aplicativo instalado com sucesso!', 4000);
+  });
+
+  // Aguarda o DOM e conecta o handler do botão
+  function _conectarBotao(){
+    var b = _getBtn(); if(!b){ setTimeout(_conectarBotao, 500); return; }
+
+    // Se já está rodando como PWA instalada, não mostra o botão
+    if(window.matchMedia('(display-mode: standalone)').matches){ return; }
+
+    // iOS: detecta Safari mobile sem suporte a beforeinstallprompt
+    var _isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    var _isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    if(_isIOS && _isSafari){ _mostrarBotao(); }
+
+    b.addEventListener('click', function(){
+      if(_deferredPrompt){
+        // Android/Chrome: dispara o prompt nativo
+        _deferredPrompt.prompt();
+        _deferredPrompt.userChoice.then(function(choice){
+          if(choice.outcome === 'accepted'){
+            if(typeof showToast==='function') showToast('🎉 Instalando o aplicativo...', 3000);
+          }
+          _deferredPrompt = null;
+          _ocultarBotao();
+        }).catch(function(){});
+      } else {
+        // iOS / browsers sem suporte: mostra modal de instrução
+        var _isIOS2 = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        var _msg = _isIOS2
+          ? '📱 Para instalar no iPhone/iPad:\n\n1. Toque em <strong>Compartilhar</strong> <i class="ri-share-line"></i> na barra inferior do Safari\n2. Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>\n3. Confirme tocando em <strong>"Adicionar"</strong>\n\nO app será instalado e sempre se atualizará automaticamente!'
+          : '📱 Para instalar este aplicativo:\n\n• <strong>Chrome/Edge:</strong> Clique no ícone ⊕ na barra de endereços ou no menu ⋮ → "Instalar aplicativo"\n• <strong>Firefox:</strong> Menu → "Instalar"\n\nApós instalado, o app se atualiza automaticamente junto com o sistema.';
+        if(typeof showConfirm==='function'){
+          // Usa o modal já existente no app (só informativo)
+          var _div=document.createElement('div');
+          _div.id='_pwaInstallModal';
+          _div.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:20px;';
+          _div.innerHTML='<div style="background:#1e293b;border-radius:20px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.5);color:#f1f5f9;">'
+            +'<div style="font-size:1.1rem;font-weight:800;margin-bottom:14px;color:#f97316;display:flex;align-items:center;gap:8px;"><i class="ri-smartphone-line"></i> Instalar Aplicativo</div>'
+            +'<div style="font-size:.88rem;line-height:1.6;">'+_msg+'</div>'
+            +'<button id="_pwaInstallClose" style="margin-top:20px;width:100%;padding:12px;border-radius:12px;border:none;background:#f97316;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;">Entendi</button>'
+            +'</div>';
+          document.body.appendChild(_div);
+          _div.querySelector('#_pwaInstallClose').onclick=function(){ _div.remove(); };
+          _div.onclick=function(e){ if(e.target===_div) _div.remove(); };
+        } else {
+          alert(_isIOS2
+            ? 'Para instalar: toque em Compartilhar → Adicionar à Tela de Início no Safari.'
+            : 'Para instalar: use o ícone ⊕ na barra de endereços do Chrome/Edge.');
+        }
+      }
+    });
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_conectarBotao);
+  else _conectarBotao();
 })();
 </script>
 
