@@ -1,27 +1,91 @@
 <!DOCTYPE html>
 <!--
-  ONLINE-ES — VERSÃO FINAL PREMIUM — v97
-  - [FIX-v97-SENHA-FLOWS] BUG: senha não era incluída nas mensagens de WhatsApp/E-mail
-    enviadas pelos fluxos "Carregar mais" (lista supervisor), "Meus Atendimentos" e
-    busca global. Causa: esses fluxos usavam _gerarTokenPortal() que descartava
-    resultado.senha e dependia de r._portalSenha (sempre null desde v94 por segurança).
-    Fix: todos os fluxos migrados para _gerarCredencialPortal() com _forcarRenovacaoSenha=true,
-    lendo a senha da variável local retornada. Fluxos afetados: data-whats3/email3 (lista),
-    data-busca-whats/email (busca), data-meus-whats/email (Meus Atendimentos e Carregar mais).
-  - [FIX-v97-CLI-POP] BUG: nome da empresa sumia no resumo (step 5) quando
-    popularSelectClientes() era chamado pelo sync do Firestore após a seleção.
-    Causa: popularSelectClientes() usa innerHTML= para reconstruir as options —
-    isso apaga o .value do <select> mesmo que a option exista na nova lista.
-    O wrapper anterior só restaurava _busca.value mas não _select.value.
-    Fix: wrapper agora salva o valor selecionado ANTES de chamar popularSelectClientes()
-    e restaura _select.value após a reconstrução das options.
-  - [FIX-v97-INSTALL] Botão "Instalar" adicionado ao topbar.
-    Android/Chrome/Edge: captura beforeinstallprompt e dispara prompt nativo.
-    iOS Safari: exibe modal com instruções passo a passo para "Adicionar à Tela de Início".
-    O app é uma PWA — após instalado, atualiza automaticamente sempre que o sistema
-    web for atualizado (service worker controla o ciclo de vida).
-    Botão oculto automaticamente se já instalado (display-mode: standalone).
-  Correções v96:
+  ONLINE-ES — VERSÃO FINAL PREMIUM — v100
+  - [FIX-v100-DB-WAIT] _gerarCredencialPortal: se _db() retorna null (Firebase ainda
+    inicializando), aguarda até 5s em ciclos de 500ms antes de desistir. Antes: retornava
+    null imediatamente → técnico que clicava WA/Email logo após login não recebia senha.
+    Causa raiz: Firebase pode demorar 1-3s para inicializar; qualquer clique nessa janela
+    resultava em link gerado mas sem senha (silencioso — sem feedback de erro).
+  - [FIX-v100-NULL-FEEDBACK] Todos os handlers de WA/Email: quando _gerarCredencialPortal
+    retorna null após retry (Firebase offline ou erro), exibe toast de aviso explícito ao
+    técnico em vez de abrir WA/email silenciosamente sem o link e senha do portal.
+  - [FIX-v100-BF-PERSIST] Login da aplicação principal: _registerFailedAttempt agora
+    persiste o count no Firestore a CADA falha (antes: só ao bloquear com 5 falhas).
+    _checkBruteForce: detecta count >= max no Firestore mesmo sem lockedUntil definido.
+    Idêntico ao fix do portal (v99). Impede bypass via nova aba / modo anônimo.
+  Correções v99:
+  - [FIX-v99-TIMING] _portalVerificarSenha: comparação h===senhaHash substituída por
+    _portalSafeEqual (XOR bit-a-bit sem curto-circuito) — previne timing attacks que
+    inferem caracteres do hash medindo diferenças de microssegundos na resposta.
+    Consistente com _safeEqual() já usada no login da aplicação principal (linha 5240).
+  - [FIX-v99-CASE] Senha alfanumérica do portal normalizada para maiúsculas em TODO
+    o ciclo de vida: geração (_gerarSenhaPortal retorna maiúsculas) → hash
+    (senhaParaHash = senhaPlain.toUpperCase() antes de _portalHashSenha) →
+    verificação (_portalVerificarSenha faz plainNorm=.toUpperCase() antes de hashear).
+    Retrocompatibilidade: tenta primeiro maiúsculas, depois raw (cobre senhas antigas).
+    Causa: autocapitalize="characters" é ignorado pelo iOS Safari em type="password",
+    então o cliente poderia digitar minúsculas e ter a senha correta recusada.
+  - [FIX-v99-NOME] _gerarSenha6 renomeada para _gerarSenhaPortal (nome refletia o
+    formato antigo de 6 dígitos). Alias _gerarSenha6=_gerarSenhaPortal mantido para
+    retrocompatibilidade — será removido na v100.
+  - [FIX-v99-BF-PERSIST] _portalRegisterFail: agora persiste count no Firestore a
+    CADA falha de login (antes: só ao atingir 5 e bloquear). Sem isso, abrir aba
+    anônima a cada 4 tentativas reinicia o sessionStorage e bypassa o bloqueio.
+    _portalCheckBFServer: detecta count>=max mesmo sem lockedUntil — bloqueia
+    ataques cross-session que acumulam tentativas em várias abas/sessões.
+    _portalClearBF: limpa também o contador no Firestore após login bem-sucedido.
+  - [FIX-v99-COLISAO] verificarNumeroRATUnico: loop até encontrar número único com
+    guard de 10 iterações — antes incrementava 1x e retornava sem verificar se o
+    novo número também estava em uso (colisões em cascata com 3+ técnicos offline).
+  - [FIX-v99-RASC-EXPIRY] Rascunho com >7 dias mostra aviso de possível desatualização.
+    Rascunho com >30 dias é descartado automaticamente ao restaurar — evita o técnico
+    começar um atendimento com dados de cliente/equipamento de um mês atrás.
+  - [FIX-v99-PDF-PROGRESS] PDF com >2 fotos mostra toast "🖼️ Processando foto N de M"
+    a cada imagem — elimina a sensação de app travado em PDFs com muitas fotos (5-15s).
+  - [FIX-v99-ESC] _esc() (portal) consolidada: delega para window.esc() quando
+    disponível, adicionando escape de aspas simples (&#x27;) e barras (&#x2F;) que
+    estavam ausentes na versão anterior do portal. Fallback inline para standalone.
+  Correções v98:
+  - [FIX-v98-FORCAR-CLEANUP] BUG: r._forcarRenovacaoSenha=true não era removido do objeto
+    após uso em nenhum dos 10+ handlers de WhatsApp/e-mail. Se o objeto r era salvo logo
+    depois (salvarRelatorioNoFirestore), a flag escapava para o banco mesmo que
+    _CAMPOS_INTERNOS a removesse no clone — o objeto em memória ficava "contaminado" e
+    causava renovação de senha desnecessária em envios subsequentes sem recarregar a página.
+    Fix: todos os handlers agora fazem delete r._forcarRenovacaoSenha imediatamente após
+    _gerarCredencialPortal retornar, tanto no caminho normal quanto no catch.
+  - [FIX-v98-PAINEL-WA/EMAIL] BUG: handlers do Painel Supervisor (data-painel-whats e
+    data-painel-email) ainda usavam _gerarTokenPortal (obsoleto) que descartava a senha.
+    Fix: migrados para _gerarCredencialPortal + delete cleanup + toast de 8s.
+  - [FIX-v98-CACHE-WA/EMAIL] BUG: handlers do "Carregar mais" do supervisor (cache/lista)
+    também usavam _gerarTokenPortal. Fix: mesma migração.
+  - [FIX-v98-TOAST-8S] Toast "🔗 Gerando link..." durava 2s fixos — em redes lentas,
+    sumia antes da operação terminar, deixando o técnico sem feedback. Aumentado para 8s
+    em todos os handlers de share (o toast é substituído pelo ✅ quando a operação termina).
+  - [FIX-v98-DEPRECATED] _gerarTokenPortal marcada como @deprecated com console.warn
+    que mostra o stack trace do chamador — facilita rastrear e remover chamadas restantes.
+    A função também agora faz delete rat._forcarRenovacaoSenha antes de retornar.
+  - [FIX-v98-ENTROPIA] _gerarSenha6: aumentada de 6 dígitos numéricos (~20 bits de entropia,
+    1M combinações) para 8 caracteres alfanuméricos sem ambíguos (~47 bits, 1T combinações).
+    Retrocompatibilidade mantida: validação do portal aceita senhas de 6+ chars.
+    Portal input: inputmode="text" + autocapitalize="characters" + maxlength=8.
+  - [FIX-v98-AUTOCOMPLETE] Campo de usuário do login: autocomplete="username" (era "off").
+    Campo de senha do login: autocomplete="current-password" (era "off").
+    NIST SP 800-63B e WCAG recomendam não bloquear gerenciadores de senha.
+  - [FIX-v98-DEBOUNCE] Busca de cliente: adicionado debounce de 150ms no input.
+    Antes: _renderDropdown disparava em cada keystroke — causava jank em mobile
+    com listas grandes (>200 clientes). Limpar campo ainda é imediato (sem debounce).
+  - [FIX-v98-IOS-INSTALL] Botão Instalar iOS: após usuário confirmar instruções,
+    salva localStorage 'pwa-installed'='1' — botão não reaparece em visitas futuras.
+    Verificação na inicialização: se flag presente, botão nunca é exibido.
+    Botão Instalar: adicionado estado de loading (disabled + spinner) enquanto prompt carrega.
+  - [FIX-v98-CONSOLE] console.log Firebase que exibia projectId/apiKey no DevTools
+    convertido para console.debug (invisível por padrão no Chrome DevTools).
+  - [SEGURANÇA-v98-BF] Documentado risco de allow read, write: if true na coleção
+    onlineEsBF — qualquer pessoa pode apagar seus próprios bloqueios de força bruta via API.
+    Regra recomendada documentada no código.
+  - [SEGURANÇA-v98-SRI] Documentado risco de ausência de SRI nos scripts Firebase/remixicon
+    com instruções curl prontas para calcular os hashes e adicioná-los.
+  Correções v97:
   - [FIX-v95-GPS-OPT] Localização tornada 100% opcional — técnico nunca fica preso.
     Problemas anteriores: (1) botão sem feedback visual durante busca — parecia travado;
     (2) sem botão de cancelar — técnico ficava preso esperando timeout de 15s;
@@ -237,9 +301,17 @@
     Fix: _registerFailedAttempt grava o bloqueio também na coleção 'onlineEsBF' do
     Firestore (fire-and-forget, não bloqueia o login). _checkBruteForce (agora async)
     consulta o Firestore se não encontrar bloqueio local. _clearLoginAttempts apaga o
-    documento do Firestore após login bem-sucedido. Regra Firestore sugerida:
-    match /onlineEsBF/{doc} { allow read, write: if true; } — o doc ID é derivado do
-    username, sem dados pessoais sensíveis (apenas timestamps e contadores).
+    documento do Firestore após login bem-sucedido.
+    ⚠️ [SEGURANÇA-v98] Regra atual: allow read, write: if true — RISCO:
+    qualquer pessoa pode ler a lista de usuários tentados e apagar seus próprios bloqueios.
+    Regra recomendada (adicionar no firestore.rules):
+      match /onlineEsBF/{doc} {
+        allow write: if true;       // precisa escrever sem auth (login falhou)
+        allow read:  if false;      // leitura só via Admin SDK no backend
+        allow delete: if false;     // bloqueio apagado só internamente
+      }
+    Como workaround sem backend: use allow read, write: if true mas gere o doc ID
+    com HMAC(username, serverSecret) em vez de hash público, dificultando enumeração.
   Correções v87:
   - [FIX-v87-COPIAR-LINK] Botão "Copiar link portal" no card da RAT (painel supervisor):
     a chamada a _gerarCredencialPortal não passava _forcarRenovacaoSenha:true, então se
@@ -720,10 +792,16 @@
        Enquanto os hashes reais não forem adicionados, os atributos integrity
        foram REMOVIDOS para evitar que o browser rejeite os scripts e quebre o app.
        O Service Worker já faz cache dos assets CDN, mitigando o risco de supply-chain. -->
-  <!-- [SRI] Subresource Integrity — protege contra adulteração de CDN.
-       Para calcular os hashes: curl -sL <URL> | openssl dgst -sha384 -binary | openssl base64 -A
-       Ou use: https://www.srihash.org
-       Substitua HASH_REMIXICON, HASH_FB_APP, HASH_FB_AUTH, HASH_FB_FS pelos valores calculados. -->
+  <!-- ⚠️ [SEGURANÇA-v98-SRI] Scripts Firebase e remixicon carregados SEM integrity hash.
+       Se a CDN (gstatic/jsdelivr) for comprometida, código malicioso roda com acesso total.
+       Para adicionar SRI — calcule os hashes e adicione integrity="sha384-HASH" em cada script:
+         curl -sL https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js | openssl dgst -sha384 -binary | openssl base64 -A
+         curl -sL https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js | openssl dgst -sha384 -binary | openssl base64 -A
+         curl -sL https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js | openssl dgst -sha384 -binary | openssl base64 -A
+         curl -sL https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css | openssl dgst -sha384 -binary | openssl base64 -A
+       Depois adicione: integrity="sha384-HASH_AQUI" crossorigin="anonymous" em cada tag.
+       Alternativa rápida: https://www.srihash.org (cole a URL, copie o integrity gerado)
+       NOTA: O SW já serve do cache após o primeiro load — SRI protege o primeiro carregamento. -->
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
         crossorigin="anonymous">
@@ -2257,10 +2335,10 @@ html[data-role="technician"] nav button {
     </div>
 
     <label>Usuário</label>
-    <input id="loginUsuario" aria-label="Usuário" placeholder="admin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60">
+    <input id="loginUsuario" aria-label="Usuário" placeholder="admin" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60">
 
     <label>Senha</label>
-    <input id="loginSenha" aria-label="Senha" type="password" placeholder="admin" autocomplete="off" maxlength="128">
+    <input id="loginSenha" aria-label="Senha" type="password" placeholder="admin" autocomplete="current-password" maxlength="128">
 
     <button class="btn" id="btnEntrar" style="width:100%;justify-content:center;">
       <i class="ri-login-box-line"></i> Entrar
@@ -4181,7 +4259,7 @@ html[data-role="technician"] nav button {
         });
       } catch(eAuth) { console.warn('⚠️ Firebase Auth não disponível:', eAuth.message); }
 
-      console.log('✅ Firebase inicializado. Projeto:', firebaseConfig.projectId);
+      console.debug('[ONLINE-ES] Firebase inicializado.'); // [FIX-v98] não exibe projectId/apiKey no console
     } catch(e) {
       console.warn('⚠️ Falha ao inicializar Firebase:', e.message || e);
     }
@@ -5804,28 +5882,37 @@ function saveUsers(lista){
       window._ratContadorLock = false;
     }
   }
-  // Verifica assincronamente se número já existe (colisão entre dispositivos)
+  // Verifica assincronamente se número já existe (colisão entre dispositivos).
+  // [FIX-v99-COLISAO] Loop até encontrar número único — antes: incrementava 1x e retornava
+  // sem verificar se o novo número também já existia (falha em colisões em cascata).
+  // Limite de 10 iterações evita loop infinito em caso de bug.
   async function verificarNumeroRATUnico(numero) {
-    // [FIX-LISTENER] app usa auth próprio — currentUser sempre null; basta estar online
     if (!navigator.onLine) return numero;
-    try {
-      var db2 = window._getDb ? window._getDb() : null;
-      if (!db2) return numero;
-      var snap = await db2.collection('onlineEsContadores').doc(numero).get();
-      if (!snap.exists) return numero;
-      var data = snap.data();
-      var tecAtual = (window.usuarioLogado && window.usuarioLogado.username) || '';
-      if (data.tecnico === tecAtual) return numero; // mesmo técnico, OK
-      // Colisão detectada — incrementa contador e gera novo número mantendo formato completo
-      var c2 = parseInt(localStorage.getItem(typeof STORAGE_CONTADOR !== 'undefined' ? STORAGE_CONTADOR : 'online-es-contador') || '0', 10);
-      c2++;
-      localStorage.setItem(typeof STORAGE_CONTADOR !== 'undefined' ? STORAGE_CONTADOR : 'online-es-contador', String(c2));
-      // [FIX-B02] Novo formato: RAT-DDMMAAAA-NNNN-SSSS — preserva sufixo de dispositivo (partes[3])
-      var partes = numero.split('-'); // ['RAT','DDMMAAAA','NNNN','SSSS']
-      var sufixo = partes[3] || '0000'; // preserva sufixo ou usa fallback
-      var novo = (partes[0] || 'RAT') + '-' + (partes[1] || '') + '-' + String(c2).padStart(4, '0') + '-' + sufixo;
-      return novo;
-    } catch(e) { return numero; }
+    var _STORAGE_C = typeof STORAGE_CONTADOR !== 'undefined' ? STORAGE_CONTADOR : 'online-es-contador';
+    var candidato = numero;
+    var MAX_ITER = 10;
+    for(var _iter = 0; _iter < MAX_ITER; _iter++){
+      try {
+        var db2 = window._getDb ? window._getDb() : null;
+        if (!db2) return candidato;
+        var snap = await db2.collection('onlineEsContadores').doc(candidato).get();
+        if (!snap.exists) return candidato; // número livre — usa este
+        var data = snap.data();
+        var tecAtual = (window.usuarioLogado && window.usuarioLogado.username) || '';
+        if (data.tecnico === tecAtual) return candidato; // mesmo técnico, OK
+        // Colisão com outro técnico — incrementa e gera próximo candidato
+        var c2 = parseInt(localStorage.getItem(_STORAGE_C) || '0', 10);
+        c2++;
+        localStorage.setItem(_STORAGE_C, String(c2));
+        var partes = candidato.split('-'); // ['RAT','DDMMAAAA','NNNN','SSSS']
+        var sufixo = partes[3] || '0000';
+        candidato = (partes[0] || 'RAT') + '-' + (partes[1] || '') + '-' + String(c2).padStart(4, '0') + '-' + sufixo;
+        // Continua o loop para verificar o novo candidato
+      } catch(e) { return candidato; }
+    }
+    // Fallback: se chegou ao limite, retorna candidato atual com aviso
+    console.warn('[RAT] verificarNumeroRATUnico: limite de ' + MAX_ITER + ' iterações atingido. Usando: ' + candidato);
+    return candidato;
   }
   window.verificarNumeroRATUnico = verificarNumeroRATUnico;
 var relogioAtendimentoTimer = null; // var: acessível entre blocos script
@@ -8025,12 +8112,13 @@ function autoFillCamposAtendimento(){
               try{
                 r._forcarRenovacaoSenha = true;
                 var _cW3 = await window._gerarCredencialPortal(r);
+                delete r._forcarRenovacaoSenha; // [FIX-v98] limpa imediatamente após uso
                 if(_cW3 && _cW3.cnpj){
                   r._portalCnpj = _cW3.cnpj;
                   _senhaW3 = _cW3.senha || null;
                   pUrl = window._urlPortalV2 ? window._urlPortalV2(_cW3.cnpj, _senhaW3) : null;
                 }
-              }catch(e){}
+              }catch(e){ delete r._forcarRenovacaoSenha; }
             }
             var _si = r._portalCnpj
               ? ('\n\n🔑 *Seus dados de acesso:*\n   👤 Usuário: ' + (r.cnpjCliente||r._portalCnpj||'') +
@@ -8052,12 +8140,13 @@ function autoFillCamposAtendimento(){
               try{
                 r._forcarRenovacaoSenha = true;
                 var _cE3 = await window._gerarCredencialPortal(r);
+                delete r._forcarRenovacaoSenha;
                 if(_cE3 && _cE3.cnpj){
                   r._portalCnpj = _cE3.cnpj;
                   _senhaE3 = _cE3.senha || null;
                   pUrl2 = window._urlPortalV2 ? window._urlPortalV2(_cE3.cnpj, _senhaE3) : null;
                 }
-              }catch(e){}
+              }catch(e){ delete r._forcarRenovacaoSenha; }
             }
             var subj = 'ONLINE-ES – Relatório Técnico RAT '+(r.numero||'');
             var linhasE3 = ['Olá, '+(r.cliente||'')+'!','','Segue o Relatório Técnico RAT '+(r.numero||'')+'.',''];
@@ -8129,27 +8218,27 @@ function autoFillCamposAtendimento(){
         const id = btn.getAttribute('data-painel-whats');
         const r = relatorios.find(x => x.id === id);
         if (!r) return;
-        // [FIX-FILE] Bloqueia envio quando aberto via file:// — link gerado seria inacessível ao cliente
-        if (window.location.protocol === 'file:') {
-          showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000);
-          return;
-        }
+        if (window.location.protocol === 'file:') { showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000); return; }
         var num = ((r.whatsapp || r.telefone || '').replace(/\D/g,'')).trim();
         if (!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         if (num.length <= 11) num = '55' + num;
-        var portalUrlP = null;
-        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+        // [FIX-v98-PAINEL-WA] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
+        // _gerarTokenPortal descartava resultado.senha — r._portalSenha é sempre null (v94).
+        var portalUrlP = null; var _senhaPW = null;
+        if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
           try {
-            showToast('🔗 Gerando link...', 2000);
-            const tok = await window._gerarTokenPortal(r);
-            if (tok && typeof window._urlPortal === 'function') portalUrlP = window._urlPortal(tok, r);
-            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
-              salvarRelatorioNoFirestore(r).catch(()=>{});
-          } catch(e){ console.warn('[Painel/WhatsApp]', e); }
+            showToast('🔗 Gerando link...', 8000);
+            r._forcarRenovacaoSenha = true;
+            var _cPW = await window._gerarCredencialPortal(r);
+            delete r._forcarRenovacaoSenha;
+            if(_cPW && _cPW.cnpj){ r._portalCnpj=_cPW.cnpj; _senhaPW=_cPW.senha||null; portalUrlP=window._urlPortalV2?window._urlPortalV2(_cPW.cnpj,_senhaPW):null; }
+            else if(!_cPW){ showToast('⚠️ Sem conexão — link não gerado. O WhatsApp será aberto sem o link do portal.', 5000); }
+            if(portalUrlP && typeof salvarRelatorioNoFirestore==='function' && navigator.onLine) salvarRelatorioNoFirestore(r).catch(()=>{});
+          } catch(e){ delete r._forcarRenovacaoSenha; console.warn('[Painel/WhatsApp]', e); showToast('⚠️ Erro ao gerar link: ' + (e.message||'tente novamente.'), 5000); }
         }
-        var _senhaInfoP = r._portalSenha
-          ? '\n🔑 Senha de acesso: *' + r._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r.cnpjCliente||'') + ')'
-          : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
+        var _senhaInfoP = portalUrlP
+          ? ('\n🔑 *Seus dados de acesso:*\n   👤 Usuário: '+(r.cnpjCliente||'')+'\n   🔑 Senha: *'+(_senhaPW||'use a senha já recebida')+'*'+(_senhaPW?' (válida por 30 dias)':''))
+          : '';
         const msg = portalUrlP
           ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *'+(r.cliente||'')+'*, RAT *'+(r.numero||'')+'*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n'+portalUrlP+_senhaInfoP+'\n\nQualquer dúvida estamos à disposição!'
           : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *'+(r.numero||'')+'* – '+(r.cliente||'')+'.';
@@ -8164,22 +8253,20 @@ function autoFillCamposAtendimento(){
         const id = btn.getAttribute('data-painel-email');
         const r = relatorios.find(x => x.id === id);
         if (!r) return;
-        // [FIX-FILE] Bloqueia envio quando aberto via file:// — link gerado seria inacessível ao cliente
-        if (window.location.protocol === 'file:') {
-          showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000);
-          return;
-        }
+        if (window.location.protocol === 'file:') { showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.', 5000); return; }
         const email = (r.emailCliente || '').trim();
         if (!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
-        var portalUrlE = null;
-        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function'){
+        // [FIX-v98-PAINEL-EMAIL] Usa _gerarCredencialPortal para obter senha.
+        var portalUrlE = null; var _senhaPE = null;
+        if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
           try {
-            showToast('🔗 Gerando link...', 2000);
-            const tok = await window._gerarTokenPortal(r);
-            if (tok && typeof window._urlPortal === 'function') portalUrlE = window._urlPortal(tok, r);
-            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine)
-              salvarRelatorioNoFirestore(r).catch(()=>{});
-          } catch(e){ console.warn('[Painel/Email]', e); }
+            showToast('🔗 Gerando link...', 8000);
+            r._forcarRenovacaoSenha = true;
+            var _cPE = await window._gerarCredencialPortal(r);
+            delete r._forcarRenovacaoSenha;
+            if(_cPE && _cPE.cnpj){ r._portalCnpj=_cPE.cnpj; _senhaPE=_cPE.senha||null; portalUrlE=window._urlPortalV2?window._urlPortalV2(_cPE.cnpj,_senhaPE):null; }
+            if(portalUrlE && typeof salvarRelatorioNoFirestore==='function' && navigator.onLine) salvarRelatorioNoFirestore(r).catch(()=>{});
+          } catch(e){ delete r._forcarRenovacaoSenha; console.warn('[Painel/Email]', e); }
         }
         const assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + (r.numero||'');
         const linhas = [
@@ -8193,7 +8280,8 @@ function autoFillCamposAtendimento(){
           '',
           ...(portalUrlE ? [
             '🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):', portalUrlE,
-            ...(r._portalSenha ? ['👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),'🔑 Senha de acesso: '+r._portalSenha+' (válida por 30 dias)'] : ['👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente']),
+            '👤 Usuário (CNPJ/CPF): '+(r.cnpjCliente||''),
+            _senhaPE ? '🔑 Senha: '+_senhaPE+' (válida por 30 dias)' : '🔑 Use a senha recebida anteriormente.',
             ''
           ] : []),
           'Fico à disposição para quaisquer esclarecimentos.',
@@ -9451,7 +9539,13 @@ if (logoBase64) {
         }));
         let col = 0;
         let rowMaxH = 40;
+        var _pdfTotalImgs = allImages.length;
         for(let i=0;i<allImages.length;i++){
+          // [FIX-v99-PDF-PROGRESS] Feedback de progresso por foto — evita que o técnico
+          // ache que o app travou em PDFs com muitas imagens (>4 fotos pode demorar 5-15s).
+          if(_pdfTotalImgs > 2){
+            showToast('🖼️ Processando foto ' + (i+1) + ' de ' + _pdfTotalImgs + '…', 6000);
+          }
           if(y>265){ doc.addPage(); y=15; }
           const x = col===0 ? 10 : 110;
           // [FIX-v72-IMG-CACHE] Usa Image pré-decodificado se disponível — elimina re-decode serial
@@ -10332,7 +10426,27 @@ if (logoBase64) {
 
       const dataRasc = r._rascunhoData ? new Date(r._rascunhoData).toLocaleString('pt-BR') : '';
       const clienteRasc = r.cliente || r.clienteManual || 'sem cliente';
-      if (!await showConfirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + ' (' + clienteRasc + '). Deseja restaurar?')) {
+
+      // [FIX-v99-RASC-EXPIRY] Verifica idade do rascunho.
+      // Rascunhos com >7 dias têm dados provavelmente desatualizados — avisa o técnico.
+      // Rascunhos com >30 dias são descartados automaticamente (evita confusão).
+      var _idadeRascunhoMs = r._rascunhoData ? (Date.now() - new Date(r._rascunhoData).getTime()) : 0;
+      var _idadeDias = Math.floor(_idadeRascunhoMs / (1000*60*60*24));
+      if(_idadeDias >= 30){
+        // Rascunho muito antigo — descarta silenciosamente
+        localStorage.removeItem(STORAGE_RASCUNHO);
+        try { window._rascunhoIdEstavel = null; } catch(e) {}
+        console.log('[Rascunho] Descartado automaticamente — ' + _idadeDias + ' dias de idade.');
+        return;
+      }
+      var _avisoIdade = '';
+      if(_idadeDias >= 7){
+        _avisoIdade = '\n⚠️ Este rascunho tem ' + _idadeDias + ' dias — alguns dados podem estar desatualizados.';
+      } else if(_idadeDias >= 1){
+        _avisoIdade = ' (' + _idadeDias + ' dia' + (_idadeDias > 1 ? 's' : '') + ' atrás)';
+      }
+
+      if (!await showConfirm('Existe um rascunho salvo' + (dataRasc ? ' em ' + dataRasc : '') + _avisoIdade + '\nCliente: ' + clienteRasc + '\n\nDeseja restaurar?')) {
         localStorage.removeItem(STORAGE_RASCUNHO);
         // [FIX-v93-RASCUNHO] Zera ID estável. sessionStorage mantido intencionalmente
         // para bloquear perguntas futuras se houver novo autoSave antes de navegar.
@@ -10643,11 +10757,13 @@ if (logoBase64) {
     }
 
     _busca.addEventListener('focus', function() { _renderDropdown(_busca.value.trim()); });
+    // [FIX-v98-DEBOUNCE] Debounce de 150ms para evitar jank em mobile com listas grandes (>200 clientes)
+    var _buscaDebounce = null;
     _busca.addEventListener('input', function() {
       var v = _busca.value.trim();
-      _renderDropdown(v);
-      // Se limpou o campo, limpa o select e o feedback também
-      if (!v) { _limparSelecaoCliente(); }
+      if (!v) { _limparSelecaoCliente(); _renderDropdown(''); return; }
+      clearTimeout(_buscaDebounce);
+      _buscaDebounce = setTimeout(function() { _renderDropdown(v); }, 150);
     });
     // Teclado: setas para navegar, Enter para selecionar, Escape para fechar
     _busca.addEventListener('keydown', function(e) {
@@ -11916,21 +12032,22 @@ if (logoBase64) {
       }
       if (_temCnpjEmail && window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
         try {
-          showToast('🔗 Gerando credencial...', 2000);
-          r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
+          showToast('🔗 Gerando credencial...', 8000);
+          r._forcarRenovacaoSenha = true;
           var _credEmail = await window._gerarCredencialPortal(r);
+          delete r._forcarRenovacaoSenha;
           if (_credEmail && _credEmail.cnpj) {
-            // [FIX-v94-SENHA-LOCAL] _portalSenha NUNCA é atribuída ao objeto r —
-            // usa variável local para evitar que uma exceção entre a atribuição e o
-            // delete persista a senha em texto claro no Firestore ou no backup.
             r._portalCnpj        = _credEmail.cnpj;
             var _senhaMsgEmail   = _credEmail.senha || null;
             portalUrl            = window._urlPortalV2 ? window._urlPortalV2(_credEmail.cnpj, _senhaMsgEmail) : null;
             if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) {
               salvarRelatorioNoFirestore(r).catch(function(){});
             }
+          } else if(!_credEmail) {
+            // [FIX-v100-NULL-FEEDBACK] Firebase indisponível após retry de 5s
+            showToast('⚠️ Sem conexão com o Firebase — e-mail será enviado sem o link do portal. Tente reenviar quando houver conexão.', 6000);
           }
-        } catch(eP) { console.warn('[E-mail] Falha ao gerar credencial portal:', eP); }
+        } catch(eP) { delete r._forcarRenovacaoSenha; console.warn('[E-mail] Falha ao gerar credencial portal:', eP); showToast('⚠️ Erro ao gerar link do portal: ' + (eP&&eP.message||'verifique a conexão.'), 5000); }
       }
 
       // 3. Monta e-mail com link do portal
@@ -12036,19 +12153,22 @@ if (logoBase64) {
     }
     if (_temCnpjWa && window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function') {
       try {
-        showToast('🔗 Gerando credencial...', 2000);
-        r._forcarRenovacaoSenha = true; // [FIX-v79-SENHA-MENSAGEM] Garante senha na mensagem
+        showToast('🔗 Gerando credencial...', 8000);
+        r._forcarRenovacaoSenha = true;
         var _credWa = await window._gerarCredencialPortal(r);
+        delete r._forcarRenovacaoSenha;
         if (_credWa && _credWa.cnpj) {
-          // [FIX-v94-SENHA-LOCAL] _portalSenha NUNCA é atribuída ao objeto r
           r._portalCnpj        = _credWa.cnpj;
           var _senhaMsgWa      = _credWa.senha || null;
           portalUrlWa          = window._urlPortalV2 ? window._urlPortalV2(_credWa.cnpj, _senhaMsgWa) : null;
           if (typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) {
             salvarRelatorioNoFirestore(r).catch(function(){});
           }
+        } else if(!_credWa) {
+          // [FIX-v100-NULL-FEEDBACK] Firebase indisponível após retry de 5s
+          showToast('⚠️ Sem conexão com o Firebase — WhatsApp será aberto sem o link do portal. Tente reenviar quando houver conexão.', 6000);
         }
-      } catch(eP) { console.warn('[WhatsApp] Falha ao gerar credencial portal:', eP); }
+      } catch(eP) { delete r._forcarRenovacaoSenha; console.warn('[WhatsApp] Falha ao gerar credencial portal:', eP); showToast('⚠️ Erro ao gerar link do portal: ' + (eP&&eP.message||'verifique a conexão.'), 5000); }
     } else if (window.location.protocol === 'file:') {
       showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.');
     }
@@ -13464,15 +13584,15 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       if(window.location.protocol==='file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.',5000); return; }
       var num=((r.whatsapp||r.telefone||'').replace(/\D/g,'')).trim();
       if(num.length<=11) num='55'+num;
-      // [FIX-v97-BUSCA-WA] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
       var pUrl=null; var _senhaBW=null;
       if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
         try{
-          showToast('🔗 Gerando link...',2000);
+          showToast('🔗 Gerando link...',8000);
           r._forcarRenovacaoSenha=true;
           var _cBW=await window._gerarCredencialPortal(r);
+          delete r._forcarRenovacaoSenha;
           if(_cBW&&_cBW.cnpj){ r._portalCnpj=_cBW.cnpj; _senhaBW=_cBW.senha||null; pUrl=window._urlPortalV2?window._urlPortalV2(_cBW.cnpj,_senhaBW):null; }
-        }catch(e){}
+        }catch(e){ delete r._forcarRenovacaoSenha; }
       }
       var _senhaInfoBusca = pUrl
         ? '\n🔑 *Seus dados de acesso:*\n   👤 Usuário: '+(r.cnpjCliente||'')+'\n   🔑 Senha: *'+(_senhaBW||'use a senha já recebida')+'*'+(_senhaBW?' (válida por 30 dias)':'')
@@ -13487,15 +13607,15 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       const id=b.getAttribute('data-busca-email'); const r=relatorios.find(x=>x.id===id); if(!r) return;
       if(window.location.protocol==='file:'){ showToast('⚠️ Abra via onlinees.vercel.app para enviar links ao cliente.',5000); return; }
       const email=(r.emailCliente||'').trim(); if(!email) return;
-      // [FIX-v97-BUSCA-EMAIL] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
       var pUrl=null; var _senhaBE=null;
       if(r.cnpjCliente && String(r.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
         try{
-          showToast('🔗 Gerando link...',2000);
+          showToast('🔗 Gerando link...',8000);
           r._forcarRenovacaoSenha=true;
           var _cBE=await window._gerarCredencialPortal(r);
+          delete r._forcarRenovacaoSenha;
           if(_cBE&&_cBE.cnpj){ r._portalCnpj=_cBE.cnpj; _senhaBE=_cBE.senha||null; pUrl=window._urlPortalV2?window._urlPortalV2(_cBE.cnpj,_senhaBE):null; }
-        }catch(e){}
+        }catch(e){ delete r._forcarRenovacaoSenha; }
       }
       const assunto='Online-ES – Relatório Técnico de Atendimento nº '+(r.numero||'');
       const linhas=['Olá'+(r.nomeAssinaturaCliente?', '+r.nomeAssinaturaCliente:'')+'!','','Segue o Relatório Técnico referente à visita da Online-ES'+(r.cliente?' na empresa '+r.cliente:'')+'.',''
@@ -15286,10 +15406,11 @@ async function renderMeus(){
             var pUrl=null; var _sW2=null;
             if(rr.cnpjCliente&&String(rr.cnpjCliente).replace(/\D/g,'').length>=8&&
                window.location.protocol!=='file:'&&typeof window._gerarCredencialPortal==='function'){
-              try{ showToast('🔗 Gerando link...',2000); rr._forcarRenovacaoSenha=true;
+              try{ showToast('🔗 Gerando link...',8000); rr._forcarRenovacaoSenha=true;
                 var _cW2=await window._gerarCredencialPortal(rr);
+                delete rr._forcarRenovacaoSenha;
                 if(_cW2&&_cW2.cnpj){ rr._portalCnpj=_cW2.cnpj; _sW2=_cW2.senha||null; pUrl=window._urlPortalV2?window._urlPortalV2(_cW2.cnpj,_sW2):null; }
-              }catch(e){}
+              }catch(e){ delete rr._forcarRenovacaoSenha; }
             }
             var _si2=pUrl?('\n🔑 *Seus dados de acesso:*\n   👤 Usuário: '+(rr.cnpjCliente||'')+'\n   🔑 Senha: *'+(_sW2||'use a senha já recebida')+'*'+(_sW2?' (válida por 30 dias)':'')):'';
             var msg2=pUrl?'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o RAT *'+(rr.numero||'')+'*.\n\n📂 Portal do Cliente:\n'+pUrl+_si2+'\n\nQualquer dúvida estamos à disposição!'
@@ -15303,14 +15424,14 @@ async function renderMeus(){
             var rr=filtrados.find(function(x){return x.id===r.id;}); if(!rr) return;
             var email=(rr.emailCliente||'').trim();
             if(!email){showToast('⚠️ E-mail não informado.',3000);return;}
-            // [FIX-v97-MEUS2-EMAIL] Usa _gerarCredencialPortal para obter senha na mensagem.
             var pUrl2=null; var _sE2=null;
             if(rr.cnpjCliente&&String(rr.cnpjCliente).replace(/\D/g,'').length>=8&&
                window.location.protocol!=='file:'&&typeof window._gerarCredencialPortal==='function'){
-              try{ showToast('🔗 Gerando link...',2000); rr._forcarRenovacaoSenha=true;
+              try{ showToast('🔗 Gerando link...',8000); rr._forcarRenovacaoSenha=true;
                 var _cE2=await window._gerarCredencialPortal(rr);
+                delete rr._forcarRenovacaoSenha;
                 if(_cE2&&_cE2.cnpj){ rr._portalCnpj=_cE2.cnpj; _sE2=_cE2.senha||null; pUrl2=window._urlPortalV2?window._urlPortalV2(_cE2.cnpj,_sE2):null; }
-              }catch(e){}
+              }catch(e){ delete rr._forcarRenovacaoSenha; }
             }
             var assunto2='Online-ES – Relatório Técnico nº '+(rr.numero||'');
             var linhas2=['Olá'+(rr.nomeAssinaturaCliente?', '+rr.nomeAssinaturaCliente:'')+'!','',
@@ -15367,14 +15488,14 @@ async function renderMeus(){
         if(!r2) return;
         var email = (r2.emailCliente || '').trim();
         if(!email){ showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
-        // [FIX-v97-MEUS-EMAIL] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
         var portalUrl = null; var _sME = null;
         if(r2.cnpjCliente && String(r2.cnpjCliente).replace(/\D/g,'').length>=8 &&
            window.location.protocol !== 'file:' && typeof window._gerarCredencialPortal === 'function'){
           try {
-            showToast('🔗 Gerando link...', 2000);
+            showToast('🔗 Gerando link...', 8000);
             r2._forcarRenovacaoSenha = true;
             var _cME = await window._gerarCredencialPortal(r2);
+            delete r2._forcarRenovacaoSenha;
             if(_cME && _cME.cnpj){
               r2._portalCnpj = _cME.cnpj; _sME = _cME.senha || null;
               portalUrl = window._urlPortalV2 ? window._urlPortalV2(_cME.cnpj, _sME) : null;
@@ -15382,7 +15503,7 @@ async function renderMeus(){
                 salvarRelatorioNoFirestore(r2).catch(function(){});
               }
             }
-          } catch(eP){ console.warn('[Meus/Email] Falha ao gerar credencial:', eP); }
+          } catch(eP){ delete r2._forcarRenovacaoSenha; console.warn('[Meus/Email] Falha ao gerar credencial:', eP); }
         }
         var numero  = r2.numero  || '';
         var cliente = r2.cliente || '';
@@ -15427,14 +15548,14 @@ async function renderMeus(){
         if(!num){ showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         if(num.length <= 11) num = '55' + num;
 
-        // [FIX-v97-MEUS-WA] Usa _gerarCredencialPortal com _forcarRenovacaoSenha para obter senha.
         var portalUrl = null; var _sMW = null;
         if(r2.cnpjCliente && String(r2.cnpjCliente).replace(/\D/g,'').length>=8 &&
            typeof window._gerarCredencialPortal === 'function'){
           try {
-            showToast('🔗 Gerando link...', 2000);
+            showToast('🔗 Gerando link...', 8000);
             r2._forcarRenovacaoSenha = true;
             var _cMW = await window._gerarCredencialPortal(r2);
+            delete r2._forcarRenovacaoSenha;
             if(_cMW && _cMW.cnpj){
               r2._portalCnpj = _cMW.cnpj; _sMW = _cMW.senha || null;
               portalUrl = window._urlPortalV2 ? window._urlPortalV2(_cMW.cnpj, _sMW) : null;
@@ -15442,7 +15563,7 @@ async function renderMeus(){
                 salvarRelatorioNoFirestore(r2).catch(function(){});
               }
             }
-          } catch(eP){ console.warn('[Meus/WhatsApp] Falha ao gerar credencial:', eP); }
+          } catch(eP){ delete r2._forcarRenovacaoSenha; console.warn('[Meus/WhatsApp] Falha ao gerar credencial:', eP); }
         }
 
         var msg;
@@ -15598,18 +15719,21 @@ async function _renderMeusComCache() {
         var num = (r2.whatsapp || r2.telefone || '').replace(/\D/g,'');
         if (!num) { showToast('⚠️ WhatsApp não informado neste relatório.', 3000); return; }
         if (num.length <= 11) num = '55' + num;
-        var portalUrl = null;
-        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
+        var portalUrl = null; var _senhaCW = null;
+        // [FIX-v98-CACHE-WA] Usa _gerarCredencialPortal para obter senha.
+        if(r2.cnpjCliente && String(r2.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
           try {
-            showToast('🔗 Gerando link...', 2000);
-            var tok = await window._gerarTokenPortal(r2);
-            if (tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
-            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
-          } catch(eP) { console.warn('[Cache/WhatsApp] Falha ao gerar token:', eP); }
+            showToast('🔗 Gerando link...', 8000);
+            r2._forcarRenovacaoSenha = true;
+            var _cCW = await window._gerarCredencialPortal(r2);
+            delete r2._forcarRenovacaoSenha;
+            if(_cCW && _cCW.cnpj){ r2._portalCnpj=_cCW.cnpj; _senhaCW=_cCW.senha||null; portalUrl=window._urlPortalV2?window._urlPortalV2(_cCW.cnpj,_senhaCW):null; }
+            if(portalUrl && typeof salvarRelatorioNoFirestore==='function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
+          } catch(eP){ delete r2._forcarRenovacaoSenha; console.warn('[Cache/WhatsApp] Falha ao gerar credencial:', eP); }
         }
-        var _senhaInfoCache = r2._portalSenha
-          ? '\n🔑 Senha de acesso: *' + r2._portalSenha + '* (válida por 30 dias)\n    (Usuário: CNPJ/CPF — ' + (r2.cnpjCliente||'') + ')'
-          : '\n🔑 Use seu CNPJ/CPF e a senha já recebida anteriormente.';
+        var _senhaInfoCache = portalUrl
+          ? ('\n🔑 *Seus dados de acesso:*\n   👤 Usuário: '+(r2.cnpjCliente||'')+'\n   🔑 Senha: *'+(_senhaCW||'use a senha já recebida')+'*'+(_senhaCW?' (válida por 30 dias)':''))
+          : '';
         var msg = portalUrl
           ? 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento do cliente *' + (r2.cliente||'') + '*, RAT *' + (r2.numero||'') + '*.\n\n📂 Acesse o Portal do Cliente para baixar seu relatório:\n' + portalUrl + _senhaInfoCache + '\n\nQualquer dúvida estamos à disposição!'
           : 'Olá! Aqui é da *ONLINE-ES – Eletroeletrônica*. 😊\n\nSegue o Relatório Técnico de Atendimento Nº *' + (r2.numero||'') + '* – ' + (r2.cliente||'') + '.';
@@ -15624,14 +15748,17 @@ async function _renderMeusComCache() {
         if (!r2) return;
         var email = (r2.emailCliente || '').trim();
         if (!email) { showToast('⚠️ E-mail não informado neste relatório.', 3000); return; }
-        var portalUrl = null;
-        if (window.location.protocol !== 'file:' && typeof window._gerarTokenPortal === 'function') {
+        var portalUrl = null; var _senhaCE = null;
+        // [FIX-v98-CACHE-EMAIL] Usa _gerarCredencialPortal para obter senha.
+        if(r2.cnpjCliente && String(r2.cnpjCliente).replace(/\D/g,'').length>=8 && typeof window._gerarCredencialPortal==='function'){
           try {
-            showToast('🔗 Gerando link...', 2000);
-            var tok = await window._gerarTokenPortal(r2);
-            if (tok && typeof window._urlPortal === 'function') portalUrl = window._urlPortal(tok, r2);
-            if (tok && typeof salvarRelatorioNoFirestore === 'function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
-          } catch(eP) { console.warn('[Cache/Email] Falha ao gerar token:', eP); }
+            showToast('🔗 Gerando link...', 8000);
+            r2._forcarRenovacaoSenha = true;
+            var _cCE = await window._gerarCredencialPortal(r2);
+            delete r2._forcarRenovacaoSenha;
+            if(_cCE && _cCE.cnpj){ r2._portalCnpj=_cCE.cnpj; _senhaCE=_cCE.senha||null; portalUrl=window._urlPortalV2?window._urlPortalV2(_cCE.cnpj,_senhaCE):null; }
+            if(portalUrl && typeof salvarRelatorioNoFirestore==='function' && navigator.onLine) salvarRelatorioNoFirestore(r2).catch(function(){});
+          } catch(eP){ delete r2._forcarRenovacaoSenha; console.warn('[Cache/Email] Falha ao gerar credencial:', eP); }
         }
         var assunto = 'Online-ES – Relatório Técnico de Atendimento nº ' + (r2.numero||'');
         var linhas = [
@@ -15647,12 +15774,8 @@ async function _renderMeusComCache() {
         if (portalUrl) {
           linhas.push('🔗 Acesse e baixe seu Relatório Técnico completo (disponível por 30 dias):');
           linhas.push(portalUrl);
-          if(r2._portalSenha){
-            linhas.push('👤 Usuário (CNPJ/CPF): ' + (r2.cnpjCliente || ''));
-            linhas.push('🔑 Senha de acesso: ' + r2._portalSenha + ' (válida por 30 dias)');
-          } else {
-            linhas.push('👤 Usuário: seu CNPJ/CPF  |  🔑 Use a senha já recebida anteriormente');
-          }
+          linhas.push('👤 Usuário (CNPJ/CPF): ' + (r2.cnpjCliente || ''));
+          linhas.push(_senhaCE ? '🔑 Senha: '+_senhaCE+' (válida por 30 dias)' : '🔑 Use a senha recebida anteriormente.');
         }
         linhas.push('', 'Fico à disposição para quaisquer esclarecimentos.', '', 'Atenciosamente,', 'Online-ES – Eletroeletrônica', 'www.onlinees.com.br');
         window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener,noreferrer');
@@ -16612,23 +16735,32 @@ async function _clearBFServer(username) {
 async function _checkBruteForce(username) {
   const key = (username || '').toLowerCase().trim();
   const now = Date.now();
-  // 1) Verifica cache local (sessionStorage) — resposta imediata
+  // 1) Verifica cache local (sessionStorage/localStorage) — resposta imediata
   const data = _getBFData();
   if (data[key] && data[key].lockedUntil > now) {
     const mins = Math.ceil((data[key].lockedUntil - now) / 60000);
     return { blocked: true, message: 'Muitas tentativas incorretas. Tente novamente em ' + mins + ' minuto(s).' };
   }
-  // 2) Verifica bloqueio no Firestore (persiste entre sessões) — async
+  // 2) Verifica bloqueio no Firestore (persiste entre sessões/abas) — async
   try {
     var serverEntry = await _checkBFServer(key);
-    if (serverEntry && serverEntry.lockedUntil > now) {
-      // Sincroniza o bloqueio server no sessionStorage local
-      if (!data[key]) data[key] = {};
-      data[key].lockedUntil = serverEntry.lockedUntil;
-      data[key].count = serverEntry.count;
-      _saveBFData(data);
-      const mins = Math.ceil((serverEntry.lockedUntil - now) / 60000);
-      return { blocked: true, message: 'Muitas tentativas incorretas. Tente novamente em ' + mins + ' minuto(s).' };
+    if (serverEntry) {
+      // [FIX-v100-BF-COUNT] Detecta count acumulado >= max mesmo sem lockedUntil —
+      // cobre o caso de nova-aba-anônima-a-cada-4-tentativas (mesmo fix do portal v99).
+      if (serverEntry.lockedUntil <= now && serverEntry.count >= LOGIN_MAX_ATTEMPTS) {
+        serverEntry.lockedUntil = now + LOGIN_LOCKOUT_MS;
+        // Persiste o novo lockedUntil de forma assíncrona
+        _saveBFServer(key, { lockedUntil: serverEntry.lockedUntil, count: 0, lastAttempt: now });
+      }
+      if (serverEntry.lockedUntil > now) {
+        // Sincroniza o bloqueio server no localStorage local
+        if (!data[key]) data[key] = {};
+        data[key].lockedUntil = serverEntry.lockedUntil;
+        data[key].count = serverEntry.count;
+        _saveBFData(data);
+        const mins = Math.ceil((serverEntry.lockedUntil - now) / 60000);
+        return { blocked: true, message: 'Muitas tentativas incorretas. Tente novamente em ' + mins + ' minuto(s).' };
+      }
     }
   } catch(e) {}
   return { blocked: false };
@@ -16645,10 +16777,12 @@ function _registerFailedAttempt(username) {
   if (entry.count >= LOGIN_MAX_ATTEMPTS) {
     entry.lockedUntil = now + LOGIN_LOCKOUT_MS;
     entry.count = 0;
-    // [FIX-v88-BF-SERVER] Persiste bloqueio no Firestore — não bypassável fechando a aba
-    _saveBFServer(key, { lockedUntil: entry.lockedUntil, count: 0, lastAttempt: now });
   }
   _saveBFData(data);
+  // [FIX-v100-BF-PERSIST] Persiste no Firestore a CADA falha (antes: só ao bloquear).
+  // Idêntico ao fix do portal (v99). Sem isso: abrindo nova aba/modo anônimo a cada
+  // 4 tentativas, o localStorage zera e o atacante evita o bloqueio indefinidamente.
+  _saveBFServer(key, { lockedUntil: entry.lockedUntil || 0, count: entry.count, lastAttempt: now });
 }
 
 function _clearLoginAttempts(username) {
@@ -17465,10 +17599,11 @@ async function fazerLogin(){
     _mostrarBotao();
   });
 
-  // Quando instalação for concluída, oculta o botão
+  // Quando instalação for concluída (Android), oculta o botão e persiste flag
   window.addEventListener('appinstalled', function(){
     _ocultarBotao();
     _deferredPrompt = null;
+    try{ localStorage.setItem('pwa-installed','1'); }catch(e){}
     if(typeof showToast==='function') showToast('✅ Aplicativo instalado com sucesso!', 4000);
   });
 
@@ -17478,6 +17613,9 @@ async function fazerLogin(){
 
     // Se já está rodando como PWA instalada, não mostra o botão
     if(window.matchMedia('(display-mode: standalone)').matches){ return; }
+    // [FIX-v98-IOS-FLAG] Verifica flag de instalação salva — em iOS o display-mode não muda
+    // mesmo após instalação, então usamos localStorage para persistir o estado.
+    try{ if(localStorage.getItem('pwa-installed')==='1') return; }catch(e){}
 
     // iOS: detecta Safari mobile sem suporte a beforeinstallprompt
     var _isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -17487,14 +17625,19 @@ async function fazerLogin(){
     b.addEventListener('click', function(){
       if(_deferredPrompt){
         // Android/Chrome: dispara o prompt nativo
+        var _origHtml = b.innerHTML;
+        b.disabled = true;
+        b.innerHTML = '<i class="ri-loader-4-line"></i> Aguarde...';
         _deferredPrompt.prompt();
         _deferredPrompt.userChoice.then(function(choice){
+          b.disabled = false;
+          b.innerHTML = _origHtml;
           if(choice.outcome === 'accepted'){
             if(typeof showToast==='function') showToast('🎉 Instalando o aplicativo...', 3000);
           }
           _deferredPrompt = null;
           _ocultarBotao();
-        }).catch(function(){});
+        }).catch(function(){ b.disabled=false; b.innerHTML=_origHtml; });
       } else {
         // iOS / browsers sem suporte: mostra modal de instrução
         var _isIOS2 = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -17512,7 +17655,12 @@ async function fazerLogin(){
             +'<button id="_pwaInstallClose" style="margin-top:20px;width:100%;padding:12px;border-radius:12px;border:none;background:#f97316;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;">Entendi</button>'
             +'</div>';
           document.body.appendChild(_div);
-          _div.querySelector('#_pwaInstallClose').onclick=function(){ _div.remove(); };
+          _div.querySelector('#_pwaInstallClose').onclick=function(){
+            _div.remove();
+            // [FIX-v98-IOS-FLAG] Marca como "instalado" quando o usuário confirma instruções iOS
+            try{ localStorage.setItem('pwa-installed','1'); }catch(e){}
+            _ocultarBotao();
+          };
           _div.onclick=function(e){ if(e.target===_div) _div.remove(); };
         } else {
           alert(_isIOS2
@@ -19049,23 +19197,57 @@ async function _portalHashSenha(plain, salt){
   return Array.from(new Uint8Array(bits)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
 }
 async function _portalVerificarSenha(plain, cred){
+  // [FIX-v99-CASE] Normaliza para maiúsculas — senhas geradas são sempre maiúsculas (A-Z2-9).
+  // autocapitalize="characters" em type="password" é ignorado pelo iOS Safari,
+  // então o cliente pode digitar em minúsculas e a senha correta seria recusada.
+  var plainNorm = String(plain||'').trim().toUpperCase();
+  // Também tenta sem normalização (retrocompat com senhas numéricas v<98 onde case é irrelevante)
+  var plainRaw  = String(plain||'').trim();
+
+  // [FIX-v99-TIMING] Substituído h === cred.senhaHash por _portalSafeEqual
+  // para comparação em tempo constante — previne timing attacks que inferem
+  // caracteres do hash comparando diferenças de microssegundos na resposta.
+  function _portalSafeEqual(a, b){
+    if(typeof a !== 'string' || typeof b !== 'string') return false;
+    var diff = 0, len = Math.max(a.length, b.length);
+    if(a.length !== b.length) diff = 1;
+    for(var _i=0; _i<a.length; _i++) diff |= a.charCodeAt(_i) ^ (b.charCodeAt(_i)||0);
+    return diff === 0;
+  }
+
   // Novo formato: PBKDF2 com salt
-  if (cred.senhaSalt) {
-    var h = await _portalHashSenha(String(plain||'').trim(), cred.senhaSalt);
-    return h === cred.senhaHash;
+  if(cred.senhaSalt){
+    // Tenta maiúsculas primeiro (novo padrão v98+), depois raw (legado numérico)
+    var hUp  = await _portalHashSenha(plainNorm, cred.senhaSalt);
+    if(_portalSafeEqual(hUp, cred.senhaHash)) return true;
+    if(plainRaw !== plainNorm){
+      var hRaw = await _portalHashSenha(plainRaw, cred.senhaSalt);
+      return _portalSafeEqual(hRaw, cred.senhaHash);
+    }
+    return false;
   }
   // Legado: SHA-256 simples (docs criados antes do v89)
-  var h2 = await _sha256(String(plain||'').trim());
-  return h2 === cred.senhaHash;
+  var h2 = await _sha256(plainRaw);
+  return _portalSafeEqual(h2, cred.senhaHash);
 }
 
-/* ── Gerar senha aleatória de 6 dígitos ─────────────────── */
-function _gerarSenha6(){
-  var arr = new Uint8Array(4);
+/* ── Gerar senha aleatória: 8 caracteres alfanuméricos ──────
+   [FIX-v98-ENTROPIA] Aumentado de 6 numérico (~20 bits) para
+   8 alfanumérico (~47 bits, 1T combinações).
+   [FIX-v99-NOME] Renomeado de _gerarSenha6 para _gerarSenhaPortal.
+   Exclui caracteres ambíguos: 0/O, 1/I/l para evitar confusão ao
+   digitar. Ex: "K7X4M2RP" — sempre MAIÚSCULAS para consistência
+   com normalização em _portalVerificarSenha e _portalHashSenha. */
+function _gerarSenhaPortal(){
+  var CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars — sem 0/O/1/I
+  var arr = new Uint8Array(8);
   crypto.getRandomValues(arr);
-  var n = (arr[0]<<24|arr[1]<<16|arr[2]<<8|arr[3]) >>> 0;
-  return String(100000 + (n % 900000));
+  var senha = '';
+  for(var i=0;i<8;i++) senha += CHARS[arr[i] % CHARS.length];
+  return senha; // sempre maiúsculas
 }
+// Alias legado — será removido na v100
+var _gerarSenha6 = _gerarSenhaPortal;
 
 /* ── Normaliza CNPJ ou CPF (apenas dígitos) ─────────────── */
 function _docId(cnpj){ return _normCnpj(cnpj); }
@@ -19077,9 +19259,19 @@ function _docId(cnpj){ return _normCnpj(cnpj); }
 window._gerarCredencialPortal = async function(rat){
   /* rat precisa ter: cnpjCliente, cliente, emailCliente, whatsapp/telefone */
   var cnpj = _normCnpj(rat.cnpjCliente);
-  if(!cnpj || cnpj.length < 8) return null; // sem doc válido, sem portal
+  if(!cnpj || cnpj.length < 8) return null;
 
+  // [FIX-v100-DB-WAIT] Se _db() retorna null, aguarda até 5s pelo Firebase inicializar.
+  // Sem isso: se o técnico clica WA/Email imediatamente após o login (antes do Firebase
+  // terminar de inicializar), _db() é null → credencial não gerada → senha não enviada.
   var db = _db();
+  if(!db){
+    for(var _w=0; _w<10; _w++){
+      await new Promise(function(r){ setTimeout(r, 500); });
+      db = _db();
+      if(db) break;
+    }
+  }
   if(!db) return null;
 
   var colRef = db.collection('onlineEsPortalClientes');
@@ -19130,10 +19322,14 @@ window._gerarCredencialPortal = async function(rat){
     }
 
     // Senha expirada, faltam ≤7 dias, ou renovação forçada → gera nova senha
-    senhaPlain = _gerarSenha6();
+    senhaPlain = _gerarSenhaPortal(); // já é maiúscula por definição
+    // [FIX-v99-CASE] Normaliza explicitamente para maiúsculas antes de hashear.
+    // _gerarSenhaPortal() já retorna maiúsculas, mas a normalização garante consistência
+    // com _portalVerificarSenha que faz .toUpperCase() antes de verificar.
+    var senhaParaHash = senhaPlain.toUpperCase();
     // [FIX-v89-PORTAL-HASH] PBKDF2 com salt em vez de SHA-256 simples
     var senhaSalt = await _portalGerarSalt();
-    var hash = await _portalHashSenha(senhaPlain, senhaSalt);
+    var hash = await _portalHashSenha(senhaParaHash, senhaSalt);
     var expiraEm = new Date(agora.getTime() + 30*24*60*60*1000).toISOString();
 
     // [FIX-v95-WHATSAPPS] Coleta e-mails E whatsapps das últimas RATs do mesmo CNPJ.
@@ -19215,30 +19411,33 @@ window._urlPortal = function(token, rat){
 };
 
 /* ─────────────────────────────────────────────────────────────
-   _gerarTokenPortal — compatibilidade com código existente
-   Agora gera credencial em vez de token aleatório
+   _gerarTokenPortal — @deprecated v98
+   OBSOLETO: use window._gerarCredencialPortal() diretamente e
+   leia resultado.senha da variável local retornada.
+   Esta função DESCARTA resultado.senha — qualquer chamador que
+   dependa da senha na mensagem deve migrar para _gerarCredencialPortal.
+   Mantida apenas para retrocompatibilidade (btnVerPortalModal, etc).
 ──────────────────────────────────────────────────────────── */
 window._gerarTokenPortal = async function(rat){
+  // [FIX-v98-DEPRECATED] Aviso de uso de função obsoleta
+  if(typeof console !== 'undefined' && console.warn){
+    console.warn('[ONLINE-ES] _gerarTokenPortal() está OBSOLETA. ' +
+      'Use _gerarCredencialPortal() e leia resultado.senha localmente. ' +
+      'Chamador:', new Error().stack ? new Error().stack.split('\n')[2] : '(desconhecido)');
+  }
   try{
-    // [FIX-v79-SENHA-MENSAGEM] Força renovação de senha ao enviar RAT via WhatsApp/e-mail.
-    // Sem isso: quando senha válida (>7 dias), _gerarCredencialPortal retornava nova:false e
-    // senha:null → mensagem dizia "senha já recebida anteriormente" em vez de mostrar a senha.
-    // O técnico que envia uma RAT AGORA precisa que a senha seja incluída na mensagem.
-    // Após 30 dias a senha expira — o cliente pode renovar pelo portal.
     rat._forcarRenovacaoSenha = true;
     var resultado = await window._gerarCredencialPortal(rat);
+    delete rat._forcarRenovacaoSenha; // [FIX-v98] limpa imediatamente
     if(resultado && resultado.cnpj){
-      // Salva cnpj no objeto rat para uso em _urlPortalV2
       rat._portalCnpj = resultado.cnpj;
-      // [FIX-v94-SENHA-LOCAL] _portalSenha NÃO é atribuída ao objeto rat — a senha
-      // fica apenas em resultado.senha (escopo local desta função).
-      // Chamadores que precisam da senha devem lê-la de resultado diretamente.
       rat.portalToken = 'cnpj:' + resultado.cnpj;
-      rat.portalTokenCriado = resultado.credencial.criadaEm;
-      return resultado.cnpj; // retorna cnpj como "token"
+      rat.portalTokenCriado = resultado.credencial ? resultado.credencial.criadaEm : null;
+      return resultado.cnpj;
     }
     return null;
   }catch(e){
+    delete rat._forcarRenovacaoSenha; // [FIX-v98] limpa mesmo em caso de erro
     console.warn('[Portal v2] _gerarTokenPortal wrapper:', e.message||e);
     return null;
   }
@@ -19431,7 +19630,9 @@ function _portalCheckBF(cnpj){
   return { blocked: false };
 }
 
-// [FIX-v93-PORTAL-BF] Verifica bloqueio no Firestore (persiste entre sessões/abas)
+// [FIX-v93-PORTAL-BF] Verifica bloqueio no Firestore (persiste entre sessões)
+// [FIX-v99-BF-PERSIST] Verifica também count acumulado — bloqueia mesmo sem lockedUntil
+// (cobre o caso de abre-nova-aba-anônima a cada 4 tentativas)
 async function _portalCheckBFServer(cnpj){
   try{
     var cfg = window.firebaseConfig || {};
@@ -19446,6 +19647,12 @@ async function _portalCheckBFServer(cnpj){
     if(!json.fields) return null;
     var lockedUntil = Number(json.fields.lockedUntil ? (json.fields.lockedUntil.integerValue || 0) : 0);
     var count = Number(json.fields.count ? (json.fields.count.integerValue || 0) : 0);
+    // [FIX-v99-BF-PERSIST] Se count acumulado >= max sem lockedUntil: aplica bloqueio agora
+    if(lockedUntil === 0 && count >= _PORTAL_MAX_TENT){
+      lockedUntil = Date.now() + _PORTAL_LOCKOUT;
+      // Atualiza lockedUntil no Firestore de forma assíncrona
+      _portalSaveBFServer(cnpj, { count: 0, lockedUntil: lockedUntil, lastAttempt: Date.now() });
+    }
     return { lockedUntil, count };
   }catch(e){ return null; }
 }
@@ -19483,7 +19690,11 @@ function _portalRegisterFail(cnpj){
       d[cnpj].count = 0;
     }
     sessionStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
-    // [FIX-v93-PORTAL-BF] Persiste no Firestore para bloquear entre sessões
+    // [FIX-v99-BF-PERSIST] Persiste no Firestore a CADA falha (antes: só ao bloquear).
+    // Sem isso: abrindo nova aba anônima a cada 4 tentativas, o atacante zera o
+    // sessionStorage e evita o bloqueio indefinidamente.
+    // Agora o Firestore acumula tentativas entre sessões — _portalCheckBFServer
+    // lê o count acumulado e bloqueia mesmo que sessionStorage esteja limpo.
     _portalSaveBFServer(cnpj, d[cnpj]);
   }catch(e){}
 }
@@ -19492,6 +19703,8 @@ function _portalClearBF(cnpj){
     var d = JSON.parse(sessionStorage.getItem(_PORTAL_BF_KEY) || '{}');
     delete d[cnpj];
     sessionStorage.setItem(_PORTAL_BF_KEY, JSON.stringify(d));
+    // [FIX-v99-BF-PERSIST] Limpa também o Firestore no login bem-sucedido
+    _portalSaveBFServer(cnpj, { count: 0, lockedUntil: 0, lastAttempt: 0 });
   }catch(e){}
 }
 
@@ -19660,7 +19873,8 @@ function _renderLogin(opts){
       '</div>' +
       '<div style="margin-bottom:4px;">' +
         '<label class="pv2-label">Senha (6 dígitos recebida por WhatsApp ou e-mail)</label>' +
-        '<input id="pv2Senha" class="pv2-input" type="password" inputmode="numeric" maxlength="6" placeholder="• • • • • •" autocomplete="current-password">' +
+        '<input id="pv2Senha" class="pv2-input" type="password" inputmode="text" maxlength="8" placeholder="• • • • • • • •" autocomplete="current-password" autocapitalize="characters">' +
+        '<div style="font-size:.72rem;color:#94a3b8;margin-top:4px;"><i class="ri-information-line"></i> A senha é composta por letras e números — maiúsculas e minúsculas são aceitas.</div>' +
       '</div>' +
       '<button class="pv2-btn" id="pv2BtnLogin"><i class="ri-login-box-line"></i> Entrar</button>' +
       '<button class="pv2-btn-sec" id="pv2BtnEsqueci">Esqueci minha senha / Solicitar novo acesso</button>' +
@@ -19761,7 +19975,7 @@ function _renderLogin(opts){
       // Instrução adicional acima do botão
       var _dica = document.createElement('div');
       _dica.style.cssText = 'font-size:.78rem;color:#f97316;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:10px;padding:8px 12px;margin-bottom:10px;line-height:1.5;';
-      _dica.innerHTML = '<i class="ri-key-line"></i> <strong>Digite a senha de 6 dígitos</strong> recebida no WhatsApp ou e-mail para acessar seus relatórios.';
+      _dica.innerHTML = '<i class="ri-key-line"></i> <strong>Digite a senha</strong> recebida no WhatsApp ou e-mail para acessar seus relatórios.';
       var _btnEl = document.getElementById('pv2BtnLogin');
       if(_btnEl && _btnEl.parentNode) _btnEl.parentNode.insertBefore(_dica, _btnEl);
     }
@@ -19779,7 +19993,8 @@ function _renderLogin(opts){
       var senhaVal = document.getElementById('pv2Senha').value;
 
       if(!cnpjVal.trim()){ errEl.textContent='Informe o CNPJ ou CPF.'; errEl.style.display='block'; btnLogin.disabled=false; btnLogin.innerHTML='<i class="ri-login-box-line"></i> Entrar'; return; }
-      if(!senhaVal.trim() || senhaVal.trim().length < 6){ errEl.textContent='Informe os 6 dígitos da senha.'; errEl.style.display='block'; btnLogin.disabled=false; btnLogin.innerHTML='<i class="ri-login-box-line"></i> Entrar'; return; }
+      // [FIX-v98-ENTROPIA] Aceita senhas de 6+ chars (retrocompat com senhas numéricas antigas) e novas alfanuméricas de 8 chars
+      if(!senhaVal.trim() || senhaVal.trim().length < 6){ errEl.textContent='Informe a senha recebida no WhatsApp ou e-mail.'; errEl.style.display='block'; btnLogin.disabled=false; btnLogin.innerHTML='<i class="ri-login-box-line"></i> Entrar'; return; }
 
       var resultado = await _loginPortal(cnpjVal, senhaVal.trim());
 
@@ -19826,10 +20041,11 @@ async function _renderSenhaExpirada(cnpj, cred){
     '</div>';
 
   // 1. Gera nova senha e salva no Firestore
-  var novaSenha = _gerarSenha6();
+  var novaSenha = _gerarSenhaPortal();
+  var novaSenhaHash = novaSenha.toUpperCase(); // [FIX-v99-CASE] normaliza antes de hashear
   // [FIX-v89-PORTAL-HASH] PBKDF2 com salt
   var novaSalt = await _portalGerarSalt();
-  var hash = await _portalHashSenha(novaSenha, novaSalt);
+  var hash = await _portalHashSenha(novaSenhaHash, novaSalt);
   var expiraEm = new Date(Date.now() + 30*24*60*60*1000).toISOString();
   var db = _db();
   if(db){
@@ -20031,10 +20247,11 @@ function _renderEsqueciSenha(){
           errEl.style.display='block';
         } else {
           var cred = snap.data();
-          var novaSenha = _gerarSenha6();
+          var novaSenha = _gerarSenhaPortal();
+          var novaSenhaHash2 = novaSenha.toUpperCase(); // [FIX-v99-CASE] normaliza antes de hashear
           // [FIX-v89-PORTAL-HASH] PBKDF2 com salt
           var novoSaltEsq = await _portalGerarSalt();
-          var hash = await _portalHashSenha(novaSenha, novoSaltEsq);
+          var hash = await _portalHashSenha(novaSenhaHash2, novoSaltEsq);
           var expiraEm = new Date(Date.now()+30*24*60*60*1000).toISOString();
           await db.collection('onlineEsPortalClientes').doc(cnpj).update({
             senhaHash: hash, senhaSalt: novoSaltEsq, // [FIX-v89-PORTAL-HASH]
@@ -20624,7 +20841,10 @@ var _ppNomeAtual   = '';   // Nome do cliente selecionado
 var _ppRatDetalhe  = null; // RAT sendo visualizada no detalhe
 
 /* ── Helpers ─────────────────────────────────────────────────── */
-function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _esc(s){
+  if(typeof window.esc === 'function') return window.esc(s);
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;').replace(/\//g,'&#x2F;');
+}
 function _br(iso){
   if(!iso) return '';
   try{ return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso; }
